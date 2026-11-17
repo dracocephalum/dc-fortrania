@@ -141,4 +141,46 @@ public abstract record Statement
     /// <summary><c>BLOCK DATA</c>.</summary>
     /// <param name="Name">The name of the block data subprogram, or <see langword="null"/> when it has none.</param>
     public sealed record BlockData(string? Name) : Statement;
+
+    /// <summary><c>READ</c>.</summary>
+    /// <param name="Controls">
+    /// The control list. For the short form, <c>READ fmt, list</c>, it holds
+    /// the format alone under the keyword <c>FMT</c>, and no unit.
+    /// </param>
+    /// <param name="Items">What is read into, which may be nothing.</param>
+    public sealed record Read(IReadOnlyList<IOControl> Controls, IReadOnlyList<IOItem> Items) : Statement;
+
+    /// <summary><c>WRITE</c>.</summary>
+    /// <param name="Controls">The control list.</param>
+    /// <param name="Items">What is written, which may be nothing.</param>
+    public sealed record Write(IReadOnlyList<IOControl> Controls, IReadOnlyList<IOItem> Items) : Statement;
+
+    /// <summary><c>PRINT</c>.</summary>
+    /// <param name="Format">The format, or <see langword="null"/> for an asterisk, which is list-directed.</param>
+    /// <param name="Items">What is written, which may be nothing.</param>
+    public sealed record Print(Expression? Format, IReadOnlyList<IOItem> Items) : Statement;
+
+    /// <summary><c>OPEN</c>.</summary>
+    /// <param name="Controls">The control list.</param>
+    public sealed record Open(IReadOnlyList<IOControl> Controls) : Statement;
+
+    /// <summary><c>CLOSE</c>.</summary>
+    /// <param name="Controls">The control list.</param>
+    public sealed record Close(IReadOnlyList<IOControl> Controls) : Statement;
+
+    /// <summary><c>INQUIRE</c>.</summary>
+    /// <param name="Controls">The control list.</param>
+    public sealed record Inquire(IReadOnlyList<IOControl> Controls) : Statement;
+
+    /// <summary><c>REWIND</c>.</summary>
+    /// <param name="Controls">The control list; a bare unit is one item given by position.</param>
+    public sealed record Rewind(IReadOnlyList<IOControl> Controls) : Statement;
+
+    /// <summary><c>BACKSPACE</c>.</summary>
+    /// <param name="Controls">The control list; a bare unit is one item given by position.</param>
+    public sealed record Backspace(IReadOnlyList<IOControl> Controls) : Statement;
+
+    /// <summary><c>ENDFILE</c>.</summary>
+    /// <param name="Controls">The control list; a bare unit is one item given by position.</param>
+    public sealed record EndFile(IReadOnlyList<IOControl> Controls) : Statement;
 }

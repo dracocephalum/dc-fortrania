@@ -3,9 +3,9 @@ using System.Globalization;
 namespace Dracocephalum.Fortrania.Syntax;
 
 /// <summary>
-/// Parses a classified statement into its parts. It covers every kind but
-/// the input and output statements so far; a kind or a form it does not
-/// handle is reported as unsupported, never skipped.
+/// Parses a classified statement into its parts. A kind or a form it does
+/// not handle is reported as unsupported, never skipped; PENDING.md lists
+/// them under <i>FORTRAN 77 that Fortrania does not handle yet</i>.
 /// </summary>
 public static class StatementParser
 {
@@ -62,6 +62,15 @@ public static class StatementParser
             StatementKind.Function => ParseFunction(statement),
             StatementKind.Entry => ParseEntry(statement),
             StatementKind.BlockData => ParseBlockData(statement),
+            StatementKind.Read => ParseRead(statement),
+            StatementKind.Write => ParseWrite(statement),
+            StatementKind.Print => ParsePrint(statement),
+            StatementKind.Open => new Statement.Open(ParseControlListStatement(statement, "OPEN")),
+            StatementKind.Close => new Statement.Close(ParseControlListStatement(statement, "CLOSE")),
+            StatementKind.Inquire => new Statement.Inquire(ParseControlListStatement(statement, "INQUIRE")),
+            StatementKind.Rewind => new Statement.Rewind(ParsePositioningStatement(statement, "REWIND")),
+            StatementKind.Backspace => new Statement.Backspace(ParsePositioningStatement(statement, "BACKSPACE")),
+            StatementKind.EndFile => new Statement.EndFile(ParsePositioningStatement(statement, "ENDFILE")),
             _ => throw new FortranSyntaxException(statement.Source.Line, $"A {kind} statement is not supported yet."),
         };
     }
@@ -496,6 +505,140 @@ public static class StatementParser
         return new Statement.Entry(name, parameters);
     }
 
+    private static Statement.Read ParseRead(TokenizedStatement statement)
+    {
+        var reader = SplitKeyword(statement, "READ");
+        if (reader.TryRead(TokenKind.LeftParenthesis))
+        {
+            var controls = ParseControlList(reader);
+            return new Statement.Read(controls, ParseIOList(reader));
+        }
+
+        // The short form: a format, then the list after a comma.
+        var format = new IOControl("FMT", reader.TryRead(TokenKind.Star) ? null : reader.ParseExpression());
+        return new Statement.Read([format], ParseIOListAfterComma(reader));
+    }
+
+    private static Statement.Write ParseWrite(TokenizedStatement statement)
+    {
+        var reader = SplitKeyword(statement, "WRITE");
+        reader.Expect(TokenKind.LeftParenthesis, "An opening parenthesis is expected after WRITE.");
+        var controls = ParseControlList(reader);
+        return new Statement.Write(controls, ParseIOList(reader));
+    }
+
+    private static Statement.Print ParsePrint(TokenizedStatement statement)
+    {
+        var reader = SplitKeyword(statement, "PRINT");
+        var format = reader.TryRead(TokenKind.Star) ? null : reader.ParseExpression();
+        return new Statement.Print(format, ParseIOListAfterComma(reader));
+    }
+
+    // OPEN, CLOSE and INQUIRE: a control list and nothing after it.
+    private static List<IOControl> ParseControlListStatement(TokenizedStatement statement, string keyword)
+    {
+        var reader = SplitKeyword(statement, keyword);
+        reader.Expect(TokenKind.LeftParenthesis, $"An opening parenthesis is expected after {keyword}.");
+        var controls = ParseControlList(reader);
+        reader.ExpectEnd();
+        return controls;
+    }
+
+    // REWIND, BACKSPACE and ENDFILE: a control list, or a bare unit.
+    private static List<IOControl> ParsePositioningStatement(TokenizedStatement statement, string keyword)
+    {
+        var reader = SplitKeyword(statement, keyword);
+        List<IOControl> controls = reader.TryRead(TokenKind.LeftParenthesis)
+            ? ParseControlList(reader)
+            : [new IOControl(null, reader.ParseExpression())];
+
+        reader.ExpectEnd();
+        return controls;
+    }
+
+    // Called just inside the opening parenthesis; reads through the closing one.
+    private static List<IOControl> ParseControlList(Reader reader)
+    {
+        var controls = new List<IOControl>();
+        do
+        {
+            var keyword = reader.IsNameThenAssign ? reader.ReadName("A keyword is expected.") : null;
+            if (keyword is not null)
+            {
+                reader.Expect(TokenKind.Assign, "An equals sign is expected after the keyword.");
+            }
+
+            controls.Add(new IOControl(keyword, reader.TryRead(TokenKind.Star) ? null : reader.ParseExpression()));
+        }
+        while (reader.TryRead(TokenKind.Comma));
+
+        reader.Expect(TokenKind.RightParenthesis, "A closing parenthesis is expected after the control list.");
+        return controls;
+    }
+
+    private static List<IOItem> ParseIOListAfterComma(Reader reader)
+    {
+        if (reader.IsAtEnd)
+        {
+            return [];
+        }
+
+        reader.Expect(TokenKind.Comma, "A comma is expected before the list of items.");
+        return ParseIOList(reader);
+    }
+
+    // A possibly empty list of items, to the end of the statement.
+    private static List<IOItem> ParseIOList(Reader reader)
+    {
+        var items = new List<IOItem>();
+        if (reader.IsAtEnd)
+        {
+            return items;
+        }
+
+        do
+        {
+            items.Add(ParseIOItem(reader));
+        }
+        while (reader.TryRead(TokenKind.Comma));
+
+        reader.ExpectEnd();
+        return items;
+    }
+
+    private static IOItem ParseIOItem(Reader reader)
+    {
+        // An opening parenthesis starts either an implied DO or an expression
+        // in parentheses; only the first has an equals sign directly inside.
+        if (!reader.IsImpliedDoNext)
+        {
+            return new IOItem.Value(reader.ParseExpression());
+        }
+
+        reader.Expect(TokenKind.LeftParenthesis, "An opening parenthesis is expected.");
+        var items = new List<IOItem>();
+        while (!reader.IsNameThenAssign)
+        {
+            items.Add(ParseIOItem(reader));
+            reader.Expect(TokenKind.Comma, "A comma is expected after an item of an implied DO.");
+        }
+
+        var variable = reader.ReadName("The control variable of an implied DO is expected.");
+        reader.Expect(TokenKind.Assign, "An equals sign is expected after the control variable.");
+        var first = reader.ParseExpression();
+        reader.Expect(TokenKind.Comma, "A comma is expected between the bounds of an implied DO.");
+        var last = reader.ParseExpression();
+        var step = reader.TryRead(TokenKind.Comma) ? reader.ParseExpression() : null;
+        reader.Expect(TokenKind.RightParenthesis, "A closing parenthesis is expected after an implied DO.");
+
+        if (items.Count == 0)
+        {
+            throw reader.Fail("An implied DO has nothing to repeat.");
+        }
+
+        return new IOItem.ImpliedDo(items, variable, first, last, step);
+    }
+
     private static Statement.Include ParseInclude(TokenizedStatement statement)
     {
         var tokens = statement.Tokens;
@@ -571,6 +714,36 @@ public static class StatementParser
         // True when a name is next and an equals sign follows it.
         public bool IsNameThenAssign =>
             Current == TokenKind.Name && position + 1 < statement.Tokens.Count && statement.Tokens[position + 1].Kind == TokenKind.Assign;
+
+        // True when an opening parenthesis is next and the group it opens has
+        // an equals sign directly inside it, which only an implied DO has.
+        public bool IsImpliedDoNext
+        {
+            get
+            {
+                if (Current != TokenKind.LeftParenthesis)
+                {
+                    return false;
+                }
+
+                var depth = 0;
+                for (var index = position; index < statement.Tokens.Count; index++)
+                {
+                    switch (statement.Tokens[index].Kind)
+                    {
+                        case TokenKind.LeftParenthesis:
+                            depth++;
+                            break;
+                        case TokenKind.RightParenthesis when --depth == 0:
+                            return false;
+                        case TokenKind.Assign when depth == 1:
+                            return true;
+                    }
+                }
+
+                return false;
+            }
+        }
 
         public Expression ParseExpression() => ExpressionParser.Parse(statement, position, out position);
 

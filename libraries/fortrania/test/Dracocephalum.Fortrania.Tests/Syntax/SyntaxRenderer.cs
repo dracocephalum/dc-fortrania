@@ -58,10 +58,33 @@ internal static class SyntaxRenderer
             $"{(function.ReturnType is null ? string.Empty : $"{function.ReturnType.Type}{Render(function.ReturnType.Length)} ")}FUNCTION {function.Name}({string.Join(", ", function.Parameters)})",
         Statement.Entry entry => $"ENTRY {entry.Name}({string.Join(", ", entry.Parameters)})",
         Statement.BlockData block => $"BLOCK DATA {block.Name}".TrimEnd(),
+        Statement.Read read => $"READ({Render(read.Controls)}) {Render(read.Items)}".TrimEnd(),
+        Statement.Write write => $"WRITE({Render(write.Controls)}) {Render(write.Items)}".TrimEnd(),
+        Statement.Print print => $"PRINT {(print.Format is null ? "*" : Render(print.Format))}: {Render(print.Items)}".TrimEnd(),
+        Statement.Open open => $"OPEN({Render(open.Controls)})",
+        Statement.Close close => $"CLOSE({Render(close.Controls)})",
+        Statement.Inquire inquire => $"INQUIRE({Render(inquire.Controls)})",
+        Statement.Rewind rewind => $"REWIND({Render(rewind.Controls)})",
+        Statement.Backspace backspace => $"BACKSPACE({Render(backspace.Controls)})",
+        Statement.EndFile endFile => $"ENDFILE({Render(endFile.Controls)})",
         _ => throw new ArgumentOutOfRangeException(nameof(statement)),
     };
 
     private static string RenderList(IReadOnlyList<Expression> expressions) => string.Join(", ", expressions.Select(Render));
+
+    private static string Render(IReadOnlyList<IOControl> controls) =>
+        string.Join(", ", controls.Select(control =>
+            $"{(control.Keyword is null ? string.Empty : $"{control.Keyword}=")}{(control.Value is null ? "*" : Render(control.Value))}"));
+
+    private static string Render(IReadOnlyList<IOItem> items) => string.Join(", ", items.Select(Render));
+
+    private static string Render(IOItem item) => item switch
+    {
+        IOItem.Value value => Render(value.Expression),
+        IOItem.ImpliedDo loop =>
+            $"({Render(loop.Items)}, {loop.ControlVariable}={Render(loop.First)}..{Render(loop.Last)}{(loop.Step is null ? string.Empty : $" step {Render(loop.Step)}")})",
+        _ => throw new ArgumentOutOfRangeException(nameof(item)),
+    };
 
     private static string RenderLabel(int? label) => label is null ? string.Empty : $" {label}";
 
