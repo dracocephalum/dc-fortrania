@@ -149,7 +149,7 @@ public static partial class SymbolTableBuilder
             return entry.Name[0] is >= 'I' and <= 'N' ? ImplicitInteger : ImplicitReal;
         }
 
-        private static void Reject(Draft entry, Location? use, string how, SymbolKind kind)
+        private static void Reject(Draft entry, SourceLocation? use, string how, SymbolKind kind)
         {
             if (use is { } location)
             {

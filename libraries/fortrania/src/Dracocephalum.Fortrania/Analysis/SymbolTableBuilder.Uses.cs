@@ -7,7 +7,7 @@ public static partial class SymbolTableBuilder
 {
     private sealed partial class Builder
     {
-        private void Use(Statement statement, Location location)
+        private void Use(Statement statement, SourceLocation location)
         {
             switch (statement)
             {
@@ -86,7 +86,7 @@ public static partial class SymbolTableBuilder
             }
         }
 
-        private void Use(Expression? expression, Location location)
+        private void Use(Expression? expression, SourceLocation location)
         {
             switch (expression)
             {
@@ -115,7 +115,7 @@ public static partial class SymbolTableBuilder
             }
         }
 
-        private void Use(IReadOnlyList<Expression> expressions, Location location)
+        private void Use(IReadOnlyList<Expression> expressions, SourceLocation location)
         {
             foreach (var expression in expressions)
             {
@@ -125,7 +125,7 @@ public static partial class SymbolTableBuilder
 
         // The left side of an assignment: the name is assigned to, and only
         // what selects the element or the substring is read.
-        private void UseAsTarget(Expression target, Location location)
+        private void UseAsTarget(Expression target, SourceLocation location)
         {
             switch (target)
             {
@@ -146,7 +146,7 @@ public static partial class SymbolTableBuilder
             }
         }
 
-        private void Use(IReadOnlyList<IOControl> controls, Location location)
+        private void Use(IReadOnlyList<IOControl> controls, SourceLocation location)
         {
             foreach (var control in controls)
             {
@@ -154,7 +154,7 @@ public static partial class SymbolTableBuilder
             }
         }
 
-        private void Use(IReadOnlyList<IOItem> items, Location location)
+        private void Use(IReadOnlyList<IOItem> items, SourceLocation location)
         {
             foreach (var item in items)
             {
@@ -174,7 +174,7 @@ public static partial class SymbolTableBuilder
             }
         }
 
-        private void Use(IReadOnlyList<DataTarget> targets, Location location)
+        private void Use(IReadOnlyList<DataTarget> targets, SourceLocation location)
         {
             foreach (var target in targets)
             {

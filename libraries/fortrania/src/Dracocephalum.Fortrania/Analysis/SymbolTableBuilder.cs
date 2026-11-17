@@ -33,17 +33,11 @@ public static partial class SymbolTableBuilder
         return builder.Build(unit);
     }
 
-    // Where a statement being read stands, for error messages.
-    private readonly record struct Location(int Line, string? IncludeFile)
-    {
-        public FortranAnalysisException Error(string message) => new(Line, IncludeFile, message);
-    }
-
-    private sealed class Draft(string name, Location firstSeenAt)
+    private sealed class Draft(string name, SourceLocation firstSeenAt)
     {
         public string Name { get; } = name;
 
-        public Location FirstSeenAt { get; } = firstSeenAt;
+        public SourceLocation FirstSeenAt { get; } = firstSeenAt;
 
         public TypeSpecification? DeclaredType { get; set; }
 
@@ -64,13 +58,13 @@ public static partial class SymbolTableBuilder
         public bool IsStatementFunction { get; set; }
 
         // Where the name is first used in each way, or null when it never is.
-        public Location? CalledAt { get; set; }
+        public SourceLocation? CalledAt { get; set; }
 
-        public Location? ReferencedAt { get; set; }
+        public SourceLocation? ReferencedAt { get; set; }
 
-        public Location? UsedAsValueAt { get; set; }
+        public SourceLocation? UsedAsValueAt { get; set; }
 
-        public Location? AssignedAt { get; set; }
+        public SourceLocation? AssignedAt { get; set; }
 
         public Symbol ToSymbol(SymbolKind kind, TypeSpecification? type) => new(
             Name,
@@ -85,7 +79,8 @@ public static partial class SymbolTableBuilder
             IsExternal,
             IsIntrinsic,
             IsStatementFunction,
-            FirstSeenAt.IncludeFile);
+            FirstSeenAt.IncludeFile,
+            FirstSeenAt.Line);
     }
 
     private sealed partial class Builder(Func<string, IncludeFile?> resolveInclude)
@@ -106,7 +101,7 @@ public static partial class SymbolTableBuilder
         {
             if (unit.Header is { } header)
             {
-                var location = new Location(header.Source.Line, null);
+                var location = new SourceLocation(header.Source.Line, null);
                 switch (header.Statement)
                 {
                     case Statement.Subroutine subroutine:
@@ -144,27 +139,27 @@ public static partial class SymbolTableBuilder
                 switch (construct)
                 {
                     case Construct.Simple simple:
-                        Visit(simple.Statement, new Location(simple.Statement.Source.Line, null), isNested);
+                        Visit(simple.Statement, new SourceLocation(simple.Statement.Source.Line, null), isNested);
                         break;
                     case Construct.If block:
                         _executableSeen = true;
                         foreach (var branch in block.Branches)
                         {
-                            Use(branch.Header.Statement, new Location(branch.Header.Source.Line, null));
+                            Use(branch.Header.Statement, new SourceLocation(branch.Header.Source.Line, null));
                             Visit(branch.Body, isNested: true);
                         }
 
                         break;
                     case Construct.Loop loop:
                         _executableSeen = true;
-                        Use(loop.Header.Statement, new Location(loop.Header.Source.Line, null));
+                        Use(loop.Header.Statement, new SourceLocation(loop.Header.Source.Line, null));
                         Visit(loop.Body, isNested: true);
                         break;
                 }
             }
         }
 
-        private void Visit(ParsedStatement parsed, Location location, bool isNested)
+        private void Visit(ParsedStatement parsed, SourceLocation location, bool isNested)
         {
             var statement = parsed.Statement;
 
@@ -307,7 +302,7 @@ public static partial class SymbolTableBuilder
             Statement.TypeDeclaration or Statement.Dimension or Statement.Parameter or Statement.ImplicitNone
             or Statement.Save or Statement.External or Statement.Intrinsic or Statement.Equivalence or Statement.Include;
 
-        private void VisitInclude(string fileName, Location location)
+        private void VisitInclude(string fileName, SourceLocation location)
         {
             if (_includes.Count == MaximumIncludeDepth)
             {
@@ -322,16 +317,16 @@ public static partial class SymbolTableBuilder
                 if (construct is not Construct.Simple simple)
                 {
                     var line = construct is Construct.If block ? block.Branches[0].Header.Source.Line : ((Construct.Loop)construct).Header.Source.Line;
-                    throw new Location(line, fileName).Error("An include file that holds anything but declarations and DATA is not supported yet.");
+                    throw new SourceLocation(line, fileName).Error("An include file that holds anything but declarations and DATA is not supported yet.");
                 }
 
-                Visit(simple.Statement, new Location(simple.Statement.Source.Line, fileName), isNested: false);
+                Visit(simple.Statement, new SourceLocation(simple.Statement.Source.Line, fileName), isNested: false);
             }
 
             _includes.Pop();
         }
 
-        private void AddEntryPoint(ParsedStatement statement, string name, IReadOnlyList<string> parameters, Location location)
+        private void AddEntryPoint(ParsedStatement statement, string name, IReadOnlyList<string> parameters, SourceLocation location)
         {
             _entryPoints.Add(statement);
 
@@ -358,7 +353,7 @@ public static partial class SymbolTableBuilder
             }
         }
 
-        private void AddStatementFunction(ParsedStatement statement, Expression.Reference target, Location location)
+        private void AddStatementFunction(ParsedStatement statement, Expression.Reference target, SourceLocation location)
         {
             var entry = Get(target.Identifier, location);
             if (entry.IsStatementFunction)
@@ -385,7 +380,7 @@ public static partial class SymbolTableBuilder
             _statementFunctions.Add(statement);
         }
 
-        private Draft Get(string name, Location location)
+        private Draft Get(string name, SourceLocation location)
         {
             if (!_byName.TryGetValue(name, out var entry))
             {
@@ -397,7 +392,7 @@ public static partial class SymbolTableBuilder
             return entry;
         }
 
-        private static void SetType(Draft entry, TypeSpecification type, Location location)
+        private static void SetType(Draft entry, TypeSpecification type, SourceLocation location)
         {
             if (entry.DeclaredType is not null)
             {
@@ -407,7 +402,7 @@ public static partial class SymbolTableBuilder
             entry.DeclaredType = type;
         }
 
-        private void SetDimensions(Draft entry, IReadOnlyList<DimensionBound> dimensions, Location location)
+        private void SetDimensions(Draft entry, IReadOnlyList<DimensionBound> dimensions, SourceLocation location)
         {
             if (dimensions.Count == 0)
             {
@@ -430,7 +425,7 @@ public static partial class SymbolTableBuilder
         }
 
         // Each of these pairs excludes the other; FORTRAN 77 allows none.
-        private static void Check(Draft entry, Location location)
+        private static void Check(Draft entry, SourceLocation location)
         {
             var isArray = entry.Dimensions.Count > 0;
             var isConstant = entry.ConstantValue is not null;

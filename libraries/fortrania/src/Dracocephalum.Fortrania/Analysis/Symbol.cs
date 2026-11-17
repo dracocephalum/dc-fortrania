@@ -25,6 +25,7 @@ namespace Dracocephalum.Fortrania.Analysis;
 /// <param name="IsIntrinsic">Whether an <c>INTRINSIC</c> statement names it.</param>
 /// <param name="IsStatementFunction">Whether the unit defines it as a statement function.</param>
 /// <param name="IncludeFile">The include file that first declared it, as named in the <c>INCLUDE</c> statement, or <see langword="null"/> when the program unit's own text did.</param>
+/// <param name="Line">The one-based number of the line the name first appears on, in <paramref name="IncludeFile"/> when that is not <see langword="null"/>.</param>
 public sealed record Symbol(
     string Name,
     SymbolKind Kind,
@@ -38,7 +39,8 @@ public sealed record Symbol(
     bool IsExternal,
     bool IsIntrinsic,
     bool IsStatementFunction,
-    string? IncludeFile)
+    string? IncludeFile,
+    int Line)
 {
     /// <summary>Gets a value indicating whether the name is an array.</summary>
     public bool IsArray => Dimensions.Count > 0;
