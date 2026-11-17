@@ -1,5 +1,6 @@
 using Dracocephalum.Fortrania.Syntax;
 using Shouldly;
+using static Dracocephalum.Fortrania.Tests.Syntax.SyntaxRenderer;
 
 namespace Dracocephalum.Fortrania.Tests.Syntax;
 
@@ -104,7 +105,6 @@ public class StatementParserTests
     [InlineData("INTEGER X / 5 /")]
     [InlineData("REAL*8 E1")]
     [InlineData("CHARACTER* NAME")]
-    [InlineData("PARAMETER N = 3")]
     [InlineData("PARAMETER ( N 3 )")]
     [InlineData("IMPLICIT REAL ( A-H )")]
     [InlineData("SAVE / BLOCK /")]
@@ -131,67 +131,4 @@ public class StatementParserTests
         var statement = Lexer.Tokenize(new FixedFormStatement(null, text, 7, [], []));
         return StatementParser.Parse(statement, StatementClassifier.Classify(statement, startsProgramUnit: false));
     }
-
-    private static string Render(Statement statement) => statement switch
-    {
-        Statement.TypeDeclaration declaration =>
-            $"{declaration.Type.Type}{Render(declaration.Type.Length)}: {string.Join(", ", declaration.Entities.Select(Render))}",
-        Statement.Dimension dimension => $"DIMENSION {string.Join(", ", dimension.Entities.Select(Render))}",
-        Statement.Parameter parameter =>
-            $"PARAMETER {string.Join(", ", parameter.Constants.Select(constant => $"{constant.Name}={Render(constant.Value)}"))}",
-        Statement.ImplicitNone => "IMPLICIT NONE",
-        Statement.Save save => string.Join(' ', new[] { "SAVE", string.Join(", ", save.Names) }).TrimEnd(),
-        Statement.External external => $"EXTERNAL {string.Join(", ", external.Names)}",
-        Statement.Intrinsic intrinsic => $"INTRINSIC {string.Join(", ", intrinsic.Names)}",
-        Statement.Include include => $"INCLUDE {include.FileName}",
-        Statement.Data data => $"DATA {string.Join("; ", data.Groups.Select(Render))}",
-        Statement.Equivalence equivalence =>
-            $"EQUIVALENCE {string.Join("; ", equivalence.Sets.Select(set => string.Join(" = ", set.Select(Render))))}",
-        _ => throw new ArgumentOutOfRangeException(nameof(statement)),
-    };
-
-    private static string Render(DeclaredEntity entity)
-    {
-        var dimensions = entity.Dimensions.Count == 0 ? string.Empty : $"({string.Join(", ", entity.Dimensions.Select(Render))})";
-        return $"{entity.Name}{dimensions}{Render(entity.Length)}";
-    }
-
-    private static string Render(DimensionBound bound)
-    {
-        var upper = bound.Upper is null ? "*" : Render(bound.Upper);
-        return bound.Lower is null ? upper : $"{Render(bound.Lower)}:{upper}";
-    }
-
-    private static string Render(LengthSpecification? length) => length switch
-    {
-        null => string.Empty,
-        { IsAssumed: true } => "*(*)",
-        _ => $"*{Render(length.Value)}",
-    };
-
-    private static string Render(Expression? expression) => expression switch
-    {
-        null => string.Empty,
-        Expression.Literal literal => literal.Text,
-        Expression.Name name => name.Identifier,
-        Expression.Binary binary => $"({binary.Operator} {Render(binary.Left)} {Render(binary.Right)})",
-        Expression.Unary unary => $"({unary.Operator} {Render(unary.Operand)})",
-        Expression.Reference reference => $"{reference.Identifier}[{string.Join(", ", reference.Arguments.Select(Render))}]",
-        Expression.Substring substring => $"{Render(substring.Target)}<{Render(substring.First)}:{Render(substring.Last)}>",
-        _ => throw new ArgumentOutOfRangeException(nameof(expression)),
-    };
-
-    private static string Render(DataGroup group)
-    {
-        var values = group.Values.Select(value => value.Repeat is null ? Render(value.Value) : $"{Render(value.Repeat)}*{Render(value.Value)}");
-        return $"{string.Join(", ", group.Targets.Select(Render))} / {string.Join(", ", values)} /";
-    }
-
-    private static string Render(DataTarget target) => target switch
-    {
-        DataTarget.Variable variable => Render(variable.Designator),
-        DataTarget.ImpliedDo loop =>
-            $"({string.Join(", ", loop.Targets.Select(Render))}, {loop.ControlVariable}={Render(loop.First)}..{Render(loop.Last)}{(loop.Step is null ? string.Empty : $" step {Render(loop.Step)}")})",
-        _ => throw new ArgumentOutOfRangeException(nameof(target)),
-    };
 }

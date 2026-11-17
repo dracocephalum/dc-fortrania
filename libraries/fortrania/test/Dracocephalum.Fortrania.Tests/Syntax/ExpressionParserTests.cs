@@ -1,5 +1,6 @@
 using Dracocephalum.Fortrania.Syntax;
 using Shouldly;
+using static Dracocephalum.Fortrania.Tests.Syntax.SyntaxRenderer;
 
 namespace Dracocephalum.Fortrania.Tests.Syntax;
 
@@ -133,19 +134,4 @@ public class ExpressionParserTests
         next.ShouldBe(statement.Tokens.Count);
         return expression;
     }
-
-    // A compact form to assert on: operators in prefix form, argument lists in
-    // brackets, substring ranges in angle brackets.
-    private static string Render(Expression? expression) => expression switch
-    {
-        null => string.Empty,
-        Expression.Literal literal => literal.Text,
-        Expression.Name name => name.Identifier,
-        Expression.Reference reference => $"{reference.Identifier}[{string.Join(", ", reference.Arguments.Select(Render))}]",
-        Expression.Substring substring => $"{Render(substring.Target)}<{Render(substring.First)}:{Render(substring.Last)}>",
-        Expression.Unary unary => $"({unary.Operator} {Render(unary.Operand)})",
-        Expression.Binary binary => $"({binary.Operator} {Render(binary.Left)} {Render(binary.Right)})",
-        Expression.Parenthesized parenthesized => $"(paren {Render(parenthesized.Inner)})",
-        _ => throw new ArgumentOutOfRangeException(nameof(expression)),
-    };
 }

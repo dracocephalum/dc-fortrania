@@ -1,9 +1,11 @@
+using System.Globalization;
+
 namespace Dracocephalum.Fortrania.Syntax;
 
 /// <summary>
-/// Parses a classified statement into its parts. It covers the declarations
-/// and specifications so far; a kind it does not handle yet is reported as
-/// unsupported, never skipped.
+/// Parses a classified statement into its parts. It covers declarations,
+/// specifications and control flow so far; a kind it does not handle yet is
+/// reported as unsupported, never skipped.
 /// </summary>
 public static class StatementParser
 {
@@ -39,6 +41,20 @@ public static class StatementParser
             StatementKind.Include => ParseInclude(statement),
             StatementKind.Data => ParseData(statement),
             StatementKind.Equivalence => ParseEquivalence(statement),
+            StatementKind.Assignment => ParseAssignment(statement),
+            StatementKind.Call => ParseCall(statement),
+            StatementKind.BlockIf => new Statement.BlockIf(ParseConditionThenWord(statement, "IF")),
+            StatementKind.ElseIf => new Statement.ElseIf(ParseConditionThenWord(statement, "ELSEIF")),
+            StatementKind.LogicalIf => ParseLogicalIf(statement),
+            StatementKind.Do => ParseDo(statement),
+            StatementKind.DoWhile => ParseDoWhile(statement),
+            StatementKind.Stop => ParseStop(statement),
+            StatementKind.Return => ParseReturn(statement),
+            StatementKind.Else => ExpectAlone(statement, new Statement.Else()),
+            StatementKind.EndIf => ExpectAlone(statement, new Statement.EndIf()),
+            StatementKind.EndDo => ExpectAlone(statement, new Statement.EndDo()),
+            StatementKind.Continue => ExpectAlone(statement, new Statement.Continue()),
+            StatementKind.End => ExpectAlone(statement, new Statement.End()),
             _ => throw new FortranSyntaxException(statement.Source.Line, $"A {kind} statement is not supported yet."),
         };
     }
@@ -265,6 +281,126 @@ public static class StatementParser
         return new Statement.Equivalence(sets);
     }
 
+    private static Statement.Assignment ParseAssignment(TokenizedStatement statement)
+    {
+        var reader = new Reader(statement, 0);
+        var target = reader.ParseVariable();
+        reader.Expect(TokenKind.Assign, "An equals sign is expected after the target of an assignment.");
+        var value = reader.ParseExpression();
+        reader.ExpectEnd();
+        return new Statement.Assignment(target, value);
+    }
+
+    private static Statement.Call ParseCall(TokenizedStatement statement)
+    {
+        var reader = SplitKeyword(statement, "CALL");
+
+        // A subroutine name with its arguments is written like a function
+        // reference, and without any like a plain name.
+        var called = reader.ParseVariable();
+        reader.ExpectEnd();
+
+        return called switch
+        {
+            Expression.Name name => new Statement.Call(name.Identifier, []),
+            Expression.Reference reference => new Statement.Call(reference.Identifier, reference.Arguments),
+            _ => throw reader.Fail("A subroutine name and its arguments are expected after CALL."),
+        };
+    }
+
+    // "IF ( condition ) THEN" and "ELSE IF ( condition ) THEN".
+    private static Expression ParseConditionThenWord(TokenizedStatement statement, string keyword)
+    {
+        var reader = SplitKeyword(statement, keyword);
+        var condition = reader.ParseCondition();
+
+        if (reader.ReadName("THEN is expected after the condition.") is not "THEN")
+        {
+            throw reader.Fail("THEN is expected after the condition.");
+        }
+
+        reader.ExpectEnd();
+        return condition;
+    }
+
+    private static Statement.LogicalIf ParseLogicalIf(TokenizedStatement statement)
+    {
+        var reader = SplitKeyword(statement, "IF");
+        var condition = reader.ParseCondition();
+
+        // What is left is a statement of its own.
+        var rest = reader.TakeRest();
+        var kind = StatementClassifier.Classify(rest, startsProgramUnit: false);
+
+        if (kind is StatementKind.LogicalIf or StatementKind.BlockIf or StatementKind.ElseIf or StatementKind.Else
+            or StatementKind.EndIf or StatementKind.Do or StatementKind.DoWhile or StatementKind.EndDo
+            or StatementKind.End or StatementKind.Empty)
+        {
+            throw reader.Fail($"A logical IF cannot guard a {kind} statement.");
+        }
+
+        return new Statement.LogicalIf(condition, Parse(rest, kind));
+    }
+
+    private static Statement.Do ParseDo(TokenizedStatement statement)
+    {
+        var reader = SplitKeyword(statement, "DO");
+        var label = reader.TryReadLabel();
+        var variable = reader.ReadName("The loop variable is expected.");
+        reader.Expect(TokenKind.Assign, "An equals sign is expected after the loop variable.");
+        var first = reader.ParseExpression();
+        reader.Expect(TokenKind.Comma, "A comma is expected between the bounds of a DO.");
+        var last = reader.ParseExpression();
+        var step = reader.TryRead(TokenKind.Comma) ? reader.ParseExpression() : null;
+        reader.ExpectEnd();
+        return new Statement.Do(label, variable, first, last, step);
+    }
+
+    private static Statement.DoWhile ParseDoWhile(TokenizedStatement statement)
+    {
+        var reader = SplitKeyword(statement, "DO");
+        var label = reader.TryReadLabel();
+
+        if (reader.ReadName("WHILE is expected.") is not "WHILE")
+        {
+            throw reader.Fail("WHILE is expected.");
+        }
+
+        var condition = reader.ParseCondition();
+        reader.ExpectEnd();
+        return new Statement.DoWhile(label, condition);
+    }
+
+    private static Statement.Stop ParseStop(TokenizedStatement statement)
+    {
+        var reader = SplitKeyword(statement, "STOP");
+        var code = reader.IsAtEnd ? null : reader.ParseConstant();
+        reader.ExpectEnd();
+        return new Statement.Stop(code);
+    }
+
+    private static Statement.Return ParseReturn(TokenizedStatement statement)
+    {
+        if (statement.Tokens.Count != 1 || statement.GetText(statement.Tokens[0]) is not "RETURN")
+        {
+            throw new FortranSyntaxException(statement.Source.Line, "An alternate RETURN is not supported yet.");
+        }
+
+        return new Statement.Return();
+    }
+
+    // For a statement that is one word and nothing else.
+    private static T ExpectAlone<T>(TokenizedStatement statement, T parsed)
+        where T : Statement
+    {
+        if (statement.Tokens.Count != 1)
+        {
+            throw new FortranSyntaxException(statement.Source.Line, $"'{statement.GetText(statement.Tokens[1])}' is not expected here.");
+        }
+
+        return parsed;
+    }
+
     private static Statement.Include ParseInclude(TokenizedStatement statement)
     {
         var tokens = statement.Tokens;
@@ -330,6 +466,36 @@ public static class StatementParser
         public Expression ParseExpression() => ExpressionParser.Parse(statement, position, out position);
 
         public Expression ParseVariable() => ExpressionParser.ParseVariable(statement, position, out position);
+
+        // A condition in its parentheses, as IF and DO WHILE write it.
+        public Expression ParseCondition()
+        {
+            Expect(TokenKind.LeftParenthesis, "An opening parenthesis is expected before the condition.");
+            var condition = ParseExpression();
+            Expect(TokenKind.RightParenthesis, "A closing parenthesis is expected after the condition.");
+            return condition;
+        }
+
+        // The label a DO may name as its last statement, with the comma that may follow it.
+        public int? TryReadLabel()
+        {
+            if (Current != TokenKind.IntegerLiteral)
+            {
+                return null;
+            }
+
+            var label = int.Parse(statement.GetText(statement.Tokens[position++]), CultureInfo.InvariantCulture);
+            TryRead(TokenKind.Comma);
+            return label;
+        }
+
+        // The tokens not yet read, as a statement of their own.
+        public TokenizedStatement TakeRest()
+        {
+            var rest = statement with { Tokens = [.. statement.Tokens.Skip(position)] };
+            position = statement.Tokens.Count;
+            return rest;
+        }
 
         // A constant as a DATA statement allows it: a literal or a named
         // constant, with an optional sign. The expression parser cannot be
