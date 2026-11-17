@@ -70,6 +70,43 @@ internal static class SyntaxRenderer
         _ => throw new ArgumentOutOfRangeException(nameof(statement)),
     };
 
+    /// <summary>One line per statement, indented two blanks for each block it sits in.</summary>
+    public static string[] RenderTree(IReadOnlyList<Construct> body)
+    {
+        var lines = new List<string>();
+        AppendTree(lines, body, string.Empty);
+        return [.. lines];
+    }
+
+    private static void AppendTree(List<string> lines, IReadOnlyList<Construct> body, string indent)
+    {
+        foreach (var construct in body)
+        {
+            switch (construct)
+            {
+                case Construct.Simple simple:
+                    lines.Add(indent + Render(simple.Statement.Statement));
+                    break;
+                case Construct.If block:
+                    foreach (var branch in block.Branches)
+                    {
+                        lines.Add(indent + Render(branch.Header.Statement));
+                        AppendTree(lines, branch.Body, indent + "  ");
+                    }
+
+                    lines.Add(indent + Render(block.End.Statement));
+                    break;
+                case Construct.Loop loop:
+                    lines.Add(indent + Render(loop.Header.Statement));
+                    AppendTree(lines, loop.Body, indent + "  ");
+                    lines.Add(indent + Render(loop.End.Statement));
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(body));
+            }
+        }
+    }
+
     private static string RenderList(IReadOnlyList<Expression> expressions) => string.Join(", ", expressions.Select(Render));
 
     private static string Render(IReadOnlyList<IOControl> controls) =>

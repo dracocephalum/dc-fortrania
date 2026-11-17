@@ -30,7 +30,7 @@ before:
 |---|---|---|---|
 | Source form | physical lines | whole statements with their comments | done |
 | Lexer | a statement | tokens | done |
-| Parser | tokens | a syntax tree per program unit | started: every statement the reference sources use is parsed; statements are not yet assembled into program units |
+| Parser | tokens | a syntax tree per program unit | done for every construct the reference sources use; [`PENDING.md`](../../PENDING.md) lists what is left |
 | Analysis | every program unit | symbols, types, and what each call does to its arguments | not started |
 | Emitter | the analysed program | C# source | not started |
 

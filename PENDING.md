@@ -328,6 +328,8 @@ each of these is reported as unsupported and never translated by guess:
 
 - `GO TO` in every form, statement labels as branch targets, and alternate
   returns. The reference sources carry no statement label at all.
+- A `DO` that ends at a labelled statement. Every loop in the reference
+  sources ends with `END DO`.
 - `FORMAT` statements. The reference sources give every format as a
   character constant.
 - Hollerith constants.
