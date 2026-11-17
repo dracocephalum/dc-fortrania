@@ -203,6 +203,44 @@ ordinary .NET resources shipped as satellite assemblies. A template with no
 translation, or a message the source assembled without a literal template,
 falls back to the English text.
 
+## An ENTRY becomes a method of its own
+
+A subroutine or function with `ENTRY` statements has several ways in, and
+the reference sources use them as one routine holding saved state with an
+operation per entry. Each entry, and the enclosing routine itself, is
+emitted as a separate method that takes only its own dummy arguments:
+
+- `SAVE` variables are shared between them, in the routine's state in the
+  instance's native memory.
+- Other local variables belong to each method; FORTRAN does not keep them
+  between calls.
+- In a function, each method returns its own result.
+
+This is right only when the entries are disjoint: no entry can be reached
+by control running on from the code before it, and no jump crosses from one
+entry's code into another's. Analysis decides that for each routine. In the
+reference sources it holds everywhere: of 550 entries in 133 routines, every
+one directly follows a `RETURN`, none is inside a block, and the sources
+have no `GO TO`.
+
+A routine that is not disjoint is emitted the way `f2c` does it: one body
+with every entry's arguments and a selector that says where to start, and a
+thin method for each entry that calls it. That is always correct, and it is
+the fallback and not the default because every call then passes every
+entry's arguments. It is part of *FORTRAN 77 that Fortrania does not handle
+yet*.
+
+Running on from one entry into the next is not the same as the first
+calling the second, which is why there is no third form. In one invocation a
+local variable set before the boundary is still set after it; the result
+variables of a function's entries share storage; and a jump can cross the
+boundary in either direction. A call at the end of the first method has none
+of these. It could stand in only where analysis shows none of them matters,
+and that is to be added only if real code and a benchmark ask for it.
+
+Not yet checked for the reference sources: that no entry's code uses a dummy
+argument of another entry. FORTRAN forbids it; analysis is to confirm it.
+
 ## A C interface for callers outside .NET
 
 The translated library can be compiled ahead of time into an ordinary native
@@ -296,6 +334,8 @@ each of these is reported as unsupported and never translated by guess:
 - A name starting with `E` or `D` directly after a length, as in
   `REAL*8 E1`, which the lexer reads as a number.
 - Tab-form source.
+- A routine whose entries are not disjoint, which needs the single body with
+  a selector described under *An ENTRY becomes a method of its own*.
 
 ## Settings for what differs by platform
 
