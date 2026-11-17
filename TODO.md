@@ -17,10 +17,6 @@ undecided adds it here rather than mentioning it once in a conversation.
       The options: a paid plan, making the repository public, or accepting
       no gate. Close by: one of the first two, then
       `gh api repos/<owner>/<name>/rulesets --input .github/rulesets/protect-main.json`.
-- [ ] **Change tracking is `none`.** Pull requests carry no ticket. Close
-      by: deciding whether work is tracked as issues now that the
-      repository is on the host, and setting `change-tracking.tracker` in
-      `.agentics.yaml` to match.
 
 - [ ] **Warnings-as-errors is relaxed for translated code, for now.**
       Decided, and written down in `docs/rules/translated-code.md`,
