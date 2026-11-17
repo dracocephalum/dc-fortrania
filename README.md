@@ -42,7 +42,5 @@ their own index there.
 Apache License 2.0 — see [`LICENSE`](LICENSE). Copyright 2026 Chris Har.
 
 That covers what was written for this repository. Code translated from the
-SPICE Toolkit is not covered by it: it is an intermediate product, committed
-so that the published packages can be rebuilt and reviewed, and it stays
-under the rules its owner publishes. [`NOTICE`](NOTICE) states the split and
-[`DESIGN.md`](DESIGN.md) explains it.
+SPICE Toolkit is not covered by it: [`NOTICE`](NOTICE) states the split, and
+[`DESIGN.md`](DESIGN.md), *Two licences, split by component*, explains it.

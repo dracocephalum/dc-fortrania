@@ -12,11 +12,9 @@ decided at run time or made not to matter.
 
 ## Byte order
 
-**Hand-written code never assumes a byte order.** That is the whole rule.
-Binary kernels record their own order and the reference toolkit converts when
-it reads one of the other order; that logic is translated with the rest, and
-the .NET runtime runs on both orders, so the two are relied on rather than
-wrapped.
+**Hand-written code never assumes a byte order.** That is the whole rule;
+`DESIGN.md`, *Byte order is the format's concern, not ours*, says why nothing
+more is needed.
 
 - Where hand-written code turns bytes into a wider type or back — the
   runtime's unformatted file input and output is the main place — it goes

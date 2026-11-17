@@ -30,10 +30,9 @@ appears in a tracked file.
 
 ## It is committed, as an intermediate product
 
-The translator's output is committed, so that a translator change is
-reviewable as a diff and a build needs neither the original sources nor a
-translator run. It is not the product: the package compiled from it is.
-`DESIGN.md` at the root has the reasoning.
+The translator's output is committed, and it is not the product: the package
+compiled from it is. `DESIGN.md`, *Translated code is committed, and it is an
+intermediate product*, has the reasoning.
 
 Regenerating is one translator run over the whole library, committed on its
 own with the translator version in the message, never mixed with a
@@ -41,11 +40,9 @@ hand-written change.
 
 ## Licence
 
-Translated code is not open source and is not covered by the root `LICENSE`.
-It stays under the toolkit owner's published rules. Hand-written code — the
-translator, the runtime, the API — is under the repository's own licence.
-
-The split is by component:
+Translated code is not covered by the root `LICENSE`; `DESIGN.md`, *Two
+licences, split by component*, says why and where the line runs. What a
+component has to do about it:
 
 - A component that holds translated code carries its own `LICENSE.md`,
   stating that the code is a machine translation, naming the owner's rules,

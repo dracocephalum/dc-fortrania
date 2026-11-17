@@ -7,23 +7,12 @@ namespace Dracocephalum.Fortrania.Syntax;
 /// after <see cref="FixedFormReader"/> and before the parser.
 /// </summary>
 /// <remarks>
-/// <para>
-/// FORTRAN 77 gives blanks no meaning outside a character constant and
-/// reserves no words, so <c>DO 10 I = 1, 5</c> and <c>DO10I=1,5</c> are the
-/// same statement and <c>DO10I = 1.5</c> assigns to a variable. The lexer
-/// therefore removes blanks first and makes no attempt to find keywords: a
-/// run of letters and digits is one <see cref="TokenKind.Name"/>, and the
-/// parser, which can tell an assignment from a keyword statement by looking
-/// at the whole of it, splits a keyword off the front of a name when the
-/// statement calls for one.
-/// </para>
-/// <para>
-/// Two things the standard allows are not recognized, because telling them
-/// apart needs the same statement-level knowledge: a Hollerith constant, and
-/// a name starting with <c>E</c> or <c>D</c> directly after a length such as
-/// <c>REAL*8 E1</c>, which reads here as the number <c>8E1</c>. The parser
-/// reports both rather than guessing.
-/// </para>
+/// It finds no keywords: <c>DO 10 I = 1, 5</c> gives the name <c>DO10I</c>,
+/// for the parser to split (<c>DESIGN.md</c>, <i>Fortrania's lexer finds no
+/// keywords</i>). Two things the standard allows are not recognized: a
+/// Hollerith constant, and a name starting with <c>E</c> or <c>D</c> directly
+/// after a length, as in <c>REAL*8 E1</c>, which reads as the number
+/// <c>8E1</c>.
 /// </remarks>
 public static class Lexer
 {

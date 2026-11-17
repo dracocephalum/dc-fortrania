@@ -1,16 +1,12 @@
 namespace Dracocephalum.Fortrania.Syntax;
 
 /// <summary>
-/// Classifies physical lines of fixed-form FORTRAN 77 source. It is the first
-/// step of the front end: the lexer joins continuation lines to their initial
-/// line and drops comments before any statement is tokenized, so everything
-/// after this point sees whole statements.
+/// Classifies physical lines of fixed-form FORTRAN 77 source, for
+/// <see cref="FixedFormReader"/> to group into statements.
 /// </summary>
 /// <remarks>
 /// Only columns 1 to 72 are significant; anything beyond is the historical
-/// sequence field and is ignored. Tab-form source is not recognized, because
-/// the standard does not define it and the sources this translator targets do
-/// not use it.
+/// sequence field and is ignored. Tab-form source is not recognized.
 /// </remarks>
 public static class FixedFormLine
 {

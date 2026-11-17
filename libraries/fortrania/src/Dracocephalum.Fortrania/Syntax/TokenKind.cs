@@ -1,9 +1,8 @@
 namespace Dracocephalum.Fortrania.Syntax;
 
 /// <summary>
-/// What a token is. Keywords are deliberately absent: FORTRAN 77 reserves no
-/// words, so <c>IF</c>, <c>DO</c> and <c>CALL</c> are names until the parser,
-/// which knows what kind of statement it is reading, says otherwise.
+/// What a token is. There is no kind for a keyword: <c>IF</c>, <c>DO</c> and
+/// <c>CALL</c> are a <see cref="Name"/> until the parser says otherwise.
 /// </summary>
 public enum TokenKind
 {
