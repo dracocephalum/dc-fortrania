@@ -378,6 +378,8 @@ each of these is reported as unsupported and never translated by guess:
 - `FORMAT` statements. The reference sources give every format as a
   character constant.
 - Hollerith constants.
+- An include file that holds an executable statement or an `ENTRY`. Every
+  include file of the reference sources holds declarations alone.
 - A name starting with `E` or `D` directly after a length, as in
   `REAL*8 E1`, which the lexer reads as a number.
 - Tab-form source.
