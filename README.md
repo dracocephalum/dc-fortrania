@@ -36,3 +36,13 @@ standard for code, tests, dependencies, pull requests, and review — for people
 as much as for agents — and a sync replaces that folder whole, so an edit
 there is lost. The rules this repository adds are under `docs/rules/`, with
 their own index there.
+
+## Licence
+
+Apache License 2.0 — see [`LICENSE`](LICENSE). Copyright 2026 Chris Har.
+
+That covers what was written for this repository. Code translated from the
+SPICE Toolkit is not covered by it: it is an intermediate product, committed
+so that the published packages can be rebuilt and reviewed, and it stays
+under the rules its owner publishes. [`NOTICE`](NOTICE) states the split and
+[`DESIGN.md`](DESIGN.md) explains it.

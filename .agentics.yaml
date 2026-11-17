@@ -5,7 +5,7 @@
 
 toolkit:
   url: https://github.com/dracocephalum/dc-agentics
-  commit: "a69ef1e59b42"              # the dc-agentics commit, never this repository's: 12-char hash, "-dirty" if that tree was not clean; what an update diffs from
+  commit: "5318142a29b1"              # the dc-agentics commit, never this repository's: 12-char hash, "-dirty" if that tree was not clean; what an update diffs from
   payload-path: "repo/payload"        # where the payload lived AT that commit - the toolkit restructures, and an upgrade diffing the wrong root sees every file as new. Fixed value, not a placeholder
   initialized: "2026-11-17"           # yyyy-mm-dd
   by: "Claude Code / claude-fable-5-2" # e.g. Claude Code / claude-fable-5-1
@@ -24,14 +24,14 @@ repository:
   # because the history already holds what it holds.
   publish-safe: true
   host: github                        # where the remote lives - agentics/rules/source-control/<host>.md
-  licence: "none"                     # none | Apache-2.0 | MIT | <SPDX id>; matches the LICENSE file
-  copyright-holder: ""                # the legal owner named in LICENSE or NOTICE; empty when licence is none
+  licence: "Apache-2.0"               # none | Apache-2.0 | MIT | <SPDX id>; matches the LICENSE file
+  copyright-holder: "Chris Har"       # the legal owner named in LICENSE or NOTICE; empty when licence is none
 
 coverage:
   # Line coverage per test run - agentics/rules/coding/csharp/csharp-unit-tests-rules.md, "Coverage".
-  # Nothing enforces these yet: the coverage extension measures, the agent reports the line rate against
-  # them, and a pipeline can read them later. Below minimum is a failure; at or above target is green;
-  # between the two is a warning.
+  # The collector measures and the agent reports the line rate against them; a pipeline enforces the
+  # minimum by passing it to the collector's threshold option. Below minimum is a failure; at or above
+  # target is green; between the two is a warning.
   minimum: 85                         # percent - the hard limit
   target: 90                          # percent - green
 
@@ -48,7 +48,7 @@ source-control:
   #   manual  asks before every state change, local commits included
   # Absent or unrecognised means manual. "auto for this one", said in conversation, overrides the
   # value for that session and is never written back here.
-  mode: local
+  mode: auto
 
 rules:
   # What the toolkit owns and what this repository adds - agentics/rules/layout.md,
@@ -66,5 +66,5 @@ guidelines:
   # over from the toolkit at initialization. Not a requirement: another model
   # works, but rules it does not infer by default are the ones it will miss.
   # Fixed values, not placeholders - they describe the toolkit, not this repo.
-  model-baseline: "claude-opus-5, claude-fable-5-1"
-  verified: "2026-09-07"              # last end-to-end initialization trial on that line
+  model-baseline: "claude-opus-5, claude-fable-5-1, claude-fable-5-2"
+  verified: "2026-11-17"              # last end-to-end initialization trial on that line

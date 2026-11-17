@@ -1,0 +1,83 @@
+# Translated code
+
+Applies when creating or building a component that holds code translated from
+the SPICE toolkit, changing what the translator emits, or handling the
+original FORTRAN sources.
+
+## The original sources stay out of the repository
+
+The toolkit's owner does not permit redistribution of the unmodified toolkit.
+Its FORTRAN sources, its C sources, its documentation and its test kernels are
+never committed here, in whole or in part, and neither is a patch that
+reproduces them. The translator reads them from a directory named in a
+git-ignored local settings file or on the command line; no path to them
+appears in a tracked file.
+
+## What the translator emits
+
+- Every generated file opens with a header saying that it is a machine
+  translation of the named routine, which version of the toolkit it came
+  from, that it is not a product of the toolkit's authors and that they do
+  not support it. The owner's rules ask for modified code to be marked.
+- The original routine header and comments are carried into the output, the
+  disclaimer included.
+- The output is deterministic: the same sources and the same translator
+  produce the same bytes, so a change in the translator shows up as a diff
+  in exactly the routines it affects.
+- Generated files are never edited by hand. A wrong translation is fixed in
+  the translator; a routine the translator cannot express is replaced by a
+  hand-written one, listed where the translator reads its configuration.
+
+## It is committed, as an intermediate product
+
+The translator's output is committed, so that a translator change is
+reviewable as a diff and a build needs neither the original sources nor a
+translator run. It is not the product: the package compiled from it is.
+`DESIGN.md` at the root has the reasoning.
+
+Regenerating is one translator run over the whole library, committed on its
+own with the translator version in the message, never mixed with a
+hand-written change.
+
+## Licence
+
+Translated code is not open source and is not covered by the root `LICENSE`.
+It stays under the toolkit owner's published rules. Hand-written code — the
+translator, the runtime, the API — is under the repository's own licence.
+
+The split is by component:
+
+- A component that holds translated code carries its own `LICENSE.md`,
+  stating that the code is a machine translation, naming the owner's rules,
+  and saying that the root licence does not apply. Its package metadata
+  points at that file and not at an SPDX identifier.
+- It holds nothing a person wrote. Hand-written code that builds on it lives
+  in a component of its own.
+- The root `NOTICE` states the split for the reader who starts there.
+
+## Building it
+
+A component that holds translated code relaxes the build, in its own
+`.csproj` and nowhere else:
+
+    <PropertyGroup>
+      <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+      <EnforceCodeStyleInBuild>false</EnforceCodeStyleInBuild>
+      <RunAnalyzers>false</RunAnalyzers>
+    </PropertyGroup>
+
+That is temporary by intent: the translator's output is not yet clean, and
+several hundred thousand lines of warnings would hide the ones that matter.
+`TODO.md` carries the entry to turn it back on. Never achieve the same thing
+with a `Directory.Build.props` inside the component — a nested copy severs it
+from the root configuration altogether.
+
+Hand-written code does not share a component with translated code, so that
+neither the relaxation nor the licence covers code a person wrote.
+
+## Verifying it
+
+The reference toolkit ships its own regression tests. A translation is correct
+when those tests, translated by the same translator, pass against the
+translated library; that is the acceptance test for the translator, and no
+routine is hand-checked in its place.

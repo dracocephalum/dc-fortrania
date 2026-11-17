@@ -61,6 +61,9 @@ makes it selectable from a plain-language request.
 | Understanding how the pieces fit, or why the code is shaped the way it is | `DESIGN.md` at the root — the seams and the reasons; type comments say what, it says why. Written the day a reader could not infer it; see *Root documents* in [`agentics/rules/layout.md`](agentics/rules/layout.md) |
 | Starting any source-control action, or asked what this repository's settings and defaults are | [`.agentics.yaml`](.agentics.yaml) — the mode the agent works in (`auto`, `local`, `manual`) and every choice made at initialization |
 | Leaving something unfinished, blocked, or undecided — or asked what is still open | [`TODO.md`](TODO.md) — add it there; a remark in a conversation is lost |
+| Writing or reviewing code that runs on a computation or kernel-reading path, or choosing between a safe and an unsafe, an allocating and a non-allocating, or a general and a specialised form | [`docs/rules/performance.md`](docs/rules/performance.md) — performance is the first design constraint here; amends the C# coding rules |
+| Reading or writing binary data, using hardware intrinsics, or touching anything that differs by operating system, processor or byte order | [`docs/rules/portability.md`](docs/rules/portability.md) |
+| Creating or building a component that holds code translated from the SPICE toolkit, changing what the translator emits, or handling the original FORTRAN sources | [`docs/rules/translated-code.md`](docs/rules/translated-code.md) |
 
 The documents above are the substance, for every tool. In Claude Code some
 are also invocable through a shim in `.claude/skills/` -

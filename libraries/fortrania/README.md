@@ -41,5 +41,7 @@ None.
 
 - The translator and runtime are not specific to astronomy and are expected
   to move to a repository of their own once they are stable.
-- Throughput of the translated code is the first design constraint; see the
-  repository's own rules under `docs/rules/` once they are written.
+- Throughput of the translated code and of the runtime is the first design
+  constraint: [`docs/rules/performance.md`](../../docs/rules/performance.md).
+  The translator itself runs once at build time and is held to the ordinary
+  rules.
