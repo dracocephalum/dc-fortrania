@@ -29,7 +29,7 @@ before:
 | Stage | Takes | Gives | State |
 |---|---|---|---|
 | Source form | physical lines | whole statements with their comments | done |
-| Lexer | a statement | tokens | not started |
+| Lexer | a statement | tokens | done |
 | Parser | tokens | a syntax tree per program unit | not started |
 | Analysis | every program unit | symbols, types, and what each call does to its arguments | not started |
 | Emitter | the analysed program | C# source | not started |
