@@ -104,15 +104,15 @@ public static class ExpressionParser
             switch (kind)
             {
                 case TokenKind.IntegerLiteral:
-                    return ReadLiteral(LiteralKind.Integer);
+                    return ReadLiteral(DataType.Integer);
                 case TokenKind.RealLiteral:
-                    return ReadLiteral(LiteralKind.Real);
+                    return ReadLiteral(DataType.Real);
                 case TokenKind.DoubleLiteral:
-                    return ReadLiteral(LiteralKind.DoublePrecision);
+                    return ReadLiteral(DataType.DoublePrecision);
                 case TokenKind.CharacterLiteral:
-                    return ReadLiteral(LiteralKind.Character);
+                    return ReadLiteral(DataType.Character);
                 case TokenKind.LogicalLiteral:
-                    return ReadLiteral(LiteralKind.Logical);
+                    return ReadLiteral(DataType.Logical);
 
                 // A sign takes everything up to the next addition as its
                 // operand, so -A*B is -(A*B) and A ** -B * C is A ** (-(B*C)),
@@ -137,8 +137,8 @@ public static class ExpressionParser
             }
         }
 
-        private Expression.Literal ReadLiteral(LiteralKind kind) =>
-            new(kind, statement.GetText(statement.Tokens[Position++]).ToString());
+        private Expression.Literal ReadLiteral(DataType type) =>
+            new(type, statement.GetText(statement.Tokens[Position++]).ToString());
 
         private Expression.Parenthesized ParseParenthesized()
         {

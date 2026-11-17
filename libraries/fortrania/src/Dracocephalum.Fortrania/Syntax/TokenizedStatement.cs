@@ -20,4 +20,48 @@ public sealed record TokenizedStatement(
     /// <param name="token">A token of this statement.</param>
     /// <returns>The token's text; for a character constant, with its quotes.</returns>
     public ReadOnlySpan<char> GetText(Token token) => Text.AsSpan(token.Start, token.Length);
+
+    /// <summary>
+    /// Splits a keyword off the front of the first token, which the lexer
+    /// left joined to whatever followed it: <c>CALLFOO</c> becomes
+    /// <c>CALL</c> and <c>FOO</c>, and <c>DO10I</c> becomes <c>DO</c>,
+    /// <c>10</c> and <c>I</c>.
+    /// </summary>
+    /// <param name="length">The length of the keyword; at most the length of the first token, which is a name.</param>
+    /// <returns>A statement over the same text, with the first token replaced by the pieces.</returns>
+    public TokenizedStatement SplitKeyword(int length)
+    {
+        var first = Tokens[0];
+        if (first.Kind != TokenKind.Name)
+        {
+            throw new InvalidOperationException("Only a name can have a keyword split off it.");
+        }
+
+        ArgumentOutOfRangeException.ThrowIfLessThan(length, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(length, first.Length);
+
+        var tokens = new List<Token>(Tokens.Count + 2) { new(TokenKind.Name, first.Start, length) };
+        var rest = first.Start + length;
+        var end = first.Start + first.Length;
+
+        // What followed the keyword may open with a statement label.
+        var digits = rest;
+        while (digits < end && char.IsAsciiDigit(Text[digits]))
+        {
+            digits++;
+        }
+
+        if (digits > rest)
+        {
+            tokens.Add(new Token(TokenKind.IntegerLiteral, rest, digits - rest));
+        }
+
+        if (end > digits)
+        {
+            tokens.Add(new Token(TokenKind.Name, digits, end - digits));
+        }
+
+        tokens.AddRange(Tokens.Skip(1));
+        return this with { Tokens = tokens };
+    }
 }

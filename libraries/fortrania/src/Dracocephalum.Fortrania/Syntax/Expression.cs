@@ -17,9 +17,9 @@ public abstract record Expression
     }
 
     /// <summary>A constant.</summary>
-    /// <param name="Kind">Its type.</param>
+    /// <param name="Type">Its type.</param>
     /// <param name="Text">Its text as normalized by the lexer; a character constant keeps its quotes.</param>
-    public sealed record Literal(LiteralKind Kind, string Text) : Expression;
+    public sealed record Literal(DataType Type, string Text) : Expression;
 
     /// <summary>A name standing alone: a variable, a named constant, or an array or function passed whole.</summary>
     /// <param name="Identifier">The name, in upper case.</param>

@@ -30,7 +30,7 @@ before:
 |---|---|---|---|
 | Source form | physical lines | whole statements with their comments | done |
 | Lexer | a statement | tokens | done |
-| Parser | tokens | a syntax tree per program unit | started: statements are classified, expressions are parsed |
+| Parser | tokens | a syntax tree per program unit | started: statements are classified; expressions, declarations and specifications are parsed |
 | Analysis | every program unit | symbols, types, and what each call does to its arguments | not started |
 | Emitter | the analysed program | C# source | not started |
 

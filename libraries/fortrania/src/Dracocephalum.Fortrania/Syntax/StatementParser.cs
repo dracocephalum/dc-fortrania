@@ -1,0 +1,263 @@
+namespace Dracocephalum.Fortrania.Syntax;
+
+/// <summary>
+/// Parses a classified statement into its parts. It covers the declarations
+/// and specifications so far; a kind it does not handle yet is reported as
+/// unsupported, never skipped.
+/// </summary>
+public static class StatementParser
+{
+    // Longest first, so that DOUBLEPRECISION is not read as a name after DO.
+    private static readonly (string Keyword, DataType Type)[] TypeKeywords =
+    [
+        ("DOUBLEPRECISION", DataType.DoublePrecision),
+        ("CHARACTER", DataType.Character),
+        ("INTEGER", DataType.Integer),
+        ("LOGICAL", DataType.Logical),
+        ("COMPLEX", DataType.Complex),
+        ("REAL", DataType.Real),
+    ];
+
+    /// <summary>Parses <paramref name="statement"/> as a statement of the given kind.</summary>
+    /// <param name="statement">A tokenized statement.</param>
+    /// <param name="kind">Its kind, as <see cref="StatementClassifier"/> decided it.</param>
+    /// <returns>The statement's parts.</returns>
+    /// <exception cref="FortranSyntaxException">The statement is malformed, or its kind or a part of it is not supported yet.</exception>
+    public static Statement Parse(TokenizedStatement statement, StatementKind kind)
+    {
+        ArgumentNullException.ThrowIfNull(statement);
+
+        return kind switch
+        {
+            StatementKind.TypeDeclaration => ParseTypeDeclaration(statement),
+            StatementKind.Dimension => new Statement.Dimension(ParseEntityList(SplitKeyword(statement, "DIMENSION"))),
+            StatementKind.Parameter => ParseParameter(statement),
+            StatementKind.Implicit => ParseImplicit(statement),
+            StatementKind.Save => new Statement.Save(ParseNameList(SplitKeyword(statement, "SAVE"))),
+            StatementKind.External => new Statement.External(ParseNameList(SplitKeyword(statement, "EXTERNAL"))),
+            StatementKind.Intrinsic => new Statement.Intrinsic(ParseNameList(SplitKeyword(statement, "INTRINSIC"))),
+            StatementKind.Include => ParseInclude(statement),
+            _ => throw new FortranSyntaxException(statement.Source.Line, $"A {kind} statement is not supported yet."),
+        };
+    }
+
+    // Returns a reader placed just after the keyword.
+    private static Reader SplitKeyword(TokenizedStatement statement, string keyword) =>
+        new(statement.SplitKeyword(keyword.Length), 1);
+
+    private static Statement.TypeDeclaration ParseTypeDeclaration(TokenizedStatement statement)
+    {
+        var first = statement.GetText(statement.Tokens[0]);
+        foreach (var (keyword, type) in TypeKeywords)
+        {
+            if (!first.StartsWith(keyword, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            var reader = SplitKeyword(statement, keyword);
+            var length = reader.TryParseLength();
+
+            // "CHARACTER*80, A" is allowed a comma after the length.
+            if (length is not null)
+            {
+                reader.TryRead(TokenKind.Comma);
+            }
+
+            return new Statement.TypeDeclaration(new TypeSpecification(type, length), ParseEntityList(reader));
+        }
+
+        throw new FortranSyntaxException(statement.Source.Line, $"'{first}' does not start with a supported type.");
+    }
+
+    private static List<DeclaredEntity> ParseEntityList(Reader reader)
+    {
+        var entities = new List<DeclaredEntity>();
+        do
+        {
+            var name = reader.ReadName("A name to declare is expected.");
+            var dimensions = reader.TryRead(TokenKind.LeftParenthesis) ? ParseDimensions(reader) : [];
+            entities.Add(new DeclaredEntity(name, dimensions, reader.TryParseLength()));
+        }
+        while (reader.TryRead(TokenKind.Comma));
+
+        reader.ExpectEnd();
+        return entities;
+    }
+
+    // Called just inside the opening parenthesis of an array declarator.
+    private static List<DimensionBound> ParseDimensions(Reader reader)
+    {
+        var bounds = new List<DimensionBound>();
+        do
+        {
+            if (reader.TryRead(TokenKind.Star))
+            {
+                bounds.Add(new DimensionBound(null, null));
+                continue;
+            }
+
+            var first = reader.ParseExpression();
+            if (!reader.TryRead(TokenKind.Colon))
+            {
+                bounds.Add(new DimensionBound(null, first));
+            }
+            else if (reader.TryRead(TokenKind.Star))
+            {
+                bounds.Add(new DimensionBound(first, null));
+            }
+            else
+            {
+                bounds.Add(new DimensionBound(first, reader.ParseExpression()));
+            }
+        }
+        while (reader.TryRead(TokenKind.Comma));
+
+        reader.Expect(TokenKind.RightParenthesis, "A closing parenthesis is expected after array bounds.");
+        return bounds;
+    }
+
+    private static Statement.Parameter ParseParameter(TokenizedStatement statement)
+    {
+        var reader = SplitKeyword(statement, "PARAMETER");
+        reader.Expect(TokenKind.LeftParenthesis, "An opening parenthesis is expected after PARAMETER.");
+
+        var constants = new List<NamedConstant>();
+        do
+        {
+            var name = reader.ReadName("The name of a constant is expected.");
+            reader.Expect(TokenKind.Assign, "An equals sign is expected after the name of a constant.");
+            constants.Add(new NamedConstant(name, reader.ParseExpression()));
+        }
+        while (reader.TryRead(TokenKind.Comma));
+
+        reader.Expect(TokenKind.RightParenthesis, "A closing parenthesis is expected after the constants.");
+        reader.ExpectEnd();
+        return new Statement.Parameter(constants);
+    }
+
+    private static Statement.ImplicitNone ParseImplicit(TokenizedStatement statement)
+    {
+        if (statement.Tokens.Count == 1 && statement.GetText(statement.Tokens[0]) is "IMPLICITNONE")
+        {
+            return new Statement.ImplicitNone();
+        }
+
+        throw new FortranSyntaxException(statement.Source.Line, "An IMPLICIT statement other than IMPLICIT NONE is not supported yet.");
+    }
+
+    // A possibly empty list of names separated by commas, to the end of the statement.
+    private static List<string> ParseNameList(Reader reader)
+    {
+        var names = new List<string>();
+        if (reader.IsAtEnd)
+        {
+            return names;
+        }
+
+        do
+        {
+            names.Add(reader.ReadName("A name is expected."));
+        }
+        while (reader.TryRead(TokenKind.Comma));
+
+        reader.ExpectEnd();
+        return names;
+    }
+
+    private static Statement.Include ParseInclude(TokenizedStatement statement)
+    {
+        var tokens = statement.Tokens;
+        if (tokens.Count != 2 || tokens[1].Kind != TokenKind.CharacterLiteral || statement.GetText(tokens[0]) is not "INCLUDE")
+        {
+            throw new FortranSyntaxException(statement.Source.Line, "INCLUDE is followed by one file name in quotes.");
+        }
+
+        var quoted = statement.GetText(tokens[1]);
+        var delimiter = quoted[0].ToString();
+        var fileName = quoted[1..^1].ToString().Replace(delimiter + delimiter, delimiter, StringComparison.Ordinal);
+        return new Statement.Include(fileName);
+    }
+
+    /// <summary>A position in one statement's tokens, advanced as the statement is read.</summary>
+    private sealed class Reader(TokenizedStatement statement, int position)
+    {
+        public bool IsAtEnd => position >= statement.Tokens.Count;
+
+        private TokenKind? Current => IsAtEnd ? null : statement.Tokens[position].Kind;
+
+        public bool TryRead(TokenKind kind)
+        {
+            if (Current != kind)
+            {
+                return false;
+            }
+
+            position++;
+            return true;
+        }
+
+        public void Expect(TokenKind kind, string message)
+        {
+            if (!TryRead(kind))
+            {
+                throw Fail(message);
+            }
+        }
+
+        public void ExpectEnd()
+        {
+            if (!IsAtEnd)
+            {
+                throw Fail($"'{statement.GetText(statement.Tokens[position])}' is not expected here.");
+            }
+        }
+
+        public string ReadName(string message)
+        {
+            if (Current != TokenKind.Name)
+            {
+                throw Fail(message);
+            }
+
+            return statement.GetText(statement.Tokens[position++]).ToString();
+        }
+
+        public Expression ParseExpression() => ExpressionParser.Parse(statement, position, out position);
+
+        // Reads "*80", "*(N)" or "*(*)" when an asterisk is next.
+        public LengthSpecification? TryParseLength()
+        {
+            if (!TryRead(TokenKind.Star))
+            {
+                return null;
+            }
+
+            switch (Current)
+            {
+                case TokenKind.IntegerLiteral:
+                    return new LengthSpecification(ParseLiteral());
+
+                // "REAL*8 E1" lexes its length and its first name as one number.
+                case TokenKind.RealLiteral or TokenKind.DoubleLiteral:
+                    throw Fail("A name starting with E or D directly after a length is not supported yet.");
+
+                case TokenKind.LeftParenthesis:
+                    position++;
+                    var value = TryRead(TokenKind.Star) ? null : ParseExpression();
+                    Expect(TokenKind.RightParenthesis, "A closing parenthesis is expected after a length.");
+                    return new LengthSpecification(value);
+
+                default:
+                    throw Fail("A length is expected after the asterisk.");
+            }
+        }
+
+        // An unparenthesized length is a bare constant: in "A*4(3)" the bounds
+        // that follow belong to the declarator, not to a function reference.
+        private Expression.Literal ParseLiteral() =>
+            new(DataType.Integer, statement.GetText(statement.Tokens[position++]).ToString());
+
+        private FortranSyntaxException Fail(string message) => new(statement.Source.Line, message);
+    }
+}
