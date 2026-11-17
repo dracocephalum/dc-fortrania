@@ -82,7 +82,7 @@ public static class ExpressionParser
 
         public Expression ParseExpression(int minimumPower)
         {
-            var left = ParseOperand();
+            var left = ParseOperand(minimumPower);
 
             while (Current is { } kind && GetBindingPowers(kind) is var (leftPower, rightPower) && leftPower >= minimumPower)
             {
@@ -94,7 +94,9 @@ public static class ExpressionParser
             return left;
         }
 
-        private Expression ParseOperand()
+        // minimumPower is what the caller is parsing at: the right power of
+        // the operator this operand follows, or zero at the start.
+        private Expression ParseOperand(int minimumPower)
         {
             if (Current is not { } kind)
             {
@@ -114,14 +116,18 @@ public static class ExpressionParser
                 case TokenKind.LogicalLiteral:
                     return ReadLiteral(DataType.Logical);
 
-                // A sign takes everything up to the next addition as its
-                // operand, so -A*B is -(A*B) and A ** -B * C is A ** (-(B*C)),
-                // which is how compilers that accept the second form read it.
+                // A sign takes a whole term as its operand, so -A*B is -(A*B)
+                // and -A**2 is -(A**2). Directly after an operator, which is
+                // an extension, it takes no more than that operator's own
+                // right operand would: A / -B * C is (A / (-B)) * C, and
+                // A ** -B * C is (A ** (-B)) * C, while A ** -B ** C is still
+                // A ** (-(B ** C)). This is what gfortran 16.2 computes for
+                // each of these.
                 case TokenKind.Plus or TokenKind.Minus:
                     Position++;
                     return new Expression.Unary(
                         kind == TokenKind.Minus ? UnaryOperator.Minus : UnaryOperator.Plus,
-                        ParseExpression(SignOperandPower));
+                        ParseExpression(Math.Max(SignOperandPower, minimumPower)));
 
                 // .NOT. binds tighter than .AND. and looser than a comparison.
                 case TokenKind.Not:
