@@ -144,6 +144,13 @@ Metrics and spans:
   collide with a property `Value`, a field is already marked, and the compiler
   catches the rest. `stylecop.ruleset` has both rules off on purpose and says
   what turning either on would cost.
+- **Acronyms: a two-letter acronym keeps both capitals** (`IOControl`,
+  `UIElement`); **a longer one is cased as a word** (`XmlReader`,
+  `HtmlParser`); **an abbreviation is a word** (`Id`, `Ok`, `Db`). The
+  difference is what was shortened: an acronym takes the initials of several
+  words, input/output, and an abbreviation shortens one, database, so it is
+  `DbContext` and never `DBContext`. In camelCase the leading one is all
+  lower case: `ioControl`, `xmlReader`, `dbContext`.
 - **A method name opens with a verb, or with `To`, `From`, `Is`, `Has`,
   `Can` or `Try`; never with the noun it returns.** `GetLeaseName(id)`,
   `ToInfo(summary)`, `ParseIds(text)`, `RequireGroupName(name)`, not
@@ -298,7 +305,8 @@ other files to learn why this one exists.
   is the price of a published API: write it, and make it carry a fact where
   there is one — the unit, the range, what null means, who owns the result.
   They ask for nothing on internal types, on private members, or in test
-  projects, so a tag there is a choice: `<param name="logger">The
+  projects, and the compiler's all-or-nothing check (CS1573) is off, so a tag
+  there is a choice, one parameter at a time: `<param name="logger">The
   logger.</param>` restates the declaration and is deleted; "the instance id
   the lease is taken under" stays. A type that is public only by habit pays
   for it in such tags; make it internal before documenting it.
