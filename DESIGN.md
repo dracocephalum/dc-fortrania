@@ -66,3 +66,22 @@ The alternative rejected was to treat blanks as separators, as later
 standards do. It would lex the reference sources, which are written with
 blanks in the conventional places, but it would not be FORTRAN 77, and the
 translator is meant to be general.
+
+## What a name means is kept per program unit, not per use
+
+In FORTRAN 77 a name stands for one thing throughout a program unit: a
+variable, a named constant, a function, a subroutine. `F(X)` is an array
+element everywhere in the unit or a function reference everywhere in it,
+and the text of one statement cannot say which. Declarations and every use
+in the unit decide it together.
+
+So the parser leaves `F(X)` undecided, as one kind of node, and analysis
+answers once per name: the `SymbolTable` of a unit gives each name its kind
+and type. A later stage that meets `F(X)` looks `F` up. No second tree with
+the answer written into each node is built, because the answer never
+differs from node to node.
+
+The two exceptions are narrow and are handled where they arise. Inside a
+function its own name is the variable that holds the result. And a statement
+function's dummy arguments are names of that one statement, sharing only
+their type with the unit's variable of the same name.

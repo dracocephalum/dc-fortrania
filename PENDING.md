@@ -386,6 +386,16 @@ each of these is reported as unsupported and never translated by guess:
 - A routine whose entries are not disjoint, which needs the single body with
   a selector described under *An ENTRY becomes a method of its own*.
 
+## Procedures taken from the compiler's library
+
+The reference sources call six procedures that no FORTRAN 77 standard defines
+and no file of theirs supplies: `IARGC` and `GETARG` for the command line,
+`GETENV`, `SYSTEM`, `EXIT`, and `DATE_AND_TIME`. Each is used in one or two
+routines written for exactly that purpose. The runtime is to supply them
+under those names, so that the translator treats them as it treats any other
+external procedure and knows nothing about them. `SYSTEM` starts another
+program, which not every platform allows; there it reports failure.
+
 ## Settings for what differs by platform
 
 Where the reference toolkit differs by platform in a value and not in logic,

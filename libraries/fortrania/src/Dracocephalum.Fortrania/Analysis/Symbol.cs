@@ -3,16 +3,19 @@ using Dracocephalum.Fortrania.Syntax;
 namespace Dracocephalum.Fortrania.Analysis;
 
 /// <summary>
-/// What a program unit's declarations say about one name. It holds only
-/// what was declared: a name's implicit type, and whether a name with no
-/// dimensions is a variable or a function, are settled by how it is used.
+/// One name of a program unit: what it stands for there, and everything the
+/// unit declares about it. A name means one thing throughout a program
+/// unit, so this is the answer for every place the name is written.
 /// </summary>
 /// <param name="Name">The name, in upper case.</param>
-/// <param name="DeclaredType">
-/// The type a type statement or a <c>FUNCTION</c> statement gives it, with
-/// the length that applies to this name, or <see langword="null"/> when no
-/// statement types it.
+/// <param name="Kind">What the name stands for.</param>
+/// <param name="Type">
+/// Its type, with the length that applies to this name. It is
+/// <see langword="null"/> for a subroutine and for an external procedure of
+/// unknown nature, which have none, and for an intrinsic function no
+/// statement types, whose result depends on its arguments.
 /// </param>
+/// <param name="IsTypeImplicit">Whether <paramref name="Type"/> comes from the name's first letter and not from a statement.</param>
 /// <param name="Dimensions">Its array bounds, in order; empty when it is not an array.</param>
 /// <param name="ConstantValue">The value a <c>PARAMETER</c> statement gives it, or <see langword="null"/> when it is not a named constant.</param>
 /// <param name="IsDummyArgument">Whether it is an argument of the program unit or of one of its entries.</param>
@@ -24,7 +27,9 @@ namespace Dracocephalum.Fortrania.Analysis;
 /// <param name="IncludeFile">The include file that first declared it, as named in the <c>INCLUDE</c> statement, or <see langword="null"/> when the program unit's own text did.</param>
 public sealed record Symbol(
     string Name,
-    TypeSpecification? DeclaredType,
+    SymbolKind Kind,
+    TypeSpecification? Type,
+    bool IsTypeImplicit,
     IReadOnlyList<DimensionBound> Dimensions,
     Expression? ConstantValue,
     bool IsDummyArgument,

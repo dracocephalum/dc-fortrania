@@ -3,8 +3,8 @@ using Dracocephalum.Fortrania.Syntax;
 namespace Dracocephalum.Fortrania.Analysis;
 
 /// <summary>
-/// Everything one program unit declares, with the include files it names
-/// already drawn in.
+/// Every name of one program unit, declared or only used, with the include
+/// files the unit names already drawn in.
 /// </summary>
 public sealed class SymbolTable
 {
@@ -40,7 +40,7 @@ public sealed class SymbolTable
     /// <summary>Gets a value indicating whether the unit has a <c>SAVE</c> with no names, which saves every variable it may.</summary>
     public bool SavesEverything { get; }
 
-    /// <summary>Gets the declared names, in the order they first appear.</summary>
+    /// <summary>Gets the names, in the order they first appear.</summary>
     public IReadOnlyList<Symbol> Symbols { get; }
 
     /// <summary>
@@ -64,6 +64,6 @@ public sealed class SymbolTable
 
     /// <summary>Looks a name up.</summary>
     /// <param name="name">A name, in upper case.</param>
-    /// <returns>What is declared about it, or <see langword="null"/> when no declaration mentions it.</returns>
+    /// <returns>What it stands for, or <see langword="null"/> when the unit never mentions it.</returns>
     public Symbol? Find(string name) => _byName.GetValueOrDefault(name);
 }

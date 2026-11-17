@@ -3,10 +3,11 @@ using Dracocephalum.Fortrania.Syntax;
 namespace Dracocephalum.Fortrania.Analysis;
 
 /// <summary>
-/// Reads the declarations of a program unit, and of the include files it
-/// names, into a <see cref="SymbolTable"/>.
+/// Reads a program unit, and the include files it names, into a
+/// <see cref="SymbolTable"/>: what it declares about each name, and what
+/// each name turns out to stand for once every use of it has been seen.
 /// </summary>
-public static class SymbolTableBuilder
+public static partial class SymbolTableBuilder
 {
     // Include files may name include files; this many deep is a loop.
     private const int MaximumIncludeDepth = 16;
@@ -17,10 +18,11 @@ public static class SymbolTableBuilder
     /// Finds an include file by the name written in the <c>INCLUDE</c>
     /// statement, and returns <see langword="null"/> when there is none.
     /// </param>
-    /// <returns>What the unit declares.</returns>
+    /// <returns>The unit's names.</returns>
     /// <exception cref="FortranAnalysisException">
-    /// The declarations contradict each other or stand where they may not,
-    /// an include file is not found, or a construct is not supported yet.
+    /// The declarations contradict each other or stand where they may not, a
+    /// name is used against what it is or has no type where it needs one, an
+    /// include file is not found, or a construct is not supported yet.
     /// </exception>
     public static SymbolTable Build(ProgramUnit unit, Func<string, IncludeFile?> resolveInclude)
     {
@@ -37,11 +39,11 @@ public static class SymbolTableBuilder
         public FortranAnalysisException Error(string message) => new(Line, IncludeFile, message);
     }
 
-    private sealed class Draft(string name, string? includeFile)
+    private sealed class Draft(string name, Location firstSeenAt)
     {
         public string Name { get; } = name;
 
-        public string? IncludeFile { get; } = includeFile;
+        public Location FirstSeenAt { get; } = firstSeenAt;
 
         public TypeSpecification? DeclaredType { get; set; }
 
@@ -61,9 +63,20 @@ public static class SymbolTableBuilder
 
         public bool IsStatementFunction { get; set; }
 
-        public Symbol ToSymbol() => new(
+        // Where the name is first used in each way, or null when it never is.
+        public Location? CalledAt { get; set; }
+
+        public Location? ReferencedAt { get; set; }
+
+        public Location? UsedAsValueAt { get; set; }
+
+        public Location? AssignedAt { get; set; }
+
+        public Symbol ToSymbol(SymbolKind kind, TypeSpecification? type) => new(
             Name,
-            DeclaredType,
+            kind,
+            type,
+            type is not null && DeclaredType is null,
             Dimensions,
             ConstantValue,
             IsDummyArgument,
@@ -72,10 +85,10 @@ public static class SymbolTableBuilder
             IsExternal,
             IsIntrinsic,
             IsStatementFunction,
-            IncludeFile);
+            FirstSeenAt.IncludeFile);
     }
 
-    private sealed class Builder(Func<string, IncludeFile?> resolveInclude)
+    private sealed partial class Builder(Func<string, IncludeFile?> resolveInclude)
     {
         private readonly List<Draft> _entries = [];
         private readonly Dictionary<string, Draft> _byName = new(StringComparer.Ordinal);
@@ -87,6 +100,7 @@ public static class SymbolTableBuilder
         private bool _isImplicitNone;
         private bool _savesEverything;
         private bool _executableSeen;
+        private bool _isFunction;
 
         public SymbolTable Build(ProgramUnit unit)
         {
@@ -99,6 +113,7 @@ public static class SymbolTableBuilder
                         AddEntryPoint(header, subroutine.Name, subroutine.Parameters, location);
                         break;
                     case Statement.Function function:
+                        _isFunction = true;
                         AddEntryPoint(header, function.Name, function.Parameters, location);
                         if (function.ReturnType is not null)
                         {
@@ -115,7 +130,7 @@ public static class SymbolTableBuilder
                 unit,
                 _isImplicitNone,
                 _savesEverything,
-                [.. _entries.Select(entry => entry.ToSymbol())],
+                [.. _entries.Select(Finish)],
                 _entryPoints,
                 _data,
                 _equivalences,
@@ -135,12 +150,14 @@ public static class SymbolTableBuilder
                         _executableSeen = true;
                         foreach (var branch in block.Branches)
                         {
+                            Use(branch.Header.Statement, new Location(branch.Header.Source.Line, null));
                             Visit(branch.Body, isNested: true);
                         }
 
                         break;
                     case Construct.Loop loop:
                         _executableSeen = true;
+                        Use(loop.Header.Statement, new Location(loop.Header.Source.Line, null));
                         Visit(loop.Body, isNested: true);
                         break;
                 }
@@ -158,6 +175,7 @@ public static class SymbolTableBuilder
             {
                 case Statement.Data data:
                     _data.AddRange(data.Groups);
+                    Use(data, location);
                     return;
                 case Statement.Entry entry:
                     if (location.IncludeFile is not null)
@@ -192,6 +210,7 @@ public static class SymbolTableBuilder
                 }
 
                 _executableSeen = true;
+                Use(statement, location);
                 return;
             }
 
@@ -213,6 +232,7 @@ public static class SymbolTableBuilder
                         var entry = Get(entity.Name, location);
                         SetType(entry, declaration.Type with { Length = entity.Length ?? declaration.Type.Length }, location);
                         SetDimensions(entry, entity.Dimensions, location);
+                        Use(entry.DeclaredType?.Length?.Value, location);
                     }
 
                     break;
@@ -233,6 +253,7 @@ public static class SymbolTableBuilder
                         }
 
                         entry.ConstantValue = constant.Value;
+                        Use(constant.Value, location);
                         Check(entry, location);
                     }
 
@@ -270,6 +291,11 @@ public static class SymbolTableBuilder
                     break;
                 case Statement.Equivalence equivalence:
                     _equivalences.AddRange(equivalence.Sets);
+                    foreach (var item in equivalence.Sets.SelectMany(set => set))
+                    {
+                        Use(item, location);
+                    }
+
                     break;
                 case Statement.Include include:
                     VisitInclude(include.FileName, location);
@@ -348,9 +374,13 @@ public static class SymbolTableBuilder
                 {
                     throw location.Error($"{name} appears twice in the argument list of the statement function {entry.Name}.");
                 }
+
+                // Its type is that of the unit's variable of the same name.
+                Get(name, location).UsedAsValueAt ??= location;
             }
 
             entry.IsStatementFunction = true;
+            Use(((Statement.Assignment)statement.Statement).Value, location);
             Check(entry, location);
             _statementFunctions.Add(statement);
         }
@@ -359,7 +389,7 @@ public static class SymbolTableBuilder
         {
             if (!_byName.TryGetValue(name, out var entry))
             {
-                entry = new Draft(name, location.IncludeFile);
+                entry = new Draft(name, location);
                 _byName.Add(name, entry);
                 _entries.Add(entry);
             }
@@ -377,7 +407,7 @@ public static class SymbolTableBuilder
             entry.DeclaredType = type;
         }
 
-        private static void SetDimensions(Draft entry, IReadOnlyList<DimensionBound> dimensions, Location location)
+        private void SetDimensions(Draft entry, IReadOnlyList<DimensionBound> dimensions, Location location)
         {
             if (dimensions.Count == 0)
             {
@@ -390,6 +420,12 @@ public static class SymbolTableBuilder
             }
 
             entry.Dimensions = dimensions;
+            foreach (var bound in dimensions)
+            {
+                Use(bound.Lower, location);
+                Use(bound.Upper, location);
+            }
+
             Check(entry, location);
         }
 

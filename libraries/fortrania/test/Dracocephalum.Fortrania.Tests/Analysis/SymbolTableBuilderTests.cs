@@ -40,23 +40,23 @@ public class SymbolTableBuilderTests
 
         var demo = table.Find("DEMO").ShouldNotBeNull();
         demo.IsEntryPoint.ShouldBeTrue();
-        demo.DeclaredType.ShouldBeNull();
+        demo.Type.ShouldBeNull();
 
         var n = table.Find("N").ShouldNotBeNull();
         n.IsDummyArgument.ShouldBeTrue();
-        n.DeclaredType.ShouldNotBeNull().Type.ShouldBe(DataType.Integer);
+        n.Type.ShouldNotBeNull().Type.ShouldBe(DataType.Integer);
         n.IsArray.ShouldBeFalse();
 
         var x = table.Find("X").ShouldNotBeNull();
         x.Dimensions.Count.ShouldBe(2);
         x.Dimensions[1].Upper.ShouldBeNull();
 
-        table.Find("NAME").ShouldNotBeNull().DeclaredType.ShouldNotBeNull().Length.ShouldNotBeNull().IsAssumed.ShouldBeTrue();
+        table.Find("NAME").ShouldNotBeNull().Type.ShouldNotBeNull().Length.ShouldNotBeNull().IsAssumed.ShouldBeTrue();
         RenderLength(table.Find("LINE")).ShouldBe("80");
         RenderLength(table.Find("SHORT")).ShouldBe("8");
 
         var work = table.Find("WORK").ShouldNotBeNull();
-        work.DeclaredType.ShouldNotBeNull().Type.ShouldBe(DataType.DoublePrecision);
+        work.Type.ShouldNotBeNull().Type.ShouldBe(DataType.DoublePrecision);
         SyntaxRenderer.Render(work.Dimensions.ShouldHaveSingleItem().Upper).ShouldBe("N");
 
         var limit = table.Find("LIMIT").ShouldNotBeNull();
@@ -98,11 +98,11 @@ public class SymbolTableBuilderTests
 
         var area = table.Find("AREA").ShouldNotBeNull();
         area.IsEntryPoint.ShouldBeTrue();
-        area.DeclaredType.ShouldNotBeNull().Type.ShouldBe(DataType.DoublePrecision);
+        area.Type.ShouldNotBeNull().Type.ShouldBe(DataType.DoublePrecision);
 
         var square = table.Find("SQUARE").ShouldNotBeNull();
         square.IsEntryPoint.ShouldBeTrue();
-        square.DeclaredType.ShouldNotBeNull().Type.ShouldBe(DataType.DoublePrecision);
+        square.Type.ShouldNotBeNull().Type.ShouldBe(DataType.DoublePrecision);
 
         table.Find("R").ShouldNotBeNull().IsDummyArgument.ShouldBeTrue();
         table.Find("S").ShouldNotBeNull().IsDummyArgument.ShouldBeTrue();
@@ -124,8 +124,8 @@ public class SymbolTableBuilderTests
         var table = Build(lines);
 
         // Assert
-        table.Find("COUNT").ShouldNotBeNull().DeclaredType.ShouldNotBeNull().Type.ShouldBe(DataType.Integer);
-        table.Find("X").ShouldNotBeNull().DeclaredType.ShouldBeNull();
+        table.Find("COUNT").ShouldNotBeNull().Type.ShouldNotBeNull().Type.ShouldBe(DataType.Integer);
+        table.Find("COUNT").ShouldNotBeNull().IsTypeImplicit.ShouldBeFalse();
     }
 
     [Fact]
@@ -189,7 +189,7 @@ public class SymbolTableBuilderTests
         table.Find("F").ShouldNotBeNull().IsStatementFunction.ShouldBeTrue();
         table.Find("DF").ShouldNotBeNull().IsStatementFunction.ShouldBeTrue();
         table.Find("A").ShouldNotBeNull().IsStatementFunction.ShouldBeFalse();
-        table.Find("LATE").ShouldNotBeNull().DeclaredType.ShouldNotBeNull();
+        table.Find("LATE").ShouldNotBeNull().Type.ShouldNotBeNull();
     }
 
     [Fact]
@@ -343,7 +343,7 @@ public class SymbolTableBuilderTests
     }
 
     private static string RenderLength(Symbol? symbol) =>
-        SyntaxRenderer.Render(symbol.ShouldNotBeNull().DeclaredType.ShouldNotBeNull().Length.ShouldNotBeNull().Value);
+        SyntaxRenderer.Render(symbol.ShouldNotBeNull().Type.ShouldNotBeNull().Length.ShouldNotBeNull().Value);
 
     private static SymbolTable Build(params string[] lines) => Build(lines, []);
 
