@@ -91,6 +91,32 @@ are `stackalloc`. A managed array is never handed inward without being
 pinned for the length of the call, which `ISpiceCore` does on the caller's
 behalf.
 
+**A character constant is a `u8` literal, and its address is taken as it
+stands.** The compiler stores the bytes of a `u8` literal in the assembly
+itself, and the span it yields points into the loaded image: memory that was
+never on the managed heap, so nothing can move it, and no `fixed` block is
+needed. `CALL CHKIN ( 'SPKEZ' )` therefore passes a pointer at no cost.
+Measured on .NET 10.0.11, x64: the address was unchanged after five
+compacting collections, the page belonged to the assembly's image and was
+read-only, and the byte after the constant was zero. Three limits come with
+it:
+
+- It holds for as long as the assembly is loaded. Loaded into a collectible
+  context and unloaded, the image and every such pointer go with it; the
+  library is not to be used that way.
+- It is not extended to an ordinary `string` literal, which lives on the
+  heap and stays put only by an implementation detail.
+- It is not extended to constant data wider than a byte. The image stores
+  such data little-endian, so on a big-endian machine the runtime has to
+  hand back a converted copy made elsewhere. Numeric constants and the
+  values of `DATA` statements are copied into the instance's native memory
+  when the instance is created, which a `DATA`-initialized variable needs in
+  any case, being both writable and per instance.
+
+Being read-only is useful in itself: translated code that writes through a
+pointer to a constant, which FORTRAN forbids and faulty code does, stops at
+once and does not go on with a changed constant.
+
 **A checked build stands in for the bounds checks.** A wrong index through a
 pointer corrupts memory silently, so a translator fault would surface far
 from its cause. Most arrays in the source do have declared dimensions, and
@@ -226,6 +252,35 @@ An optional way of reading a kernel that is opened read-only, in place of a
 positional read per record. It is to be added only if a benchmark shows it
 is worth it, since a mapped file turns an input error into a fault and does
 not suit a file that is being written.
+
+## Conformance tests against a reference compiler
+
+The reference sources do not use all of FORTRAN 77, so their regression
+tests cannot show that the translator handles the rest. For that, and to pin
+down behaviour the standard leaves to the compiler, the translator is to be
+tested against gfortran, one small program at a time:
+
+1. A FORTRAN program written for the test, exercising one construct and
+   printing what it computes.
+2. The output gfortran's build of it prints, committed beside it as the
+   expected output.
+3. A test that translates the program, compiles and runs the translation,
+   and compares what it prints with the expected output.
+
+The expected output is committed, so running the tests needs no FORTRAN
+compiler; only writing a new program, or regenerating the outputs, does, and
+then the compiler is found on the `PATH`. The programs are written for this
+repository and are its own, unlike the reference sources, so they are
+committed. Each construct in *FORTRAN 77 that Fortrania does not handle yet*
+is added with its programs.
+
+The same arrangement serves the runtime: how a number is formatted, what
+list-directed output looks like and how an unformatted record is laid out
+are each a program and its output.
+
+It needs the emitter and enough of the runtime to print, so it starts when
+those exist. Until then the compiler is used by hand to settle single
+questions, and what it settles is recorded where the answer is used.
 
 ## FORTRAN 77 that Fortrania does not handle yet
 
