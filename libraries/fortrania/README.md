@@ -19,8 +19,25 @@ depends on a runtime library that supplies the FORTRAN intrinsics, string
 semantics and record-based file input and output, written directly in managed
 C# with no native code.
 
-Only the first step of the front end exists so far: classifying physical
-source lines as comment, initial or continuation lines.
+It is a general FORTRAN 77 translator and knows nothing about SPICE. Whatever
+is particular to one body of source, which routines to replace by hand, what
+to name the output, is configuration given to it, never code inside it.
+
+The work is done by the library, in stages that each know only the one
+before:
+
+| Stage | Takes | Gives | State |
+|---|---|---|---|
+| Source form | physical lines | whole statements with their comments | done |
+| Lexer | a statement | tokens | not started |
+| Parser | tokens | a syntax tree per program unit | not started |
+| Analysis | every program unit | symbols, types, and what each call does to its arguments | not started |
+| Emitter | the analysed program | C# source | not started |
+
+Everything up to the emitter is independent of the output language, and the
+emitter sits behind a seam of its own, so another back end is an addition
+and not a rewrite. The command-line front end, `f2csharp`, will be a thin
+program over this library and hold no logic of its own.
 
 ## Run it
 
