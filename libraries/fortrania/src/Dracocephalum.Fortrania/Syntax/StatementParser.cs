@@ -3,12 +3,14 @@ using System.Globalization;
 namespace Dracocephalum.Fortrania.Syntax;
 
 /// <summary>
-/// Parses a classified statement into its parts. It covers declarations,
-/// specifications and control flow so far; a kind it does not handle yet is
-/// reported as unsupported, never skipped.
+/// Parses a classified statement into its parts. It covers every kind but
+/// the input and output statements so far; a kind or a form it does not
+/// handle is reported as unsupported, never skipped.
 /// </summary>
 public static class StatementParser
 {
+    private const string FunctionKeyword = "FUNCTION";
+
     // Longest first, so that DOUBLEPRECISION is not read as a name after DO.
     private static readonly (string Keyword, DataType Type)[] TypeKeywords =
     [
@@ -55,6 +57,11 @@ public static class StatementParser
             StatementKind.EndDo => ExpectAlone(statement, new Statement.EndDo()),
             StatementKind.Continue => ExpectAlone(statement, new Statement.Continue()),
             StatementKind.End => ExpectAlone(statement, new Statement.End()),
+            StatementKind.Program => ParseProgram(statement),
+            StatementKind.Subroutine => ParseSubroutine(statement),
+            StatementKind.Function => ParseFunction(statement),
+            StatementKind.Entry => ParseEntry(statement),
+            StatementKind.BlockData => ParseBlockData(statement),
             _ => throw new FortranSyntaxException(statement.Source.Line, $"A {kind} statement is not supported yet."),
         };
     }
@@ -401,6 +408,94 @@ public static class StatementParser
         return parsed;
     }
 
+    private static Statement.Program ParseProgram(TokenizedStatement statement)
+    {
+        var reader = SplitKeyword(statement, "PROGRAM");
+        var name = reader.ReadName("The name of the program is expected.");
+        reader.ExpectEnd();
+        return new Statement.Program(name);
+    }
+
+    private static Statement.BlockData ParseBlockData(TokenizedStatement statement)
+    {
+        var reader = SplitKeyword(statement, "BLOCKDATA");
+        var name = reader.IsAtEnd ? null : reader.ReadName("The name of the block data subprogram is expected.");
+        reader.ExpectEnd();
+        return new Statement.BlockData(name);
+    }
+
+    private static Statement.Function ParseFunction(TokenizedStatement statement)
+    {
+        var reader = new Reader(statement, 0);
+        TypeSpecification? returnType = null;
+
+        // An untyped function starts with the keyword itself; otherwise a
+        // type, and perhaps a length, come first.
+        if (!reader.TryReadKeyword(FunctionKeyword))
+        {
+            foreach (var (keyword, type) in TypeKeywords)
+            {
+                if (reader.TryReadKeyword(keyword))
+                {
+                    returnType = new TypeSpecification(type, reader.TryParseLength());
+                    break;
+                }
+            }
+
+            if (returnType is null || !reader.TryReadKeyword(FunctionKeyword))
+            {
+                throw reader.Fail("FUNCTION is expected, after an optional type.");
+            }
+        }
+
+        var name = reader.ReadName("The name of the function is expected.");
+        return new Statement.Function(returnType, name, ParseParameters(reader));
+    }
+
+    // A dummy argument list to the end of the statement; a procedure with no
+    // arguments may leave the parentheses out.
+    private static List<string> ParseParameters(Reader reader)
+    {
+        var parameters = new List<string>();
+        if (reader.TryRead(TokenKind.LeftParenthesis) && !reader.TryRead(TokenKind.RightParenthesis))
+        {
+            do
+            {
+                if (reader.TryRead(TokenKind.Star))
+                {
+                    throw reader.Fail("An alternate-return dummy argument is not supported yet.");
+                }
+
+                parameters.Add(reader.ReadName("The name of a dummy argument is expected."));
+            }
+            while (reader.TryRead(TokenKind.Comma));
+
+            reader.Expect(TokenKind.RightParenthesis, "A closing parenthesis is expected after the dummy arguments.");
+        }
+
+        reader.ExpectEnd();
+        return parameters;
+    }
+
+    private static (string Name, List<string> Parameters) ParseProcedureHeader(TokenizedStatement statement, string keyword)
+    {
+        var reader = SplitKeyword(statement, keyword);
+        var name = reader.ReadName($"A name is expected after {keyword}.");
+        return (name, ParseParameters(reader));
+    }
+
+    private static Statement.Subroutine ParseSubroutine(TokenizedStatement statement)
+    {
+        var (name, parameters) = ParseProcedureHeader(statement, "SUBROUTINE");
+        return new Statement.Subroutine(name, parameters);
+    }
+
+    private static Statement.Entry ParseEntry(TokenizedStatement statement)
+    {
+        var (name, parameters) = ParseProcedureHeader(statement, "ENTRY");
+        return new Statement.Entry(name, parameters);
+    }
+
     private static Statement.Include ParseInclude(TokenizedStatement statement)
     {
         var tokens = statement.Tokens;
@@ -429,6 +524,20 @@ public static class StatementParser
                 return false;
             }
 
+            position++;
+            return true;
+        }
+
+        // Reads a keyword that the lexer left joined to what follows it, by
+        // splitting it off the name that is next.
+        public bool TryReadKeyword(string keyword)
+        {
+            if (Current != TokenKind.Name || !statement.GetText(statement.Tokens[position]).StartsWith(keyword, StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            statement = statement.SplitKeyword(position, keyword.Length);
             position++;
             return true;
         }

@@ -52,6 +52,12 @@ internal static class SyntaxRenderer
         Statement.Return => "RETURN",
         Statement.Stop stop => $"STOP {Render(stop.Code)}".TrimEnd(),
         Statement.End => "END",
+        Statement.Program program => $"PROGRAM {program.Name}",
+        Statement.Subroutine subroutine => $"SUBROUTINE {subroutine.Name}({string.Join(", ", subroutine.Parameters)})",
+        Statement.Function function =>
+            $"{(function.ReturnType is null ? string.Empty : $"{function.ReturnType.Type}{Render(function.ReturnType.Length)} ")}FUNCTION {function.Name}({string.Join(", ", function.Parameters)})",
+        Statement.Entry entry => $"ENTRY {entry.Name}({string.Join(", ", entry.Parameters)})",
+        Statement.BlockData block => $"BLOCK DATA {block.Name}".TrimEnd(),
         _ => throw new ArgumentOutOfRangeException(nameof(statement)),
     };
 

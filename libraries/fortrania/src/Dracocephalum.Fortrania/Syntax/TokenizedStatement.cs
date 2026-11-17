@@ -29,9 +29,22 @@ public sealed record TokenizedStatement(
     /// </summary>
     /// <param name="length">The length of the keyword; at most the length of the first token, which is a name.</param>
     /// <returns>A statement over the same text, with the first token replaced by the pieces.</returns>
-    public TokenizedStatement SplitKeyword(int length)
+    public TokenizedStatement SplitKeyword(int length) => SplitKeyword(0, length);
+
+    /// <summary>
+    /// Splits a keyword off the front of the token at <paramref name="index"/>,
+    /// for a keyword that is not the statement's first word, such as
+    /// <c>FUNCTION</c> after a type.
+    /// </summary>
+    /// <param name="index">The index of the token to split, which is a name.</param>
+    /// <param name="length">The length of the keyword; at most the length of that token.</param>
+    /// <returns>A statement over the same text, with that token replaced by the pieces.</returns>
+    public TokenizedStatement SplitKeyword(int index, int length)
     {
-        var first = Tokens[0];
+        ArgumentOutOfRangeException.ThrowIfNegative(index);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(index, Tokens.Count);
+
+        var first = Tokens[index];
         if (first.Kind != TokenKind.Name)
         {
             throw new InvalidOperationException("Only a name can have a keyword split off it.");
@@ -40,7 +53,9 @@ public sealed record TokenizedStatement(
         ArgumentOutOfRangeException.ThrowIfLessThan(length, 1);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(length, first.Length);
 
-        var tokens = new List<Token>(Tokens.Count + 2) { new(TokenKind.Name, first.Start, length) };
+        var tokens = new List<Token>(Tokens.Count + 2);
+        tokens.AddRange(Tokens.Take(index));
+        tokens.Add(new Token(TokenKind.Name, first.Start, length));
         var rest = first.Start + length;
         var end = first.Start + first.Length;
 
@@ -61,7 +76,7 @@ public sealed record TokenizedStatement(
             tokens.Add(new Token(TokenKind.Name, digits, end - digits));
         }
 
-        tokens.AddRange(Tokens.Skip(1));
+        tokens.AddRange(Tokens.Skip(index + 1));
         return this with { Tokens = tokens };
     }
 }

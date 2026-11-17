@@ -117,4 +117,28 @@ public abstract record Statement
 
     /// <summary><c>END</c> of a program unit.</summary>
     public sealed record End : Statement;
+
+    /// <summary><c>PROGRAM</c>.</summary>
+    /// <param name="Name">The program's name, in upper case.</param>
+    public sealed record Program(string Name) : Statement;
+
+    /// <summary><c>SUBROUTINE</c>.</summary>
+    /// <param name="Name">The subroutine's name, in upper case.</param>
+    /// <param name="Parameters">Its dummy arguments, in order.</param>
+    public sealed record Subroutine(string Name, IReadOnlyList<string> Parameters) : Statement;
+
+    /// <summary><c>FUNCTION</c>.</summary>
+    /// <param name="ReturnType">The type written before the keyword, or <see langword="null"/> when the result's type is declared in the body or left implicit.</param>
+    /// <param name="Name">The function's name, in upper case.</param>
+    /// <param name="Parameters">Its dummy arguments, in order.</param>
+    public sealed record Function(TypeSpecification? ReturnType, string Name, IReadOnlyList<string> Parameters) : Statement;
+
+    /// <summary><c>ENTRY</c>: a further way into the subroutine or function it stands in.</summary>
+    /// <param name="Name">The entry's name, in upper case.</param>
+    /// <param name="Parameters">Its dummy arguments, in order, which need not be those of the enclosing procedure.</param>
+    public sealed record Entry(string Name, IReadOnlyList<string> Parameters) : Statement;
+
+    /// <summary><c>BLOCK DATA</c>.</summary>
+    /// <param name="Name">The name of the block data subprogram, or <see langword="null"/> when it has none.</param>
+    public sealed record BlockData(string? Name) : Statement;
 }
