@@ -36,6 +36,33 @@ public static class ExpressionParser
         return expression;
     }
 
+    /// <summary>
+    /// Parses one variable, array element or substring starting at the token
+    /// at index <paramref name="start"/>, and stops there. It is for the
+    /// places where an operator after the name is not part of an expression,
+    /// such as the slash that follows a name in a <c>DATA</c> statement.
+    /// </summary>
+    /// <param name="statement">The statement whose tokens are read.</param>
+    /// <param name="start">The index of the name.</param>
+    /// <param name="next">The index of the first token after it.</param>
+    /// <returns>A <see cref="Expression.Name"/>, <see cref="Expression.Reference"/> or <see cref="Expression.Substring"/>.</returns>
+    /// <exception cref="FortranSyntaxException">No name starts there, or what follows it is malformed.</exception>
+    public static Expression ParseVariable(TokenizedStatement statement, int start, out int next)
+    {
+        ArgumentNullException.ThrowIfNull(statement);
+        ArgumentOutOfRangeException.ThrowIfNegative(start);
+
+        if (start >= statement.Tokens.Count || statement.Tokens[start].Kind != TokenKind.Name)
+        {
+            throw new FortranSyntaxException(statement.Source.Line, "A variable name is expected.");
+        }
+
+        var parser = new Parser(statement, start);
+        var variable = parser.ParseNamed();
+        next = parser.Position;
+        return variable;
+    }
+
     private static (int Left, int Right)? GetBindingPowers(TokenKind kind) => kind switch
     {
         TokenKind.Equivalent or TokenKind.NotEquivalent => (1, 2),
@@ -162,7 +189,7 @@ public static class ExpressionParser
 
         // A name, optionally followed by a list in parentheses, optionally
         // followed by a substring range: NAME, A(I,J), S(1:3), A(I)(1:3).
-        private Expression ParseNamed()
+        public Expression ParseNamed()
         {
             var identifier = statement.GetText(statement.Tokens[Position++]).ToString();
             if (Current != TokenKind.LeftParenthesis)

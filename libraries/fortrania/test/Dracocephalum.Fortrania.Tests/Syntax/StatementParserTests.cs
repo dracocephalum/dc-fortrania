@@ -65,6 +65,39 @@ public class StatementParserTests
     }
 
     [Theory]
+    [InlineData("DATA FIRST / .TRUE. /", "DATA FIRST / .TRUE. /")]
+    [InlineData("DATA A, B / 1, 2 /", "DATA A, B / 1, 2 /")]
+    [InlineData("DATA X / -1.0D0 /, Y / +2 /", "DATA X / (Minus 1.0D0) /; Y / (Plus 2) /")]
+    [InlineData("DATA X / 1 / Y / 2 /", "DATA X / 1 /; Y / 2 /")]
+    [InlineData("DATA V / 3 * 0.0D0 /", "DATA V / 3*0.0D0 /")]
+    [InlineData("DATA V / N * -1 /", "DATA V / N*(Minus 1) /")]
+    [InlineData("DATA NAMES / 'A/B', 'C' /", "DATA NAMES / 'A/B', 'C' /")]
+    [InlineData("DATA A(1), S(2:3) / ZERO, 'ab' /", "DATA A[1], S<2:3> / ZERO, 'ab' /")]
+    [InlineData("DATA ( A(I), I = 1, 3 ) / 1, 2, 3 /", "DATA (A[I], I=1..3) / 1, 2, 3 /")]
+    [InlineData("DATA ( A(I), B(I), I = 1, N, 2 ) / 4 * 0 /", "DATA (A[I], B[I], I=1..N step 2) / 4*0 /")]
+    [InlineData("DATA ( ( M(I,J), I = 1, 2 ), J = 1, 2 ) / 4 * 1 /", "DATA ((M[I, J], I=1..2), J=1..2) / 4*1 /")]
+    [InlineData("EQUIVALENCE ( A, B )", "EQUIVALENCE A = B")]
+    [InlineData("EQUIVALENCE ( A(1), B, C ), ( S(1:1), T )", "EQUIVALENCE A[1] = B = C; S<1:1> = T")]
+    public void Parse_WhenStatementIsDataOrEquivalence_ShouldReturnItsParts(string text, string expected)
+    {
+        // Act
+        var statement = Parse(text);
+
+        // Assert
+        Render(statement).ShouldBe(expected);
+    }
+
+    [Theory]
+    [InlineData("DATA X")]
+    [InlineData("DATA X / 1")]
+    [InlineData("DATA X / /")]
+    [InlineData("DATA / 1 /")]
+    [InlineData("DATA X / 1 + 2 /")]
+    [InlineData("DATA X / ( 1.0, 2.0 ) /")]
+    [InlineData("DATA ( I = 1, 3 ) / 3 * 0 /")]
+    [InlineData("DATA ( A(I), I = 1 ) / 1 /")]
+    [InlineData("EQUIVALENCE ( A )")]
+    [InlineData("EQUIVALENCE A, B")]
     [InlineData("INTEGER")]
     [InlineData("INTEGER I,")]
     [InlineData("INTEGER A ( 3")]
@@ -111,6 +144,9 @@ public class StatementParserTests
         Statement.External external => $"EXTERNAL {string.Join(", ", external.Names)}",
         Statement.Intrinsic intrinsic => $"INTRINSIC {string.Join(", ", intrinsic.Names)}",
         Statement.Include include => $"INCLUDE {include.FileName}",
+        Statement.Data data => $"DATA {string.Join("; ", data.Groups.Select(Render))}",
+        Statement.Equivalence equivalence =>
+            $"EQUIVALENCE {string.Join("; ", equivalence.Sets.Select(set => string.Join(" = ", set.Select(Render))))}",
         _ => throw new ArgumentOutOfRangeException(nameof(statement)),
     };
 
@@ -139,6 +175,23 @@ public class StatementParserTests
         Expression.Literal literal => literal.Text,
         Expression.Name name => name.Identifier,
         Expression.Binary binary => $"({binary.Operator} {Render(binary.Left)} {Render(binary.Right)})",
+        Expression.Unary unary => $"({unary.Operator} {Render(unary.Operand)})",
+        Expression.Reference reference => $"{reference.Identifier}[{string.Join(", ", reference.Arguments.Select(Render))}]",
+        Expression.Substring substring => $"{Render(substring.Target)}<{Render(substring.First)}:{Render(substring.Last)}>",
         _ => throw new ArgumentOutOfRangeException(nameof(expression)),
+    };
+
+    private static string Render(DataGroup group)
+    {
+        var values = group.Values.Select(value => value.Repeat is null ? Render(value.Value) : $"{Render(value.Repeat)}*{Render(value.Value)}");
+        return $"{string.Join(", ", group.Targets.Select(Render))} / {string.Join(", ", values)} /";
+    }
+
+    private static string Render(DataTarget target) => target switch
+    {
+        DataTarget.Variable variable => Render(variable.Designator),
+        DataTarget.ImpliedDo loop =>
+            $"({string.Join(", ", loop.Targets.Select(Render))}, {loop.ControlVariable}={Render(loop.First)}..{Render(loop.Last)}{(loop.Step is null ? string.Empty : $" step {Render(loop.Step)}")})",
+        _ => throw new ArgumentOutOfRangeException(nameof(target)),
     };
 }

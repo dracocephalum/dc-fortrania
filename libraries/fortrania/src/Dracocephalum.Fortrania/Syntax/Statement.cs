@@ -42,4 +42,12 @@ public abstract record Statement
     /// <summary><c>INCLUDE</c>.</summary>
     /// <param name="FileName">The file named, as written between the quotes.</param>
     public sealed record Include(string FileName) : Statement;
+
+    /// <summary><c>DATA</c>.</summary>
+    /// <param name="Groups">The pairs of names and values, in order.</param>
+    public sealed record Data(IReadOnlyList<DataGroup> Groups) : Statement;
+
+    /// <summary><c>EQUIVALENCE</c>.</summary>
+    /// <param name="Sets">The sets of variables, array elements or substrings that share storage; each set has at least two.</param>
+    public sealed record Equivalence(IReadOnlyList<IReadOnlyList<Expression>> Sets) : Statement;
 }

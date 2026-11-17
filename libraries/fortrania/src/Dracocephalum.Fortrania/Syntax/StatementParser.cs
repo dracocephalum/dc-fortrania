@@ -37,6 +37,8 @@ public static class StatementParser
             StatementKind.External => new Statement.External(ParseNameList(SplitKeyword(statement, "EXTERNAL"))),
             StatementKind.Intrinsic => new Statement.Intrinsic(ParseNameList(SplitKeyword(statement, "INTRINSIC"))),
             StatementKind.Include => ParseInclude(statement),
+            StatementKind.Data => ParseData(statement),
+            StatementKind.Equivalence => ParseEquivalence(statement),
             _ => throw new FortranSyntaxException(statement.Source.Line, $"A {kind} statement is not supported yet."),
         };
     }
@@ -165,6 +167,104 @@ public static class StatementParser
         return names;
     }
 
+    private static Statement.Data ParseData(TokenizedStatement statement)
+    {
+        var reader = SplitKeyword(statement, "DATA");
+        var groups = new List<DataGroup>();
+
+        do
+        {
+            var targets = new List<DataTarget>();
+            do
+            {
+                targets.Add(ParseDataTarget(reader));
+            }
+            while (reader.TryRead(TokenKind.Comma));
+
+            reader.Expect(TokenKind.Slash, "A slash is expected before the values of a DATA statement.");
+
+            var values = new List<DataValue>();
+            do
+            {
+                var first = reader.ParseConstant();
+                values.Add(reader.TryRead(TokenKind.Star) ? new DataValue(first, reader.ParseConstant()) : new DataValue(null, first));
+            }
+            while (reader.TryRead(TokenKind.Comma));
+
+            reader.Expect(TokenKind.Slash, "A slash is expected after the values of a DATA statement.");
+            groups.Add(new DataGroup(targets, values));
+
+            // The comma between one group and the next is optional.
+            reader.TryRead(TokenKind.Comma);
+        }
+        while (!reader.IsAtEnd);
+
+        return new Statement.Data(groups);
+    }
+
+    private static DataTarget ParseDataTarget(Reader reader)
+    {
+        if (!reader.TryRead(TokenKind.LeftParenthesis))
+        {
+            return new DataTarget.Variable(reader.ParseVariable());
+        }
+
+        // An implied DO: items, then "variable = first, last [, step]". The
+        // control variable is the one name in the list followed by an equals
+        // sign, which is the only way to tell where the items end.
+        var targets = new List<DataTarget>();
+        while (!reader.IsNameThenAssign)
+        {
+            targets.Add(ParseDataTarget(reader));
+            reader.Expect(TokenKind.Comma, "A comma is expected after an item of an implied DO.");
+        }
+
+        var variable = reader.ReadName("The control variable of an implied DO is expected.");
+        reader.Expect(TokenKind.Assign, "An equals sign is expected after the control variable.");
+        var first = reader.ParseExpression();
+        reader.Expect(TokenKind.Comma, "A comma is expected between the bounds of an implied DO.");
+        var last = reader.ParseExpression();
+        var step = reader.TryRead(TokenKind.Comma) ? reader.ParseExpression() : null;
+        reader.Expect(TokenKind.RightParenthesis, "A closing parenthesis is expected after an implied DO.");
+
+        if (targets.Count == 0)
+        {
+            throw reader.Fail("An implied DO has nothing to repeat.");
+        }
+
+        return new DataTarget.ImpliedDo(targets, variable, first, last, step);
+    }
+
+    private static Statement.Equivalence ParseEquivalence(TokenizedStatement statement)
+    {
+        var reader = SplitKeyword(statement, "EQUIVALENCE");
+        var sets = new List<IReadOnlyList<Expression>>();
+
+        do
+        {
+            reader.Expect(TokenKind.LeftParenthesis, "An opening parenthesis is expected before the names that share storage.");
+
+            var set = new List<Expression>();
+            do
+            {
+                set.Add(reader.ParseVariable());
+            }
+            while (reader.TryRead(TokenKind.Comma));
+
+            reader.Expect(TokenKind.RightParenthesis, "A closing parenthesis is expected after the names that share storage.");
+            if (set.Count < 2)
+            {
+                throw reader.Fail("At least two names are needed to share storage.");
+            }
+
+            sets.Add(set);
+        }
+        while (reader.TryRead(TokenKind.Comma));
+
+        reader.ExpectEnd();
+        return new Statement.Equivalence(sets);
+    }
+
     private static Statement.Include ParseInclude(TokenizedStatement statement)
     {
         var tokens = statement.Tokens;
@@ -223,7 +323,29 @@ public static class StatementParser
             return statement.GetText(statement.Tokens[position++]).ToString();
         }
 
+        // True when a name is next and an equals sign follows it.
+        public bool IsNameThenAssign =>
+            Current == TokenKind.Name && position + 1 < statement.Tokens.Count && statement.Tokens[position + 1].Kind == TokenKind.Assign;
+
         public Expression ParseExpression() => ExpressionParser.Parse(statement, position, out position);
+
+        public Expression ParseVariable() => ExpressionParser.ParseVariable(statement, position, out position);
+
+        // A constant as a DATA statement allows it: a literal or a named
+        // constant, with an optional sign. The expression parser cannot be
+        // used, because the slash and the asterisk around a value are
+        // punctuation here and not operators.
+        public Expression ParseConstant()
+        {
+            if (Current is TokenKind.Plus or TokenKind.Minus)
+            {
+                var sign = Current == TokenKind.Minus ? UnaryOperator.Minus : UnaryOperator.Plus;
+                position++;
+                return new Expression.Unary(sign, ParseUnsignedConstant());
+            }
+
+            return ParseUnsignedConstant();
+        }
 
         // Reads "*80", "*(N)" or "*(*)" when an asterisk is next.
         public LengthSpecification? TryParseLength()
@@ -258,6 +380,31 @@ public static class StatementParser
         private Expression.Literal ParseLiteral() =>
             new(DataType.Integer, statement.GetText(statement.Tokens[position++]).ToString());
 
-        private FortranSyntaxException Fail(string message) => new(statement.Source.Line, message);
+        public FortranSyntaxException Fail(string message) => new(statement.Source.Line, message);
+
+        private Expression ParseUnsignedConstant()
+        {
+            DataType? type = Current switch
+            {
+                TokenKind.IntegerLiteral => DataType.Integer,
+                TokenKind.RealLiteral => DataType.Real,
+                TokenKind.DoubleLiteral => DataType.DoublePrecision,
+                TokenKind.CharacterLiteral => DataType.Character,
+                TokenKind.LogicalLiteral => DataType.Logical,
+                _ => null,
+            };
+
+            if (type is not null)
+            {
+                return new Expression.Literal(type.Value, statement.GetText(statement.Tokens[position++]).ToString());
+            }
+
+            if (Current == TokenKind.Name)
+            {
+                return new Expression.Name(ReadName("A constant is expected."));
+            }
+
+            throw Fail("A constant is expected in the values of a DATA statement.");
+        }
     }
 }
