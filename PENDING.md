@@ -320,6 +320,51 @@ It needs the emitter and enough of the runtime to print, so it starts when
 those exist. Until then the compiler is used by hand to settle single
 questions, and what it settles is recorded where the answer is used.
 
+## Back ends beyond C# source
+
+The emitter writes C# source text directly from the analysed program, with
+no tree of C# objects in between: the output's shape is fully ours, the
+original comments have to pass through, and there are over a million lines
+to write. That is the back end the translated library is built with, and the
+only one that runs everywhere, since it needs nothing at run time.
+
+Analysis is to leave nothing in its result that only a C# emitter could use,
+so that other back ends remain additions. Three are wanted, none before the
+C# one works. All of them make FORTRAN loadable at run time, as a plug-in to
+a .NET program, which the C# back end alone does not.
+
+- **Compile the emitted C# in memory.** The same emitter, then the C#
+  compiler as a library. It costs nearly nothing to build, and a large
+  dependency and a compile at start-up to use. It needs a just-in-time
+  compiler.
+- **Emit intermediate language directly.** A second emitter and real work,
+  wanted mainly for `GO TO`: a branch there can go anywhere, where C# cannot
+  jump into a block. It also needs a just-in-time compiler.
+- **Build expression trees.** `System.Linq.Expressions` has an interpreter,
+  so this is the one that can run FORTRAN where no code can be generated,
+  slowly. Its jumps can enter a block too.
+
+What expression trees accept was measured on .NET 10 and shapes that back
+end. A by-reference parameter works, as does passing an array element by
+reference, compiled and interpreted. A pointer type is refused outright. A
+`Span<T>` is refused as a local and through its indexer, and as a parameter
+compiles to an invalid program. An address held as a native integer is an
+ordinary value there: it can be a parameter, be moved by an offset and be
+passed on, and the memory behind it is read and written by calling small
+unsafe helper methods of the runtime, one to read and one to write. A helper
+that returns a reference is no use, since a call cannot be assigned to.
+
+So that back end has two possible shapes, to be chosen when it is built:
+
+- Addresses as native integers, over the same unmoving memory as the C# back
+  end. It shares the runtime and can call compiled translated code and be
+  called by it, at the cost of a helper call for every element.
+- Managed arrays with an offset, never a pointer or a span. Its code is
+  verifiably safe where the C# back end's is not, and it shares nothing.
+
+None of these is for the translated SPICE library, which ships as compiled
+C# so that it runs where code cannot be generated at run time.
+
 ## FORTRAN 77 that Fortrania does not handle yet
 
 The translator is meant to cover the whole language in the end. What the
