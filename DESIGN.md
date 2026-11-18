@@ -254,6 +254,21 @@ a local holding zero or blanks, an array with one element and text of
 assumed length one character, so that the statement does something
 harmless where the original would follow an address nobody set.
 
+**A statement function is a local function that captures nothing.** It is
+written in each method that refers to it. Its own arguments are passed by
+value, a character one as the address of its first byte, since an
+expression can only read them. Where its expression names a variable of
+the unit, that variable is passed as well, under its own name and in the
+form the method has it, a value or an address, so that the expression
+reads the same inside the function as outside. C# would let the function
+use the method's variable directly, and would then keep that variable in
+memory for the whole method and not in a register, which is the wrong
+trade for a function called from a loop. A function that calls no procedure
+of the program is declared `static`, and the compiler then refuses a
+capture written by mistake. Not translated yet are a statement function of
+type `CHARACTER`, an argument of assumed length, and a logical argument
+passed on to a procedure.
+
 **What a procedure looks like from outside is a convention, and can be
 replaced.** Its name, the type of a logical result and the place of a
 character argument's length are asked of an `EmitConvention`, not decided

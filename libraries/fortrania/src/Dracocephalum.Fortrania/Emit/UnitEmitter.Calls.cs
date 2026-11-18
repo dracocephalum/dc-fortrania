@@ -31,6 +31,7 @@ internal sealed partial class UnitEmitter
     // says where the length goes.
     private string Invocation(string name, IReadOnlyList<Expression> arguments, IEnumerable<string>? leading = null)
     {
+        _callsProcedure = true;
         var procedure = _findProcedure(name);
         var addresses = new List<string>(leading ?? []);
         var lengths = new List<string>();
@@ -62,7 +63,17 @@ internal sealed partial class UnitEmitter
             // A character variable or a whole character array is its own
             // address already, with the length of one element.
             case Expression.Name name when _table.Find(name.Identifier) is { Kind: SymbolKind.Variable, Type.Type: DataType.Character } text:
-                return (Local(text), LengthOf(text));
+                return (IsOwnArgument(text) ? text.Name.ToCSharpLocal() : Local(text), LengthOf(text));
+
+            // An argument of a statement function is a value of the local
+            // function's own, and has an address there.
+            case Expression.Name name when _table.Find(name.Identifier) is { Kind: SymbolKind.Variable } own && IsOwnArgument(own):
+                if (own.Type!.Type == DataType.Logical)
+                {
+                    throw Unsupported("a logical argument of a statement function passed on to a procedure");
+                }
+
+                return (Cast($"&{own.Name.ToCSharpLocal()}", own.Type.Type, expected), null);
 
             case Expression.Name name when _table.Find(name.Identifier) is { Kind: SymbolKind.Variable } variable:
                 var local = Local(variable);

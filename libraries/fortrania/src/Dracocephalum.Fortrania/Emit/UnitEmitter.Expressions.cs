@@ -32,7 +32,9 @@ internal sealed partial class UnitEmitter
                     return Named(symbol);
                 }
 
-                return Loaded(Variable(symbol));
+                // A logical argument of a statement function is a bool
+                // already: it was passed as a value, not stored.
+                return IsOwnArgument(symbol) ? Variable(symbol) : Loaded(Variable(symbol));
 
             case Expression.Reference reference:
                 var referenced = _table.Find(reference.Identifier)!;
@@ -41,7 +43,7 @@ internal sealed partial class UnitEmitter
                     SymbolKind.Variable => Loaded(Element(referenced, reference.Arguments)),
                     SymbolKind.IntrinsicFunction => Intrinsic(reference),
                     SymbolKind.ExternalFunction => Call(referenced, reference.Arguments),
-                    _ => throw Unsupported("a statement function"),
+                    _ => StatementFunctionCall(referenced, reference.Arguments),
                 };
 
             case Expression.Substring substring:
@@ -121,6 +123,12 @@ internal sealed partial class UnitEmitter
         if (symbol.Kind != SymbolKind.Variable || symbol.IsArray)
         {
             throw Unsupported("a whole array or a procedure used as a value");
+        }
+
+        if (IsOwnArgument(symbol))
+        {
+            var length = symbol.Type!.Type == DataType.Character ? LengthOf(symbol) : null;
+            return new Code(symbol.Name.ToCSharpLocal(), symbol.Type.Type, Level.Primary, length);
         }
 
         var name = Local(symbol);

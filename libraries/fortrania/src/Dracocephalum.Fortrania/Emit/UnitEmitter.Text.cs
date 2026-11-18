@@ -15,7 +15,7 @@ internal sealed partial class UnitEmitter
 {
     // The most bytes each such local has to hold, over all the statements
     // that use it, and how many are in use in the statement being written.
-    private readonly List<int> _buffers = [];
+    private List<int> _buffers = [];
     private int _buffersInUse;
 
     // Names a local for a character value of at most the given length.

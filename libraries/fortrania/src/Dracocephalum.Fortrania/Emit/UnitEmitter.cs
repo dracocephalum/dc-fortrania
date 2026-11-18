@@ -50,7 +50,7 @@ internal sealed partial class UnitEmitter
 
     // For each type, how many locals for passing values are in use in the
     // statement being written, and the most any statement needed.
-    private readonly Dictionary<DataType, (int InUse, int Most)> _slots = [];
+    private Dictionary<DataType, (int InUse, int Most)> _slots = [];
 
     private CodeWriter _body = new();
     private IReadOnlyList<string> _parameters = [];
@@ -64,6 +64,7 @@ internal sealed partial class UnitEmitter
         _options = options;
         _findProcedure = findProcedure;
         _evaluator = new ConstantEvaluator(table);
+        CollectStatementFunctions();
         _usesAlias = options.RuntimeAlias is { } alias && !IsEmittedProcedure(alias);
         _line = (table.Unit.Header ?? table.Unit.End).Source.Line;
     }
@@ -147,6 +148,8 @@ internal sealed partial class UnitEmitter
         _named.Clear();
         _slots.Clear();
         _buffers.Clear();
+        _passed.Clear();
+        _localFunctions.Clear();
         _loops = 0;
         _parameters = parameters;
         _result = isFunction ? _table.Find(name)! : null;
@@ -186,6 +189,19 @@ internal sealed partial class UnitEmitter
             }
 
             symbol = _result;
+        }
+
+        // An argument of the statement function being written is not the
+        // unit's variable of that name, and is not met here unless another
+        // statement function is to be passed the variable.
+        if (IsOwnArgument(symbol))
+        {
+            throw Unsupported("a statement function with an argument named as a variable that a statement function it refers to uses");
+        }
+
+        if (_met is not null && !_met.Contains(symbol))
+        {
+            _met.Add(symbol);
         }
 
         _named.Add(symbol);
@@ -291,11 +307,6 @@ internal sealed partial class UnitEmitter
 
     private void RefuseWhatIsNotTranslatedYet()
     {
-        if (_table.StatementFunctions.Count > 0)
-        {
-            throw Unsupported("a statement function");
-        }
-
         if (_table.Equivalences.Count > 0)
         {
             throw Unsupported("EQUIVALENCE");
@@ -369,6 +380,19 @@ internal sealed partial class UnitEmitter
             file.Line(string.Create(CultureInfo.InvariantCulture, $"{type}* {name} = stackalloc {type}[{count}];"));
         }
 
+        WriteScratch(file);
+
+        foreach (var function in _localFunctions)
+        {
+            file.Lines(function);
+        }
+    }
+
+    // The places for made character values and the locals for passing
+    // values that the statements of a method, or the expression of a
+    // statement function, have taken.
+    private void WriteScratch(CodeWriter file)
+    {
         for (var number = 1; number <= _buffers.Count; number++)
         {
             file.Line(string.Create(CultureInfo.InvariantCulture, $"byte* _s{number} = stackalloc byte[{_buffers[number - 1]}];"));

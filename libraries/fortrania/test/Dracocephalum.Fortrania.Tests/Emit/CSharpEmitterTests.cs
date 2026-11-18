@@ -270,7 +270,6 @@ public class CSharpEmitterTests
     [Theory]
     [InlineData("      PROGRAM MAIN|      END", "Line 1: a main program cannot be translated yet.")]
     [InlineData("      BLOCK DATA|      END", "Line 1: a block data subprogram cannot be translated yet.")]
-    [InlineData("      SUBROUTINE S ( X )|      SF ( Y ) = Y + 1|      X = SF ( X )|      END", "Line 1: a statement function cannot be translated yet.")]
     [InlineData("      SUBROUTINE S|      INTEGER I, J|      EQUIVALENCE ( I, J )|      END", "Line 1: EQUIVALENCE cannot be translated yet.")]
     [InlineData("      SUBROUTINE S|      INTEGER I, J|      DATA I, J / 1 /|      END", "Line 1: a DATA statement with a different number of values than of variables cannot be translated yet.")]
     [InlineData("      SUBROUTINE S|      INTEGER I|      DATA I / 'A' /|      END", "Line 1: a DATA value of another type than its variable cannot be translated yet.")]

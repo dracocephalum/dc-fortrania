@@ -62,6 +62,11 @@ internal sealed partial class UnitEmitter
 
         switch (statement)
         {
+            // The definition of a statement function declares, and is
+            // written where a method refers to the function.
+            case Statement.Assignment definition when IsStatementFunctionDefinition(definition):
+                break;
+
             case Statement.Assignment assignment:
                 var target = Target(assignment.Target);
                 if (target.Type == DataType.Character)
