@@ -20,8 +20,8 @@ namespace Dracocephalum.Fortrania.Analysis;
 public sealed record EntryBody(ParsedStatement Entry, IReadOnlyList<Construct> Statements, IReadOnlyList<string> StrayArguments)
 {
     /// <summary>Gets the name the entry point is called by, in upper case.</summary>
-    public string Name => EntryLayout.Heading(Entry.Statement).Name;
+    public string Name => Entry.Statement.ProcedureHeading().Name;
 
     /// <summary>Gets the entry point's dummy arguments, in order.</summary>
-    public IReadOnlyList<string> Parameters => EntryLayout.Heading(Entry.Statement).Parameters;
+    public IReadOnlyList<string> Parameters => Entry.Statement.ProcedureHeading().Parameters;
 }

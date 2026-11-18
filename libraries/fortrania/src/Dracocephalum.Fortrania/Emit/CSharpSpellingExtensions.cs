@@ -7,7 +7,7 @@ using Dracocephalum.Fortrania.Syntax;
 namespace Dracocephalum.Fortrania.Emit;
 
 /// <summary>How names, types and constant values are spelled in C#.</summary>
-internal static class CSharpText
+internal static class CSharpSpellingExtensions
 {
     // A FORTRAN name is written in lower case, where it can meet none of
     // the emitted class's own members, which keep the FORTRAN spelling; a
@@ -24,7 +24,7 @@ internal static class CSharpText
     }.ToFrozenSet(StringComparer.Ordinal);
 
     /// <summary>Spells the FORTRAN name of a variable, an argument or a constant.</summary>
-    public static string Local(string name)
+    public static string ToCSharpLocal(this string name)
     {
         var lower = name.ToLowerInvariant();
         return Keywords.Contains(lower) ? "@" + lower : lower;
@@ -35,7 +35,7 @@ internal static class CSharpText
     /// A logical value takes the room of an integer, as the language
     /// requires, so that the two can share storage.
     /// </summary>
-    public static string Storage(DataType type) => type switch
+    public static string ToCSharpStorageType(this DataType type) => type switch
     {
         DataType.Integer or DataType.Logical => "int",
         DataType.Real => "float",
@@ -45,10 +45,10 @@ internal static class CSharpText
     };
 
     /// <summary>Gives the number of bytes a value of <paramref name="type"/> is stored in.</summary>
-    public static int Size(DataType type) => type == DataType.DoublePrecision ? 8 : 4;
+    public static int GetStorageSize(this DataType type) => type == DataType.DoublePrecision ? 8 : 4;
 
     /// <summary>Spells a constant value; a logical one as a C# <see langword="bool"/>.</summary>
-    public static string Literal(Constant constant) => constant switch
+    public static string ToCSharpLiteral(this Constant constant) => constant switch
     {
         Constant.Integer integer => integer.Value.ToString(CultureInfo.InvariantCulture),
         Constant.Real real => real.Value.ToString("R", CultureInfo.InvariantCulture) + "F",
@@ -58,7 +58,7 @@ internal static class CSharpText
     };
 
     /// <summary>Spells ASCII text as a literal of bytes.</summary>
-    public static string Utf8Literal(string text)
+    public static string ToUtf8Literal(this string text)
     {
         const char Backslash = (char)92;
         const char Quote = (char)34;

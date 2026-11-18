@@ -72,7 +72,7 @@ internal sealed partial class UnitEmitter
         var value = _evaluator.TryEvaluate(literal, _line)!;
         return value is Constant.Character text
             ? Text(text.Value)
-            : new Code(CSharpText.Literal(value), literal.Type, Level.Primary);
+            : new Code(value.ToCSharpLiteral(), literal.Type, Level.Primary);
     }
 
     private Code Named(Symbol constant)
@@ -94,7 +94,7 @@ internal sealed partial class UnitEmitter
             _constantsUsed.Add(constant);
         }
 
-        return new Code(CSharpText.Local(constant.Name), constant.Type.Type, Level.Primary);
+        return new Code(constant.Name.ToCSharpLocal(), constant.Type.Type, Level.Primary);
     }
 
     // A character constant: the address of a literal the compiler keeps in
@@ -107,7 +107,7 @@ internal sealed partial class UnitEmitter
         }
 
         return new Code(
-            $"Fortran.Text({CSharpText.Utf8Literal(value)})",
+            $"Fortran.Text({value.ToUtf8Literal()})",
             DataType.Character,
             Level.Primary,
             value.Length.ToString(CultureInfo.InvariantCulture));
@@ -123,7 +123,7 @@ internal sealed partial class UnitEmitter
             throw Unsupported("a whole array or a procedure used as a value");
         }
 
-        var name = CSharpText.Local(symbol.Name);
+        var name = symbol.Name.ToCSharpLocal();
         if (symbol.Type!.Type == DataType.Character)
         {
             return new Code(name, DataType.Character, Level.Primary, LengthOf(symbol));
@@ -136,7 +136,7 @@ internal sealed partial class UnitEmitter
 
     private Code Element(Symbol array, IReadOnlyList<Expression> subscripts)
     {
-        var name = CSharpText.Local(array.Name);
+        var name = array.Name.ToCSharpLocal();
         var offset = Offset(array, subscripts);
 
         if (array.Type!.Type != DataType.Character)
@@ -265,7 +265,7 @@ internal sealed partial class UnitEmitter
             };
         }
 
-        return value.Type <= type ? value.Text : $"({CSharpText.Storage(type)}){value.At(Level.Unary)}";
+        return value.Type <= type ? value.Text : $"({type.ToCSharpStorageType()}){value.At(Level.Unary)}";
     }
 
     // The position of an element counted from the array's first, with the

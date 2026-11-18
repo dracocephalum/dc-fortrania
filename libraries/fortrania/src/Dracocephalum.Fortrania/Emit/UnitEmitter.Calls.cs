@@ -62,10 +62,10 @@ internal sealed partial class UnitEmitter
             // A character variable or a whole character array is its own
             // address already, with the length of one element.
             case Expression.Name name when _table.Find(name.Identifier) is { Kind: SymbolKind.Variable, Type.Type: DataType.Character } text:
-                return (CSharpText.Local(text.Name), LengthOf(text));
+                return (text.Name.ToCSharpLocal(), LengthOf(text));
 
             case Expression.Name name when _table.Find(name.Identifier) is { Kind: SymbolKind.Variable } variable:
-                var local = CSharpText.Local(variable.Name);
+                var local = variable.Name.ToCSharpLocal();
                 var address = variable.IsArray || variable.IsDummyArgument ? local : $"&{local}";
                 return (Cast(address, variable.Type!.Type, expected), null);
 
@@ -85,8 +85,8 @@ internal sealed partial class UnitEmitter
     }
 
     private static string Cast(string address, DataType actual, DataType? expected) =>
-        expected is { } type && type != DataType.Character && CSharpText.Storage(type) != CSharpText.Storage(actual)
-            ? $"({CSharpText.Storage(type)}*){address}"
+        expected is { } type && type != DataType.Character && type.ToCSharpStorageType() != actual.ToCSharpStorageType()
+            ? $"({type.ToCSharpStorageType()}*){address}"
             : address;
 
     // A value with no address of its own is stored in a local set aside
@@ -97,9 +97,9 @@ internal sealed partial class UnitEmitter
     {
         var actual = value.Type == DataType.Logical ? DataType.Integer : value.Type;
         var declared = expected is null or DataType.Character or DataType.Complex ? actual : expected.Value;
-        var slot = TakeSlot(CSharpText.Size(declared) > CSharpText.Size(actual) ? declared : actual);
+        var slot = TakeSlot(declared.GetStorageSize() > actual.GetStorageSize() ? declared : actual);
 
-        var address = Cast($"&{slot}", CSharpText.Size(declared) > CSharpText.Size(actual) ? declared : actual, actual);
+        var address = Cast($"&{slot}", declared.GetStorageSize() > actual.GetStorageSize() ? declared : actual, actual);
         var stored = $"Fortran.Arg({address}, {Stored(value, value.Type)})";
         return Cast(stored, actual, declared);
     }
@@ -260,5 +260,5 @@ internal sealed partial class UnitEmitter
     // To an integer the fraction is dropped, which is what the cast does.
     private static Code Converted(Code value, DataType type) => value.Type == type
         ? value
-        : new Code($"({CSharpText.Storage(type)}){value.At(Level.Unary)}", type, Level.Unary);
+        : new Code($"({type.ToCSharpStorageType()}){value.At(Level.Unary)}", type, Level.Unary);
 }

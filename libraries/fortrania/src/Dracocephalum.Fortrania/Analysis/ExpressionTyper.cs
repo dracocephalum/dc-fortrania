@@ -66,9 +66,6 @@ public sealed class ExpressionTyper
         return TypeOf(argument, at);
     }
 
-    internal static bool IsNumeric(DataType type) =>
-        type is DataType.Integer or DataType.Real or DataType.DoublePrecision or DataType.Complex;
-
     private static string Describe(DataType type) => type switch
     {
         DataType.Integer => "an integer",
@@ -203,7 +200,7 @@ public sealed class ExpressionTyper
                 : throw at.Error($".NOT. is applied to {Describe(operand)}.");
         }
 
-        return IsNumeric(operand)
+        return operand.IsNumeric()
             ? operand
             : throw at.Error($"A sign is applied to {Describe(operand)}.");
     }
@@ -244,7 +241,7 @@ public sealed class ExpressionTyper
     // not let the two meet.
     private static DataType? Promote(DataType left, DataType right)
     {
-        if (!IsNumeric(left) || !IsNumeric(right))
+        if (!left.IsNumeric() || !right.IsNumeric())
         {
             return null;
         }

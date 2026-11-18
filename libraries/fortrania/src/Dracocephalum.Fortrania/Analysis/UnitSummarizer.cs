@@ -36,7 +36,7 @@ public static class UnitSummarizer
 
     private static ProcedureInterface Describe(SymbolTable table, ParsedStatement entry, Collector collector)
     {
-        var (name, parameters) = EntryLayout.Heading(entry.Statement);
+        var (name, parameters) = entry.Statement.ProcedureHeading();
         var reach = collector.ReachOf(name);
 
         // Inside a function its name, and that of each entry, is the variable

@@ -130,7 +130,7 @@ internal sealed partial class UnitEmitter
         foreach (var name in names)
         {
             var symbol = _table.Find(name)!;
-            addresses.Add($"{CSharpText.Storage(symbol.Type!.Type)}* {CSharpText.Local(name)}");
+            addresses.Add($"{symbol.Type!.Type.ToCSharpStorageType()}* {name.ToCSharpLocal()}");
             if (symbol.Type.Type == DataType.Character)
             {
                 (_options.Convention.TextLengthsComeLast ? lengths : addresses).Add($"int {LengthName(symbol)}");
@@ -142,7 +142,7 @@ internal sealed partial class UnitEmitter
 
     // The type of a value in an expression: a logical one is a C# bool
     // there, whatever it is stored as.
-    private static string ValueType(DataType type) => type == DataType.Logical ? "bool" : CSharpText.Storage(type);
+    private static string ValueType(DataType type) => type == DataType.Logical ? "bool" : type.ToCSharpStorageType();
 
     private static bool EndsOnReturn(IReadOnlyList<Construct> body)
     {
@@ -230,14 +230,14 @@ internal sealed partial class UnitEmitter
         foreach (var constant in _constantsUsed)
         {
             var type = ValueType(constant.Type!.Type);
-            file.Line($"const {type} {CSharpText.Local(constant.Name)} = {CSharpText.Literal(_evaluator.ValueOf(constant))};");
+            file.Line($"const {type} {constant.Name.ToCSharpLocal()} = {_evaluator.ValueOf(constant).ToCSharpLiteral()};");
         }
 
         foreach (var symbol in _table.Symbols.Where(symbol => symbol is { Kind: SymbolKind.Variable, IsDummyArgument: false }))
         {
             _line = symbol.Line;
-            var type = CSharpText.Storage(symbol.Type!.Type);
-            var name = CSharpText.Local(symbol.Name);
+            var type = symbol.Type!.Type.ToCSharpStorageType();
+            var name = symbol.Name.ToCSharpLocal();
 
             var isText = symbol.Type.Type == DataType.Character;
             if (!symbol.IsArray && !isText)
@@ -249,7 +249,7 @@ internal sealed partial class UnitEmitter
             // A character variable is so many bytes, and an array of them so
             // many times that, end to end.
             long count = isText ? long.Parse(LengthOf(symbol), CultureInfo.InvariantCulture) : 1;
-            long size = isText ? 1 : CSharpText.Size(symbol.Type.Type);
+            long size = isText ? 1 : symbol.Type.Type.GetStorageSize();
             foreach (var bound in symbol.Dimensions)
             {
                 count *= ConstantExtent(bound) ?? throw Unsupported("a local array whose size is not constant");
@@ -269,7 +269,7 @@ internal sealed partial class UnitEmitter
         {
             for (var number = 1; number <= most; number++)
             {
-                file.Line($"{CSharpText.Storage(type)} {Slot(type, number)} = 0;");
+                file.Line($"{type.ToCSharpStorageType()} {Slot(type, number)} = 0;");
             }
         }
     }

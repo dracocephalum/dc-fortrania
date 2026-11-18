@@ -261,7 +261,7 @@ public static class TypeChecker
         private void ExpectAssignable(DataType target, Expression value, string what, SourceLocation at)
         {
             var type = _typer.TypeOf(value, at);
-            var fits = ExpressionTyper.IsNumeric(target) ? ExpressionTyper.IsNumeric(type) : target == type;
+            var fits = target.IsNumeric() ? type.IsNumeric() : target == type;
             if (!fits)
             {
                 throw at.Error($"{what} is of type {target}, and what is assigned to it is of type {type}.");

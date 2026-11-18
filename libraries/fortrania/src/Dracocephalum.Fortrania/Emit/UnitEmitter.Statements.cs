@@ -114,7 +114,7 @@ internal sealed partial class UnitEmitter
     // returned as a bool unless the convention has it stay one.
     private string ReturnOf(Symbol result)
     {
-        var name = CSharpText.Local(result.Name);
+        var name = result.Name.ToCSharpLocal();
         return result.Type!.Type == DataType.Logical && !_options.Convention.ReturnsLogicalAsInteger
             ? $"return {name} != 0;"
             : $"return {name};";
@@ -132,7 +132,7 @@ internal sealed partial class UnitEmitter
         var variable = Target(new Expression.Name(loop.Variable));
         var first = Stored(Value(loop.First), variable.Type);
         var last = Stored(Value(loop.Last), variable.Type);
-        var type = CSharpText.Storage(variable.Type);
+        var type = variable.Type.ToCSharpStorageType();
         var number = (++_loops).ToString(CultureInfo.InvariantCulture);
 
         var step = loop.Step is null

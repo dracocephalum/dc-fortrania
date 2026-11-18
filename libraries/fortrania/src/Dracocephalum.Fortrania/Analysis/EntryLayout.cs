@@ -84,7 +84,7 @@ public sealed class EntryLayout
 
     private static EntryBody Describe(SymbolTable table, ParsedStatement entry, List<Construct> statements)
     {
-        var own = Heading(entry.Statement).Parameters;
+        var own = entry.Statement.ProcedureHeading().Parameters;
 
         // A statement function's definition is a declaration, for every
         // entry point alike, and its own arguments are not the unit's.
@@ -101,12 +101,4 @@ public sealed class EntryLayout
     private static bool IsStatementFunctionDefinition(SymbolTable table, Construct construct) =>
         construct is Construct.Simple { Statement.Statement: Statement.Assignment { Target: Expression.Reference target } }
         && table.Find(target.Identifier)?.Kind == SymbolKind.StatementFunction;
-
-    internal static (string Name, IReadOnlyList<string> Parameters) Heading(Statement entry) => entry switch
-    {
-        Statement.Subroutine subroutine => (subroutine.Name, subroutine.Parameters),
-        Statement.Function function => (function.Name, function.Parameters),
-        Statement.Entry other => (other.Name, other.Parameters),
-        _ => throw new ArgumentOutOfRangeException(nameof(entry)),
-    };
 }
