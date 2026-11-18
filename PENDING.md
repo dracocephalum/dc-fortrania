@@ -564,6 +564,31 @@ It needs the emitter and enough of the runtime to print, so it starts when
 those exist. Until then the compiler is used by hand to settle single
 questions, and what it settles is recorded where the answer is used.
 
+## Measurements waiting for a benchmark project
+
+[`docs/rules/performance.md`](docs/rules/performance.md) asks that a change
+made for speed come with a benchmark, and the component has no benchmark
+project yet. These are the questions it is to answer first, each a change
+that is not to be made before it does:
+
+- **Short copies.** Character assignment and concatenation copy with the
+  framework's overlap-safe copy. Character values in FORTRAN are mostly
+  short, names and brief messages, and an earlier measurement of ours on an
+  older framework had a plain block copy 8% ahead at 20 bytes and slightly
+  behind at 100. Where the emitter knows two values cannot overlap, as when
+  joining into a place of its own, the plain copy could be written. To
+  measure on the current framework: both copies at 4, 8, 20, 32 and 100
+  bytes, with the length constant and with it variable.
+- **Equality of character values.** `.EQ.` and `.NE.` go through the same
+  comparison as the ordering operators, which finds the order of the two.
+  A test for equality alone can stop earlier and compare whole words.
+- **Arguments by value.** Analysis says which arguments a procedure never
+  writes; what passing those as values saves, against the pointer every
+  argument is today, is not known.
+- **Saved state.** The two questions at the end of *Saved state is placed
+  at translation and loaded at run time*: what an allocated and untouched
+  block costs, and what the test on entry costs.
+
 ## Back ends beyond C# source
 
 The emitter writes C# source text directly from the analysed program, with
