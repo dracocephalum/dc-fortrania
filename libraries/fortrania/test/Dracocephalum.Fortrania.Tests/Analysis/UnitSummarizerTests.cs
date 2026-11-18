@@ -47,16 +47,18 @@ public class UnitSummarizerTests
         entry.IsFunction.ShouldBeFalse();
         entry.ResultType.ShouldBeNull();
         entry.Line.ShouldBe(1);
-        entry.Arguments.ShouldBe(
-        [
-            new DummyArgument("N", DummyArgumentKind.Variable, DataType.Integer, 0),
-            new DummyArgument("X", DummyArgumentKind.Variable, DataType.DoublePrecision, 0),
-            new DummyArgument("TABLE", DummyArgumentKind.Array, DataType.DoublePrecision, 2),
-            new DummyArgument("NAME", DummyArgumentKind.Array, DataType.Character, 1),
-            new DummyArgument("F", DummyArgumentKind.Function, DataType.DoublePrecision, 0),
-            new DummyArgument("S", DummyArgumentKind.Subroutine, null, 0),
-            new DummyArgument("P", DummyArgumentKind.Procedure, null, 0),
-        ]);
+        entry.Arguments
+            .Select(argument => $"{argument.Name} {argument.Kind} {argument.Type?.ToString() ?? "-"} {argument.Rank}")
+            .ShouldBe(
+            [
+                "N Variable Integer 0",
+                "X Variable DoublePrecision 0",
+                "TABLE Array DoublePrecision 2",
+                "NAME Array Character 1",
+                "F Function DoublePrecision 0",
+                "S Subroutine - 0",
+                "P Procedure - 0",
+            ]);
     }
 
     [Fact]

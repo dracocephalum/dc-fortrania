@@ -112,3 +112,23 @@ array of one type read as another, a function called as a subroutine for its
 side effects. `CallChecker` passes all of these and refuses only what no
 address can stand in for, such as a wrong number of arguments or text where
 a number is expected.
+
+Whether a procedure reads or writes an argument is often decided several
+calls down, where the argument finally meets an assignment. A summary
+therefore records two things per dummy argument: what the unit's own
+statements do with it, and each place it is passed on. `ArgumentEffects`
+follows those places through the summaries of the whole program until the
+answers stop growing. It never needs a tree, and it can be given the answers
+of a library worked out earlier.
+
+The answer is kept per entry point, not per program unit. A unit with
+several `ENTRY` statements is commonly one routine that stores a value and
+another that returns it, sharing a dummy argument's name; taken as a whole
+that argument would be both read and written, and so would every argument
+passed to either routine anywhere in the program. Each entry point answers
+only for the statements control reaches from it.
+
+Where nothing can be known the answer is both: an argument passed to a
+procedure that is itself a dummy argument, or to one the program does not
+define. And nothing is said about order, so an argument that is written and
+then read back counts as read.

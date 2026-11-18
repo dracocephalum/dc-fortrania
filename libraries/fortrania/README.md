@@ -31,7 +31,7 @@ before:
 | Source form | physical lines | whole statements with their comments | done |
 | Lexer | a statement | tokens | done |
 | Parser | tokens | a syntax tree per program unit | done for every construct the reference sources use; [`PENDING.md`](../../PENDING.md) lists what is left |
-| Analysis | every program unit | symbols, types, and what each call does to its arguments | started: each unit has a symbol table that says what every name in it stands for, every expression is typed and checked against its place, and constant expressions are evaluated; each unit has a summary of how it is called and what it calls, and every call is set against the procedure it reaches; what a call does to its arguments is not worked out yet |
+| Analysis | every program unit | symbols, types, and what each call does to its arguments | started: each unit has a symbol table that says what every name in it stands for, every expression is typed and checked against its place, and constant expressions are evaluated; each unit has a summary of how it is called and what it calls, every call is set against the procedure it reaches, and what each procedure reads and writes through its arguments is worked out across the program |
 | Emitter | the analysed program | C# source | not started |
 
 Everything up to the emitter is independent of the output language, and the
