@@ -39,7 +39,7 @@ naming the construct and the line, and never writes a partial translation.
 
 Everything up to the emitter is independent of the output language, and the
 emitter sits behind a seam of its own, so another back end is an addition
-and not a rewrite. The command-line front end, `f2csharp`, will be a thin
+and not a rewrite. The command-line front end, `fortrania`, will be a thin
 program over this library and hold no logic of its own.
 
 ## Run it
@@ -51,7 +51,8 @@ there fails with `MSB1003` on purpose.
     dotnet test  Dracocephalum.Fortrania.slnx
 
 There is no command-line front end yet. When one is added it will be invoked
-as `f2csharp`.
+as `fortrania cs`; [`PENDING.md`](../../PENDING.md), *The command is
+`fortrania`, and the target language its first word*, has the reasons.
 
 ## Configuration
 

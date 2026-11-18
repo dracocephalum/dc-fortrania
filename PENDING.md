@@ -322,6 +322,75 @@ which it never overwrites. The defaults that make this work:
 This is also the path the conformance tests take: translate, run, and set
 the output against the reference compiler's.
 
+## The command is `fortrania`, and the target language its first word
+
+The command-line translator is a .NET tool whose command is `fortrania`,
+with what to produce as its first word: `fortrania cs` translates to C#.
+Other things it does are words beside that one, `fortrania restore` for
+fetching sources among them. The command's name is not the program's: the
+tool's project names its command itself.
+
+- A name made of the target, as `f2c` and the Java translator `f2j` are,
+  needs a name per target, and the obvious ones are not all free: `f2fs`
+  is the Linux file system and its tools. One command with the target as a
+  word has no such family to find names for.
+- `f2` alone, with the target after it, is another program already, a
+  widely installed tool that renames files, and two letters are found by no
+  search.
+- `fortrania` is the project's own name, and is typed mostly in build files
+  and scripts, where its length costs nothing.
+
+The short names stay in use where they clash with nothing. A program that
+stands alone, for a machine without the tool installed, may be published
+with the project's releases under the name of its target, `f2cs`, and the
+project is to be tagged with `f2cs` and `f2csharp` so that a search for
+either finds it.
+
+Still to be found out when the tool is built: whether one tool package can
+give more than one command. Nothing above depends on the answer.
+
+## Translating as a step of the build
+
+To be looked at again once the emitter is complete. A project is to be able
+to translate FORTRAN as it builds, the way a project compiles `.proto`
+files: a package that is used only at build time brings MSBuild targets and
+the translator, and the project names what to translate.
+
+- **The targets run the command-line translator as a program of its own**,
+  and load nothing into the build. Visual Studio and `dotnet build` load
+  build tasks into different runtimes, and a separate program is the same
+  one for both. The package is a project of its own, so that the translator
+  knows nothing of MSBuild.
+- **One settings file serves the command line and the build**, so that a
+  translation is the same from either. It holds what *What the translator
+  is told* lists, as JSON. A simple case needs no file: the namespace, the
+  class name and where the sources are can be given on the project's item.
+- **A source generator is not the way.** One runs inside the editor as the
+  user types, and is not meant to read thousands of files and write a
+  hundred thousand lines.
+- **Where the output goes is a setting of each translation.** Temporary:
+  under the project's intermediate folder, compiled and never seen, which
+  suits a FORTRAN program of the user's own. Kept: in a folder of the
+  project, to be committed, which is what `docs/rules/translated-code.md`
+  asks of the reference sources. A kept translation is redone only when its
+  sources are there, or when asked for by name, so that the project builds
+  on a machine that has only the translated code.
+- **The step is skipped when nothing changed**, by the inputs and outputs
+  MSBuild compares. The summaries of *What crosses program units is a
+  summary, not a tree* would allow redoing single units; that is a later
+  refinement.
+- **The runtime as source** can come the same way: the package adds the
+  runtime's files to the compilation, as *The runtime can be handed out as
+  source* describes.
+
+**Sources can be fetched, in a step like restore.** A translation may name
+an archive to download in place of files on disk, which suits sources that
+may be fetched by anyone and passed on by no one. It is done by a target of
+its own, run as packages are restored and not in every build, so that a
+build works offline and the server is asked once. The archive is named with
+its hash and refused when the hash differs, and it is kept in a cache
+between builds. Nothing is downloaded unless the project asks.
+
 ## Input and output still to build
 
 `DESIGN.md` has what exists: units, the file provider, and unformatted
