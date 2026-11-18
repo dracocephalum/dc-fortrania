@@ -6,9 +6,10 @@ namespace Dracocephalum.Fortrania.Emit;
 
 /// <content>
 /// Writes procedures passed as arguments. One is passed as the address of
-/// a static method that takes the instance first, since C# gives no address
-/// of an instance method: a forwarder to the procedure, written in the file
-/// of the unit that passes it. A dummy procedure is a pointer to such a
+/// a static method that takes the program's context first, since C# gives
+/// no address of an instance method: a forwarder that finds the procedure's
+/// library in the context and calls the procedure, written in the file of
+/// the unit that passes it. A dummy procedure is a pointer to such a
 /// method. Its type says what it takes where the unit's own calls show
 /// that, and nothing where the unit only passes it on, as the language
 /// itself asks nothing there.
@@ -52,13 +53,15 @@ internal sealed partial class UnitEmitter
 
     private static string AddressType(DataType type) => type.ToCSharpStorageType() + "*";
 
-    // The type of a pointer to a method that takes the instance and then
+    private const string Context = "FortranContext";
+
+    // The type of a pointer to a method that takes the context and then
     // what a procedure takes, each a type as a parameter has it. A
     // character argument, which is the one of type byte*, brings its
     // length, placed as the convention has it.
     private string PointerType(DataType? result, IEnumerable<string> arguments)
     {
-        var addresses = new List<string> { _options.ClassName };
+        var addresses = new List<string> { Context };
         var lengths = new List<string>();
 
         if (result == DataType.Character)
@@ -118,7 +121,7 @@ internal sealed partial class UnitEmitter
             return known;
         }
 
-        var parameters = new List<string> { $"{_options.ClassName} self" };
+        var parameters = new List<string> { $"{Context} context" };
         var parameterLengths = new List<string>();
         var passed = new List<string>();
         var passedLengths = new List<string>();
@@ -155,14 +158,14 @@ internal sealed partial class UnitEmitter
         var returns = target.ResultType is { } result ? ResultType(result) : "void";
         _forwarderText.Line(
             $"private static {returns} {forwarder.Name}({string.Join(", ", parameters.Concat(parameterLengths))}) => "
-            + $"self.{_options.Convention.ProcedureName(target.Name)}({string.Join(", ", passed.Concat(passedLengths))});");
+            + $"context.Get<{_options.ClassName}>().{_options.Convention.ProcedureName(target.Name)}({string.Join(", ", passed.Concat(passedLengths))});");
         _forwarderText.Blank();
 
         _forwarders[target.Name] = forwarder;
         return forwarder;
     }
 
-    // A call of a dummy procedure: through the pointer, with the instance
+    // A call of a dummy procedure: through the pointer, with the context
     // first. The pointer is taken as what this call needs it to be, and
     // cast where the method's parameter does not say so already.
     private string CallThrough(Symbol dummy, IReadOnlyList<Expression> arguments, IEnumerable<string> passed)
@@ -181,6 +184,6 @@ internal sealed partial class UnitEmitter
         var needed = ProcedureType(shape);
         var name = Local(dummy);
         var pointer = OwnProcedureType(dummy) == needed ? name : $"(({needed}){name})";
-        return $"{pointer}({string.Join(", ", passed.Prepend("this"))})";
+        return $"{pointer}({string.Join(", ", passed.Prepend("_context"))})";
     }
 }

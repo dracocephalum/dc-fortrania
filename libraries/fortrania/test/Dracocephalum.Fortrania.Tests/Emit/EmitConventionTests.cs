@@ -58,7 +58,7 @@ public class EmitConventionTests
             """
                 public static int Run()
                 {
-                    var library = new Library();
+                    var library = new Standalone();
                     int three = 3, total = 0;
                     bool positive = library.ISPOS(&three);
                     library.TALLY_2(&three, &total);
@@ -79,7 +79,7 @@ public class EmitConventionTests
             """
                 public static int Run()
                 {
-                    var library = new Library();
+                    var library = new Standalone();
                     int three = 3, total = 0;
                     int positive = library.ispos_(&three);
                     library.tally_2__(&three, &total);
@@ -128,7 +128,7 @@ public class EmitConventionTests
             $$"""
                 public static string Run()
                 {
-                    var library = new Library();
+                    var library = new Standalone();
                     byte* first = stackalloc byte[2] { (byte)'a', (byte)'b' };
                     byte* second = stackalloc byte[3] { (byte)'X', (byte)'Y', (byte)'Z' };
                     byte* result = stackalloc byte[6];
@@ -152,7 +152,7 @@ public class EmitConventionTests
             """
                 public static int Run()
                 {
-                    var library = new Library();
+                    var library = new Standalone();
                     int three = 3, total = 0;
                     library.F77_TALLY_2(&three, &total);
                     return library.F77_ISPOS(&total) ? total : -1;
@@ -197,7 +197,7 @@ public class EmitConventionTests
             public static int Run()
             {
                 int three = 3;
-                return new Library().{0}(&three);
+                return new Standalone().{0}(&three);
             }
         """;
 

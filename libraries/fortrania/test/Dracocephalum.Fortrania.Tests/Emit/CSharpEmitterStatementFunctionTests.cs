@@ -14,7 +14,7 @@ public class CSharpEmitterStatementFunctionTests
         """
             public static int[] Run()
             {
-                using var library = new Library();
+                using var library = new Standalone();
                 var results = new int[15];
                 int n = 3;
                 int k = 1000;
@@ -32,7 +32,7 @@ public class CSharpEmitterStatementFunctionTests
 
             public static int[] Entries()
             {
-                using var library = new Library();
+                using var library = new Standalone();
                 int four = 4;
                 int first = 0;
                 int second = 0;

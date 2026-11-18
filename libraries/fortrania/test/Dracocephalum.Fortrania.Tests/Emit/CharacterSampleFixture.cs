@@ -25,7 +25,7 @@ public sealed class CharacterSampleFixture
                 Write(brief, 2, "ab");
                 Write(longer, 6, "LONGER");
                 Write(result, 30, new string('#', 30));
-                new Library().CASSGN(brief, 2, longer, 6, result, 30);
+                new Standalone().CASSGN(brief, 2, longer, 6, result, 30);
                 return Read(result, 30);
             }
 
@@ -35,7 +35,7 @@ public sealed class CharacterSampleFixture
                 byte* b = stackalloc byte[right.Length];
                 Write(a, left.Length, left);
                 Write(b, right.Length, right);
-                return new Library().CCMP(a, left.Length, b, right.Length);
+                return new Standalone().CCMP(a, left.Length, b, right.Length);
             }
 
             public static int[] Compare() =>
@@ -55,7 +55,7 @@ public sealed class CharacterSampleFixture
                 var results = new int[10];
                 fixed (int* first = results)
                 {
-                    new Library().CINTR(text, 11, &code, first);
+                    new Standalone().CINTR(text, 11, &code, first);
                 }
 
                 return results;
@@ -66,7 +66,7 @@ public sealed class CharacterSampleFixture
                 byte* result = stackalloc byte[27];
                 Write(result, 27, string.Empty);
                 int number = 0;
-                new Library().CCALL(result, 27, &number);
+                new Standalone().CCALL(result, 27, &number);
                 return Read(result, 27) + "|" + number;
             }
         """;

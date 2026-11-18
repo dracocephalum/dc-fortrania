@@ -93,6 +93,8 @@ by saying so in the document — *Precedence* in
 
 | When you are | Read |
 |---|---|
+| Meeting a word of this repository's you are not sure of, or about to name something | [`GLOSSARY.md`](GLOSSARY.md) — one line a word; use the word that is there before making another |
+| Making the runtime or translated code behave otherwise than the reference compiler or the reference toolkit does, or asked how it differs | [`VARIANCES.md`](VARIANCES.md) — every deliberate difference, with what the reference does, what this does and why; add the row in the change that makes it |
 | Building the Fortrania runtime, the translated SPICE library or the managed API over it, or asked what is planned and how it is to be done | [`PENDING.md`](PENDING.md) — approaches decided ahead of the code; a section moves to `DESIGN.md` when it is built |
 
 ## Conventions

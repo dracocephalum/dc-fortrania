@@ -124,7 +124,7 @@ public class CSharpEmitterTests
                 public static int[] Run()
                 {
                     int a = 4, b = 0, c = 100;
-                    var result = new Library().DOUBLE(&a, &b, &c);
+                    var result = new Standalone().DOUBLE(&a, &b, &c);
                     return [result, b];
                 }
             """);
@@ -158,7 +158,7 @@ public class CSharpEmitterTests
                 public static int Run()
                 {
                     int seven = 7;
-                    return new Library().PASS(&seven);
+                    return new Standalone().PASS(&seven);
                 }
             """);
 
@@ -183,13 +183,45 @@ public class CSharpEmitterTests
                 {
                     fixed (byte* text = "Az"u8)
                     {
-                        return new Library().CAPPED(text, 2);
+                        return new Standalone().CAPPED(text, 2);
                     }
                 }
             """);
 
         // Act & Assert
         program.Run<int>("Run").ShouldBe(170);
+    }
+
+    [Fact]
+    public void EmitClass_WhenWritten_ShouldMakeAnInstanceOverTheContextOfItsProgram()
+    {
+        // Act
+        var file = new CSharpEmitter(new EmitOptions("N", "C"), _ => null).EmitClass();
+
+        // Assert
+        file.ShouldContain(
+            """
+            public unsafe partial class C
+            {
+                private readonly FortranContext _context;
+                private readonly StateMemory _memory;
+                private readonly FortranIO _io;
+
+            """.ReplaceLineEndings("\n"),
+            Case.Sensitive);
+        file.ShouldContain(
+            """
+                public C(FortranContext context)
+                {
+                    ArgumentNullException.ThrowIfNull(context);
+                    _context = context;
+                    _memory = context.Memory;
+                    _io = context.IO;
+                    context.Add(this);
+                }
+            }
+            """.ReplaceLineEndings("\n"),
+            Case.Sensitive);
     }
 
     [Fact]
@@ -207,7 +239,7 @@ public class CSharpEmitterTests
             """
                 public static int Run(int n)
                 {
-                    new Library().HALT(&n);
+                    new Standalone().HALT(&n);
                     return 0;
                 }
 
@@ -259,7 +291,7 @@ public class CSharpEmitterTests
                     a[0] = 1.5;
                     a[1] = 2.5;
                     a[2] = 3.5;
-                    return new Library().WIDEN(a);
+                    return new Standalone().WIDEN(a);
                 }
             """);
 

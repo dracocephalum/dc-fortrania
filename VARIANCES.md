@@ -1,0 +1,23 @@
+# Variances
+
+Where translated code or the runtime knowingly behaves otherwise than the
+reference: the reference compiler, for what the language leaves to a
+compiler, and the reference toolkit, for what it does. Everywhere else the
+aim is the same behaviour, and a difference not listed here is a fault.
+
+The list is the whole of them. A change that makes another adds its row in
+the same change. [`PENDING.md`](PENDING.md), *A setting for each variance
+from the reference compiler*, has what is to become of the rows below: each
+is to get a setting that turns the reference's behaviour back on, when a
+program is met that needs it.
+
+## Input and output
+
+| Where | The reference compiler | Here | Why |
+|---|---|---|---|
+| A `READ` or `WRITE` on a unit that is not connected | connects the unit to a file it names itself, `fort.` and the unit number, in the working directory | gives status 5001 | a library must not leave files where its host happens to run |
+| A statement after one that failed | was seen to refuse a good `READ` of a record after a `WRITE` that overran another | is not affected by the earlier failure | it looks like an accident of that library and not like something to rely on |
+| A `WRITE` to a file that may only be read | not measured | gives status 13, the operating system's number for it | a number had to be chosen; it is to be replaced by the measured one |
+| A carriage return with no line feed after it, in text that is read | is part of the record | ends the record | a file made on any system is to be read on any other |
+| Units 6, 0 and 5, while no file is opened on them | are the console | write nowhere and read nothing, until the host sets them or calls `UseConsole` | the console is the program's, and a program may hold many instances |
+| A formatted `WRITE` that fails part of the way through its list | has written what came before the failure, with no line ending | writes nothing of the record | a record is written when it is whole |

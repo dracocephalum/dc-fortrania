@@ -9,7 +9,7 @@ public sealed class NumericSampleFixture
         """
             public static double Arith(double value, int power)
             {
-                return new Library().ARITH(&value, &power);
+                return new Standalone().ARITH(&value, &power);
             }
 
             public static double ArithOfTwoAndAHalf() => Arith(2.5, 3);
@@ -18,7 +18,7 @@ public sealed class NumericSampleFixture
 
             public static int[] IntegerArith()
             {
-                var library = new Library();
+                var library = new Standalone();
                 int seven = 7, two = 2, minusNine = -9, four = 4;
                 return [library.IARITH(&seven, &two), library.IARITH(&minusNine, &four)];
             }
@@ -27,7 +27,7 @@ public sealed class NumericSampleFixture
             {
                 float value = 2.7f;
                 int power = 3;
-                return new Library().RARITH(&value, &power);
+                return new Standalone().RARITH(&value, &power);
             }
 
             public static int[] Loops(int count)
@@ -35,7 +35,7 @@ public sealed class NumericSampleFixture
                 var results = new int[8];
                 fixed (int* first = results)
                 {
-                    new Library().LOOPS(&count, first);
+                    new Standalone().LOOPS(&count, first);
                 }
 
                 return results;
@@ -63,20 +63,20 @@ public sealed class NumericSampleFixture
                 }
 
                 int n = 3;
-                var result = new Library().ARRAYS(&n, a, b);
+                var result = new Standalone().ARRAYS(&n, a, b);
                 return [result, a[0]];
             }
 
             public static double[] Calls()
             {
                 double x = 1.5, y = 4.0;
-                var result = new Library().CALLS(&x, &y);
+                var result = new Standalone().CALLS(&x, &y);
                 return [result, x, y];
             }
 
             public static int[] Branch()
             {
-                var library = new Library();
+                var library = new Standalone();
                 int minusFive = -5, zero = 0, twentySeven = 27, one = 1, yes = 1, no = 0;
                 return
                 [

@@ -76,6 +76,23 @@ internal sealed class TranslatedProgram
             {
             {{driver}}
             }
+
+            // The translated library as a program of its own, which a test
+            // can make and dispose in one.
+            public sealed class Standalone : {{options?.ClassName ?? ClassName}}, IDisposable
+            {
+                private readonly FortranContext _own;
+
+                public Standalone()
+                    : this(new FortranContext())
+                {
+                }
+
+                private Standalone(FortranContext context)
+                    : base(context) => _own = context;
+
+                public void Dispose() => _own.Dispose();
+            }
             """).ToList();
 
         var compilation = CSharpCompilation.Create(

@@ -24,7 +24,7 @@ public class CSharpEmitterListDirectedTests
             {
                 var path = NewName();
                 var name = System.Text.Encoding.UTF8.GetBytes(path);
-                using (var library = new Library())
+                using (var library = new Standalone())
                 {
                     fixed (byte* file = name)
                     {
@@ -40,7 +40,7 @@ public class CSharpEmitterListDirectedTests
                 var path = NewName();
                 var name = System.Text.Encoding.UTF8.GetBytes(NewName());
                 var log = System.Text.Encoding.UTF8.GetBytes(path);
-                using (var library = new Library())
+                using (var library = new Standalone())
                 {
                     fixed (byte* file = name, report = log)
                     {

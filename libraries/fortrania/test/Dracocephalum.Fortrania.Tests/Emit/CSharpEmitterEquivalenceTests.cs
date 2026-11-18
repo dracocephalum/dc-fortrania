@@ -14,7 +14,7 @@ public class CSharpEmitterEquivalenceTests
         """
             public static int[] Pun()
             {
-                using var library = new Library();
+                using var library = new Standalone();
                 double one = 1.0;
                 var results = new int[2];
                 fixed (int* first = results)
@@ -27,7 +27,7 @@ public class CSharpEmitterEquivalenceTests
 
             public static int[] Shared()
             {
-                using var library = new Library();
+                using var library = new Standalone();
                 int five = 5;
                 int one = 1;
                 return [library.SHARED(&five), library.SHARED(&one)];
@@ -35,7 +35,7 @@ public class CSharpEmitterEquivalenceTests
 
             public static int[] Characters()
             {
-                using var library = new Library();
+                using var library = new Standalone();
                 var results = new int[4];
                 fixed (int* first = results)
                 {

@@ -156,14 +156,16 @@ the instance. Being partial, the class also takes hand-written files, which
 is how a routine the translator is told to leave out is supplied.
 
 A library that calls another, as the toolkit's support library calls its
-main one, is a class of its own that is given the instance it calls into,
-so that the two share that instance's state. The summaries of the first are
-written to a file beside its code, and the translation of the second reads
-them.
+main one, is a class of its own. Both are made over the one context of
+their program, as `DESIGN.md` has it, and the second is given the first to
+call into. The summaries of the first are written to a file beside its
+code, and the translation of the second reads them. *What is translated is
+set out as projects and their sources* says how several are named.
 
 A main program is a method like any other. When an executable is asked for,
-a `Main` is emitted that hands the command line to the runtime, calls that
-method and returns the exit code. A library has none.
+a `Main` is emitted that makes the context, gives it the console, hands the
+command line to the runtime, calls that method and returns the exit code. A
+library has none.
 
 `STOP` throws an exception of the runtime's, from any depth, and so does the
 `EXIT` the runtime supplies. The emitted `Main` catches it and returns its
@@ -240,34 +242,39 @@ To be measured before the defaults are fixed: what an allocated and
 untouched block costs in physical memory on each platform, and what the
 test on entry costs in a routine of the 50.
 
-## One caller at a time
+## One caller at a time, and a pool of contexts
 
-An instance is not safe for two callers at once, since its routines share
-state. `ISpiceCore` detects it: each call marks the instance as in use with
-an interlocked exchange and fails if it already was, at a cost of a few
-nanoseconds, with an option to turn the check off. It is not tied to a
-thread, because code that awaits may resume on another thread and still be
-one caller. The translated layer below has no such check.
+A context is not safe for two callers at once, since the routines of its
+libraries share state. `ISpiceCore` detects it: each call marks the context
+as in use with an interlocked exchange and fails if it already was, at a
+cost of a few nanoseconds, with an option to turn the check off. It is not
+tied to a thread, because code that awaits may resume on another thread and
+still be one caller. The translated layer below has no such check.
 
-An instance also holds the kernels loaded into it, so creating one for each
-request of a server means loading them again each time. The fitting pattern
-there is a factory that keeps a pool of instances with their kernels loaded
-and lends one to a caller at a time.
+A context also holds the kernels loaded into its libraries, so making one
+for each request of a server means loading them again each time. The
+fitting pattern there is a factory that keeps a pool and lends from it, and
+what it pools is contexts, each whole with its libraries, never a library
+by itself: a library is nothing without the context it was made over, and
+the libraries of one context belong together.
 
-The factory is told once which kernels an instance is to hold. What it
-hands out is a lease: the caller uses the instance through it and disposes
-it, which gives the instance back, so a lease can be registered with a
-dependency-injection container as a transient or a per-request service and
-ends with the request. Before an instance is lent again its error state is
-reset. Open questions for when it is built: what happens to an instance
-whose borrower loaded or unloaded kernels or changed the kernel pool,
-discarded or restored; how many instances the pool keeps and whether a
-caller waits or gets a new one when all are lent; and whether an instance
-with its kernels loaded can be copied, block for block, more cheaply than a
-new one can load them.
+The factory is told once how a context is made and which kernels it is to
+hold. What it hands out is a lease: the caller uses the context's libraries
+through it and disposes it, which gives the context back, so a lease can be
+registered with a dependency-injection container as a transient or a
+per-request service and ends with the request. Before a context is lent
+again its error state is reset. Open questions for when it is built: what
+happens to a context whose borrower loaded or unloaded kernels or changed
+the kernel pool, discarded or restored; how many contexts the pool keeps
+and whether a caller waits or gets a new one when all are lent; and whether
+a context with its kernels loaded can be copied, block for block, more
+cheaply than a new one can load them.
 
-The factory belongs to the managed layer and depends on no container. A
-small package of its own may later register it with the usual one.
+The factory is not the toolkit's alone, since any translated program is
+hosted the same way. It is to be a project of its own beside the runtime, a
+hosting package, which also takes what spans contexts: settings read from
+the host's configuration, memory shared between them, and registration with
+the usual container. The translator and the runtime depend on none of it.
 
 ## What the translator is told
 
@@ -349,6 +356,67 @@ either finds it.
 Still to be found out when the tool is built: whether one tool package can
 give more than one command. Nothing above depends on the answer.
 
+## What is translated is set out as projects and their sources
+
+One settings file names everything a translation produces. It lies in the
+project that hosts it, for the reference sources the one that holds the
+managed layer, and the paths in it are taken from where it lies.
+
+    {
+      "output": "src",
+      "projects": [
+        {
+          "name": "Dracocephalum.Spice.Toolkit",
+          "sources": [
+            { "name": "SpiceLib", "files": [ "spicelib/*.f" ] },
+            { "name": "Support",  "files": [ "support/*.f" ] }
+          ]
+        },
+        {
+          "name": "Dracocephalum.Spice.TSpice",
+          "sources": [
+            { "name": "TestUtil", "files": [ "testutil/*.f" ] },
+            { "name": "TSpice",   "files": [ "tspice/*.f", "tspice/*.pgm" ] }
+          ]
+        }
+      ]
+    }
+
+- **A project is an assembly, and each of its sources a class.** A source
+  is one FORTRAN library: its files, always given as a list, and a name
+  that is its class. Two libraries in one assembly stay two classes, so
+  that a library's class is the same however it is packaged and two
+  libraries may each have a routine of one name. The namespace is the
+  project's name unless it is given.
+- **A class may not have the name of a part of its namespace**, which C#
+  allows and every use of the name then trips over. The translator refuses
+  it and asks for a class name; it does not rename by itself.
+- **What a project is follows from what is in it.** With a main program
+  among its sources it is an executable, and a library otherwise; either
+  can be said outright. An executable has one entry: with several main
+  programs the project names the one, and until it does the translation is
+  refused.
+- **A project file is written once.** Where the project has none, the
+  translator writes one, with a `Main` for an executable, and that is a
+  whole project from nothing. Where it has one, the translator writes
+  sources and nothing else, so a project made or changed by hand stays as
+  it is; the checks on an executable's entry are not made then, since no
+  `Main` is written. Translated sources go to a folder of their own in the
+  project, and a new translation removes there only files that say they
+  were generated. The classes are partial, so hand-written files beside
+  them add to the same classes.
+- **Where the output goes** is the settings file's `output`, a folder per
+  project under it by the project's name, unless the project names its own.
+- **References between projects follow from the calls**, since the
+  translator knows which source defines every routine called. Left out,
+  they are worked out, and written into a project file being made or
+  reported as missing from one that exists. Given, they are used and
+  checked. Projects that need each other in a circle are refused; sources
+  of one project may call each other freely.
+
+The settings file, the command line and the build step all read into the
+same description, kept in the translator's library and not in any of them.
+
 ## Translating as a step of the build
 
 To be looked at again once the emitter is complete. A project is to be able
@@ -413,7 +481,7 @@ reader of the host's. A further one is to turn what the toolkit writes to
 its error output into an exception, which interrupts where the original
 only informed, and so depends on how the code being run uses that output.
 
-Four things about files are decided and not built:
+Five things about files are decided and not built:
 
 - A program translated to run on its own has the console, as the FORTRAN
   did: the `Main` the translator emits for an executable calls
@@ -421,24 +489,24 @@ Four things about files are decided and not built:
   managed layer decides what it shows of what the toolkit writes there,
   its error messages above all.
 
-- The emitted class creates its `FortranIO` itself and keeps it to itself.
-  A host has to be able to hand in a provider, register a stream and set
-  what `RECL` counts; `ISpiceCore` is to offer a stream directly, as an
-  overload that takes one. How the class takes these is tied to how it is
-  constructed at all, with *Saved state is placed at translation and loaded
-  at run time* and *What the translator is told*.
-- A registered stream belongs to one library instance while it is
-  registered. A stream has a single position, so it is not shared between
-  instances or read by the caller in the meantime.
+- `ISpiceCore` is to offer a stream directly, as an overload that takes
+  one, over the context's `Register`.
+- A program's contexts are to be configurable from the host's settings, the
+  usual application settings among them: which memory its libraries keep
+  their variables in, where files come from, what `RECL` counts, where the
+  screen goes. Several named contexts are wanted, each its own program.
+- A registered stream belongs to one context while it is registered. A
+  stream has a single position, so it is not shared between contexts or
+  read by the caller in the meantime.
 - What a disk file costs per record, read and written with one system call
   each and no buffer, against a buffered or memory-mapped file, is for the
   benchmark project.
 
-## A setting for each departure from the reference compiler
+## A setting for each variance from the reference compiler
 
 The runtime follows the reference compiler wherever a program can tell the
-difference, and `DESIGN.md` lists the places where it does not, under
-*Where the runtime behaves otherwise than the reference compiler*. Each of
+difference, and [`VARIANCES.md`](VARIANCES.md) lists the places where it
+does not. Each of
 those was chosen for a library hosted in another program, and a FORTRAN
 program translated to run on its own may count on what the compiler does.
 
@@ -534,7 +602,7 @@ falls back to the English text.
 
 The translated library can be compiled ahead of time into an ordinary native
 library that exports C functions, one per routine, each a plain forward to
-`ISpiceLib` taking a handle to a library instance as its first argument. It
+`ISpiceLib` taking a handle to a program's context as its first argument. It
 needs no .NET installation on the machine that uses it. The pointer-based
 signatures of the translated layer exist partly so that this facade is
 mechanical; the translator generates it from the same routine list.

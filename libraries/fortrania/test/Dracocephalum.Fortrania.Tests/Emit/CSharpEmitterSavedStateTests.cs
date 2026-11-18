@@ -19,13 +19,13 @@ public class CSharpEmitterSavedStateTests
 
             public static int[] Counter()
             {
-                using var library = new Library();
+                using var library = new Standalone();
                 return [Count(library, false), Count(library, false), Count(library, true), Count(library, false)];
             }
 
             public static int[] Tables()
             {
-                using var library = new Library();
+                using var library = new Standalone();
                 var results = new int[14];
                 fixed (int* first = results)
                 {
@@ -41,21 +41,21 @@ public class CSharpEmitterSavedStateTests
 
             public static double Large()
             {
-                using var library = new Library();
+                using var library = new Standalone();
                 int count = 1000;
                 return library.BIGSUM(&count);
             }
 
             public static int[] TwoInstances()
             {
-                using var first = new Library();
-                using var second = new Library();
+                using var first = new Standalone();
+                using var second = new Standalone();
                 return [Count(first, false), Count(first, false), Count(second, false), Count(first, false)];
             }
 
             public static string AfterDisposal()
             {
-                var library = new Library();
+                var library = new Standalone();
                 library.Dispose();
                 library.Dispose();
                 try

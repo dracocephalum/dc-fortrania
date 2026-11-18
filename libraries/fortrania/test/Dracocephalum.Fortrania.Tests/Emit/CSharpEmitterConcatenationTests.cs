@@ -31,13 +31,13 @@ public class CSharpEmitterConcatenationTests
                 Write(first, 2, "ab");
                 Write(second, 5, "CDEFG");
                 Write(result, 60, string.Empty);
-                new Library().CJOIN(first, 2, second, 5, result, 60);
+                new Standalone().CJOIN(first, 2, second, 5, result, 60);
                 return Read(result, 60);
             }
 
             public static int[] Arguments()
             {
-                var library = new Library();
+                var library = new Standalone();
                 int three = 3, five = 5;
                 return [library.CJARG(&three), library.CJARG(&five)];
             }
@@ -48,7 +48,7 @@ public class CSharpEmitterConcatenationTests
                 byte* result = stackalloc byte[36];
                 Write(name, 3, "Ada");
                 Write(result, 36, new string('#', 36));
-                new Library().CFUNC(name, 3, result, 36);
+                new Standalone().CFUNC(name, 3, result, 36);
                 return Read(result, 36);
             }
 
@@ -57,7 +57,7 @@ public class CSharpEmitterConcatenationTests
                 byte* name = stackalloc byte[5];
                 byte* result = stackalloc byte[7];
                 Write(name, 5, "mixEd");
-                var returned = new Library().UPPER(result, 7, name, 5);
+                var returned = new Standalone().UPPER(result, 7, name, 5);
                 return Read(returned, 7) + (returned == result);
             }
         """;

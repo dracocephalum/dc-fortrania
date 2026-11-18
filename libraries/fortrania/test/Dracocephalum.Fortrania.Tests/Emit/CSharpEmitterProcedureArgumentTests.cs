@@ -14,7 +14,7 @@ public class CSharpEmitterProcedureArgumentTests
         """
             public static double[] Reals()
             {
-                using var library = new Library();
+                using var library = new Standalone();
                 double* reals = stackalloc double[4];
                 int* integers = stackalloc int[3];
                 library.DRIVER(reals, integers);
@@ -23,20 +23,20 @@ public class CSharpEmitterProcedureArgumentTests
 
             public static int[] Integers()
             {
-                using var library = new Library();
+                using var library = new Standalone();
                 double* reals = stackalloc double[4];
                 int* integers = stackalloc int[3];
                 library.DRIVER(reals, integers);
                 return [integers[0], integers[1], integers[2]];
             }
 
-            private static double Half(Library library, double* x) => *x / 2;
+            private static double Half(FortranContext context, double* x) => *x / 2;
 
             public static double[] FromCSharp()
             {
-                using var library = new Library();
+                using var library = new Standalone();
                 double two = 2.0;
-                return [library.APPLY(&Half, &two), library.RELAY((delegate*<Library, double*, double>)&Half, &two)];
+                return [library.APPLY(&Half, &two), library.RELAY((delegate*<FortranContext, double*, double>)&Half, &two)];
             }
         """;
 
@@ -65,16 +65,16 @@ public class CSharpEmitterProcedureArgumentTests
         // Assert
         files[5].ShouldContain(
             """
-                public double APPLY(delegate*<Library, double*, double> f, double* x)
+                public double APPLY(delegate*<FortranContext, double*, double> f, double* x)
                 {
                     double apply = 0;
                     double _d1 = 0;
-                    apply = f(this, x) + f(this, Arg(&_d1, *x + 1.0));
+                    apply = f(_context, x) + f(_context, Arg(&_d1, *x + 1.0));
                     return apply;
                 }
             """.ReplaceLineEndings("\n"),
             Case.Sensitive);
-        files[8].ShouldContain("public int COUNTS(delegate*<Library, int*, bool> p, delegate*<Library, byte*, int, int*, byte*> t, int* n)");
+        files[8].ShouldContain("public int COUNTS(delegate*<FortranContext, int*, bool> p, delegate*<FortranContext, byte*, int, int*, byte*> t, int* n)");
     }
 
     [Fact]
@@ -89,7 +89,7 @@ public class CSharpEmitterProcedureArgumentTests
                 public double RELAY(void* f, double* x)
                 {
                     double relay = 0;
-                    relay = APPLY((delegate*<Library, double*, double>)f, x);
+                    relay = APPLY((delegate*<FortranContext, double*, double>)f, x);
                     return relay;
                 }
             """.ReplaceLineEndings("\n"),
@@ -104,8 +104,8 @@ public class CSharpEmitterProcedureArgumentTests
 
         // Assert
         file.ShouldContain("public double TWOWAY(void* f, double* x, int* n)");
-        file.ShouldContain("twoway = ((delegate*<Library, double*, double>)f)(this, x);");
-        file.ShouldContain("twoway = ((delegate*<Library, int*, double>)f)(this, n);");
+        file.ShouldContain("twoway = ((delegate*<FortranContext, double*, double>)f)(_context, x);");
+        file.ShouldContain("twoway = ((delegate*<FortranContext, int*, double>)f)(_context, n);");
     }
 
     [Fact]
@@ -115,11 +115,11 @@ public class CSharpEmitterProcedureArgumentTests
         var file = TranslatedProgram.Translate(ProcedureArgumentSample.Source)[10];
 
         // Assert
-        file.ShouldContain("    private static double _DRIVER_passes_SQUARE(Library self, double* a1) => self.SQUARE(a1);\n");
-        file.ShouldContain("    private static byte* _DRIVER_passes_TAG(Library self, byte* result, int result_len, int* a1) => self.TAG(result, result_len, a1);\n");
+        file.ShouldContain("    private static double _DRIVER_passes_SQUARE(FortranContext context, double* a1) => context.Get<Library>().SQUARE(a1);\n");
+        file.ShouldContain("    private static byte* _DRIVER_passes_TAG(FortranContext context, byte* result, int result_len, int* a1) => context.Get<Library>().TAG(result, result_len, a1);\n");
         file.Split("private static double _DRIVER_passes_SQUARE").Length.ShouldBe(2);
         file.ShouldContain("@out[0] = APPLY(&_DRIVER_passes_SQUARE, Arg(&_d1, 2.0));");
-        file.ShouldContain("@out[2] = RELAY((void*)(delegate*<Library, double*, double>)&_DRIVER_passes_SQUARE, Arg(&_d1, 3.0));");
+        file.ShouldContain("@out[2] = RELAY((void*)(delegate*<FortranContext, double*, double>)&_DRIVER_passes_SQUARE, Arg(&_d1, 3.0));");
     }
 
     [Fact]
@@ -151,7 +151,7 @@ public class CSharpEmitterProcedureArgumentTests
         var files = TranslatedProgram.Translate(Source, new EmitOptions("N", "C") { Convention = EmitConvention.F2c });
 
         // Assert
-        files[1].ShouldContain("(delegate*<C, byte*, int*, int, void> s, int* n)");
-        files[2].ShouldContain("private static void _BOTH_passes_SHOW(C self, byte* a1, int* a2, int a1_len) => self.show_(a1, a2, a1_len);");
+        files[1].ShouldContain("(delegate*<FortranContext, byte*, int*, int, void> s, int* n)");
+        files[2].ShouldContain("private static void _BOTH_passes_SHOW(FortranContext context, byte* a1, int* a2, int a1_len) => context.Get<C>().show_(a1, a2, a1_len);");
     }
 }

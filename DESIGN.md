@@ -216,15 +216,28 @@ pointer inside the method.** Kept are the variables a unit declares `SAVE`
 or initializes with `DATA`, the second because every compiler since has
 kept those and programs count on it, and local arrays too large for the
 stack, which may be kept since the language has no recursion. Each unit has
-one block of the instance's memory for them, handed out zeroed on the
+one block of the program's memory for them, handed out zeroed on the
 unit's first call, when the `DATA` values are stored; a value of zero needs
 no storing, and a run of equal values is one fill. A method that names a
 kept variable loads the block's address, tests it, and declares a pointer
 into it for each one it names. From there on a kept variable is written exactly as a
 dummy argument is, which is also a pointer, so the rest of the emitter does
-not tell the two apart. The class has one file that belongs to no unit,
-with the instance's memory and its disposal, which frees the memory; the
-garbage collector does not.
+not tell the two apart. The memory is the program's, held by its context,
+and is freed when the context is disposed; the garbage collector does not
+free it.
+
+**A translated library computes, and is handed everything else.** What the
+libraries a FORTRAN program is linked from share, they share because they
+are one process: one set of units, one screen and keyboard. Here that is a
+`FortranContext`, and a translated class is made over one: its constructor
+takes the context, keeps the context's memory and its input and output,
+and adds itself to the context. Beyond what its routines keep between
+calls, an instance owns nothing and decides nothing; whoever makes the
+context chooses where files come from and where the screen goes, and
+disposes it. Two libraries made over one context are two parts of one
+program, and see the same unit under the same number. Two contexts are two
+programs that know nothing of each other, on as many threads. The class's
+one file that belongs to no unit holds that constructor.
 
 **Variables that share storage are pointers into one run of bytes.**
 `EQUIVALENCE` says that two variables, or elements of them, begin at the
@@ -283,15 +296,21 @@ capture written by mistake. Not translated yet are a statement function of
 type `CHARACTER`, an argument of assumed length, and a logical argument
 passed on to a procedure.
 
-**A procedure is passed as a function pointer that takes the instance
-first.** C# gives no address of an instance method, so the unit that passes
-a procedure of the program has a static forwarder to it in its own file,
-which takes the instance and then the procedure's arguments, and passes the
-forwarder's address. Calling through the pointer is an indirect call with
-`this` in front. Nothing is allocated, as a delegate over an instance
-method would be on every pass, and the instance in front is what lets a
-layer above bridge to anything else: it keeps a native pointer or a
-delegate in the instance and passes a forwarder that finds it there.
+**A procedure is passed as a function pointer that takes the program's
+context first.** C# gives no address of an instance method, so the unit
+that passes a procedure of the program has a static forwarder to it in its
+own file, which takes the context and then the procedure's arguments, finds
+the procedure's library in the context, and calls it; the forwarder's
+address is what is passed. Calling through the pointer is an indirect call
+with the context in front. Nothing is allocated, as a delegate over an
+instance method would be on every pass. It is the context in front and not
+the library, because the procedure passed may belong to another library
+than the one that calls it, a routine of the program's own handed to a
+routine of the library it uses, and the context is what both have. Finding
+a library in a context is one load from a list, at a place fixed for the
+library's class. The same argument lets a layer above bridge to anything
+else: it keeps a native pointer or a delegate where the forwarder it passes
+can find it.
 
 **The pointer is typed where the unit calls it, and `void*` where it does
 not.** The language checks nothing about a procedure argument, and a unit
@@ -340,7 +359,7 @@ Inside the emitted class a method of the class is found before anything a
 very name that would be written, the runtime's method is written with the
 full name of its class.
 
-**An input or output statement is calls on the instance's `FortranIO`.**
+**An input or output statement is calls on the program's `FortranIO`.**
 The translated code knows a file as FORTRAN does, by a name when it opens
 it and by a unit number afterwards; what is behind a unit is the runtime's
 alone. `OPEN`, `CLOSE`, `INQUIRE` and `REWIND` are one call each, with the
@@ -359,19 +378,10 @@ gives for the same failure, each one measured: the operating system's for a
 file that is missing or already there, and the compiler library's own from
 5001 on.
 
-**Where the runtime behaves otherwise than the reference compiler, the
-difference is listed here.** The list is the whole of them, and a new one
-is added to it in the change that makes it. `PENDING.md`, *A setting for
-each departure from the reference compiler*, has what is to become of them.
-
-| Where | The reference compiler | The runtime | Why |
-|---|---|---|---|
-| A `READ` or `WRITE` on a unit that is not connected | connects the unit to a file it names itself, `fort.` and the unit number, in the working directory | gives status 5001 | a library must not leave files where its host happens to run |
-| A statement after one that failed | was seen to refuse a good `READ` of a record after a `WRITE` that overran another | is not affected by the earlier failure | it looks like an accident of that library and not like something to rely on |
-| A `WRITE` to a file that may only be read | not measured | gives status 13, the operating system's number for it | a number had to be chosen; it is to be replaced by the measured one |
-| A carriage return with no line feed after it, in text that is read | is part of the record | ends the record | a file made on any system is to be read on any other |
-| Units 6, 0 and 5, while no file is opened on them | are the console | write nowhere and read nothing, until the host sets them or calls `UseConsole` | the console is the program's, and a program may hold many instances |
-| A formatted `WRITE` that fails part of the way through its list | has written what came before the failure, with no line ending | writes nothing of the record | a record is written when it is whole |
+**Where the runtime behaves otherwise than the reference compiler, it is on
+purpose and it is written down.** [`VARIANCES.md`](VARIANCES.md) lists every
+such place, with what the reference compiler does, what the runtime does
+and why; a new one is added there in the change that makes it.
 
 **A record read by number is one read from the file.** Direct access
 divides a file into records of the length `OPEN` gives, and a statement

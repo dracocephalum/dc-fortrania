@@ -29,7 +29,7 @@ public class CSharpEmitterEntryTests
 
             public static int[] Stack()
             {
-                using var library = new Library();
+                using var library = new Standalone();
                 Push(library, 4);
                 Push(library, 9);
                 Push(library, 16);
@@ -46,7 +46,7 @@ public class CSharpEmitterEntryTests
 
             public static double[] Functions()
             {
-                using var library = new Library();
+                using var library = new Standalone();
                 double two = 2.0;
                 double three = 3.0;
                 return [library.AREA(&two), library.SQUARE(&three), library.SETK(&two), library.AREA(&two), library.SQUARE(&three)];
@@ -54,7 +54,7 @@ public class CSharpEmitterEntryTests
 
             public static int[] RunningOn()
             {
-                using var library = new Library();
+                using var library = new Standalone();
                 int twice = 3;
                 int once = 3;
                 library.TWICE(&twice);
@@ -64,7 +64,7 @@ public class CSharpEmitterEntryTests
 
             private static int[] Strays(bool taken)
             {
-                using var library = new Library();
+                using var library = new Standalone();
                 int flag = taken ? 1 : 0;
                 int first = 0;
                 int other = 0;
@@ -85,7 +85,7 @@ public class CSharpEmitterEntryTests
 
             public static string Greetings()
             {
-                using var library = new Library();
+                using var library = new Standalone();
                 byte* text = stackalloc byte[24];
                 fixed (byte* bob = "BOB"u8, alice = "ALICE"u8)
                 {

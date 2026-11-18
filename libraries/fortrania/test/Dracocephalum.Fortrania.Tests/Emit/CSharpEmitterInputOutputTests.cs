@@ -17,7 +17,7 @@ public class CSharpEmitterInputOutputTests
 
             public static object[] Records()
             {
-                using var library = new Library();
+                using var library = new Standalone();
                 var name = System.Text.Encoding.UTF8.GetBytes(NewName());
                 var results = new int[24];
                 byte* word = stackalloc byte[8];
@@ -33,7 +33,7 @@ public class CSharpEmitterInputOutputTests
 
             public static int Fails()
             {
-                using var library = new Library();
+                using var library = new Standalone();
                 var name = System.Text.Encoding.UTF8.GetBytes(NewName());
                 fixed (byte* file = name)
                 {
