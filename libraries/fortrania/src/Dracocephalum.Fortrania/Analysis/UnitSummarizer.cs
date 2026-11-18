@@ -42,7 +42,9 @@ public static class UnitSummarizer
         // Inside a function its name, and that of each entry, is the variable
         // that holds the result; inside a subroutine they have no type.
         var result = table.Find(name)!.Type?.Type;
-        var arguments = parameters.Select(parameter => Describe(table.Find(parameter)!, reach)).ToList();
+        var arguments = parameters
+            .Select(parameter => Describe(table.Find(parameter)!, reach) with { Shape = collector.ShapeOf(parameter) })
+            .ToList();
         return new ProcedureInterface(name, result, arguments, entry.Source.Line);
     }
 
@@ -86,6 +88,10 @@ public static class UnitSummarizer
 
         private readonly Dictionary<string, Reach> _reaches = new(StringComparer.Ordinal);
 
+        // What the calls of each dummy procedure show of it; no shape
+        // where two calls differ.
+        private readonly Dictionary<string, ProcedureShape?> _shapes = new(StringComparer.Ordinal);
+
         // The entry points whose arguments the statement being read counts
         // for.
         private readonly List<Reach> _open = [];
@@ -99,6 +105,8 @@ public static class UnitSummarizer
         private bool _listsCalls;
 
         public List<CallSite> Calls { get; } = [];
+
+        public ProcedureShape? ShapeOf(string dummy) => _shapes.GetValueOrDefault(dummy);
 
         public Reach ReachOf(string entryPoint) => _reaches[entryPoint];
 
@@ -327,6 +335,12 @@ public static class UnitSummarizer
             if (!procedure.IsDummyArgument && _listsCalls)
             {
                 Calls.Add(new CallSite(procedure.Name, resultType, [.. arguments.Select(argument => Describe(argument, at))], at.Line));
+            }
+
+            if (procedure.IsDummyArgument && _listsCalls)
+            {
+                var shape = new ProcedureShape(resultType, [.. arguments.Select(argument => _typer.TypeOfArgument(argument, at))]);
+                _shapes[procedure.Name] = _shapes.TryGetValue(procedure.Name, out var seen) && !shape.Equals(seen) ? null : shape;
             }
 
             for (var index = 0; index < arguments.Count; index++)

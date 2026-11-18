@@ -65,6 +65,7 @@ internal sealed partial class UnitEmitter
         _findProcedure = findProcedure;
         _evaluator = new ConstantEvaluator(table);
         CollectStatementFunctions();
+        CollectDummyProcedures();
         _usesAlias = options.RuntimeAlias is { } alias && !IsEmittedProcedure(alias);
         _line = (table.Unit.Header ?? table.Unit.End).Source.Line;
     }
@@ -135,6 +136,7 @@ internal sealed partial class UnitEmitter
         file.Open($"public unsafe partial class {_options.ClassName}");
 
         WriteState(file);
+        file.Append(_forwarderText);
         file.Append(methods);
 
         file.Close();
@@ -236,6 +238,12 @@ internal sealed partial class UnitEmitter
         foreach (var name in names)
         {
             var symbol = _table.Find(name)!;
+            if (IsProcedure(symbol))
+            {
+                addresses.Add($"{OwnProcedureType(symbol)} {name.ToCSharpLocal()}");
+                continue;
+            }
+
             addresses.Add($"{symbol.Type!.Type.ToCSharpStorageType()}* {name.ToCSharpLocal()}");
             if (symbol.Type.Type == DataType.Character)
             {
@@ -315,11 +323,6 @@ internal sealed partial class UnitEmitter
         foreach (var symbol in _table.Symbols)
         {
             _line = symbol.Line;
-
-            if (symbol.IsDummyArgument && symbol.Kind != SymbolKind.Variable)
-            {
-                throw Unsupported("a procedure as an argument");
-            }
 
             if (symbol.Kind != SymbolKind.Variable)
             {
@@ -408,17 +411,19 @@ internal sealed partial class UnitEmitter
     }
 
     // A stray argument is a local that holds zero or blanks: an array has
-    // one element, and text of assumed length one character. The statement
+    // one element, text of assumed length one character, and a procedure
+    // is no address at all. The statement
     // that names it then does something harmless, where the original would
     // follow an address nobody set.
     private void WriteStray(CodeWriter file, Symbol symbol)
     {
-        if (symbol.Kind != SymbolKind.Variable)
+        var name = symbol.Name.ToCSharpLocal();
+        if (IsProcedure(symbol))
         {
-            throw Unsupported("a procedure as an argument");
+            file.Line($"{OwnProcedureType(symbol)} {name} = null;");
+            return;
         }
 
-        var name = symbol.Name.ToCSharpLocal();
         if (symbol.Type!.Type != DataType.Character)
         {
             var type = symbol.Type.Type.ToCSharpStorageType();

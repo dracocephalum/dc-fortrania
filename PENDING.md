@@ -466,6 +466,36 @@ Two shapes are wanted, in this order:
   list and its documented inputs and outputs, with a short list of routines
   written by hand. The reference C wrappers are not translated.
 
+A routine that takes a procedure takes it, in this interface, as a C
+function pointer whose first argument is the handle:
+`void (*udstep)(void *handle, double *et, double *step)`. Three things
+follow from the handle being there:
+
+- The export stores the C pointer in the instance and passes the translated
+  routine a fixed static forwarder, which is called with the instance,
+  finds the pointer there and calls it. Nothing is allocated. The export
+  puts back what was stored before when it returns, since a callback may
+  itself start a call that stores another.
+- The exports have that same shape, so a C program can pass one of them as
+  the callback, as programs written for the reference C toolkit pass its
+  default step, refinement and progress routines. That costs two
+  transitions per callback, out to native code and straight back in; the
+  export can recognise the address of one of its own and pass the managed
+  routine directly, if a benchmark asks for it.
+- A callback written by the user has the handle it needs to call the
+  library from inside.
+
+No .NET exception may pass through a native frame. Every export catches
+what the translated code throws, a `STOP` among them, and reports it by its
+return value, also when the export was itself reached from a callback.
+
+A call from managed to native code is not marshalled here, since every
+argument is a pointer or a number, and still costs a transition in each
+direction, some tens of nanoseconds: the thread is marked as running native
+code so that the garbage collector need not wait for it. The transition can
+be switched off only for a native function that is short, never blocks and
+never calls back, which a callback into the library is not.
+
 ## A COM interface, on Windows
 
 A second generated facade over `ISpiceLib`, using the source-generated COM
@@ -484,6 +514,33 @@ stay limited by their inputs; .NET has no built-in type wider than 64 bits,
 so one has to be written or adopted; the toolkit's convergence tolerances
 are tuned for 64 bits and need review; and the regression tests' expected
 values no longer apply exactly.
+
+## A variant with 16-bit characters
+
+A translator option that makes the default `CHARACTER` kind a 16-bit unit
+and generates the library a second time, so that a caller holding UTF-16
+text, a .NET string, a COM string, or `wchar_t` on Windows, passes it
+without converting. The two libraries can share one runtime and one
+assembly. It is recorded and not planned: converting a short name to bytes
+on the stack costs nanoseconds, and the price is a second library to test
+and ship. What is known before starting:
+
+- One library has one width throughout. Character values pass between
+  units as bare addresses, so units cannot be mixed. The boundary is the
+  runtime's input and output: text files are decoded and encoded, and an
+  unformatted read or write turns each byte into one unit of the same value
+  and back, since the fields of a binary file are of fixed width and some
+  code reads characters as raw bytes.
+- A kernel still holds bytes, so the variant stores no text a kernel could
+  not hold before. File names outside ASCII need no variant: as UTF-8 they
+  pass through the byte library untouched.
+- Code that takes a character's code to lie below 256 has to be found and
+  checked, and so has any `EQUIVALENCE` of character data with numbers.
+- It is the default kind's width, and not every character's. Later
+  standards have kinds a program declares, the reference compiler's
+  32-bit one among them, and each of those would keep a width of its own.
+- .NET's `char` is 16 bits on every platform, and `wchar_t` is 32 bits
+  outside Windows, so this serves no `wchar_t` caller there.
 
 ## Memory-mapped kernels
 
@@ -545,6 +602,12 @@ that is not to be made before it does:
 - **Saved state.** The two questions at the end of *Saved state is placed
   at translation and loaded at run time*: what an allocated and untouched
   block costs, and what the test on entry costs.
+- **Callbacks from native code.** What the two transitions cost when a C
+  program passes one of the library's own exports as a callback, against
+  the direct managed call, in a search that calls it per step.
+- **Converting text at the managed boundary.** What turning a short .NET
+  string into bytes costs per call, which is the whole case for *A variant
+  with 16-bit characters*.
 
 ## Back ends beyond C# source
 

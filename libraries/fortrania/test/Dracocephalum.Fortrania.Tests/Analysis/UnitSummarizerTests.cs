@@ -213,6 +213,33 @@ public class UnitSummarizerTests
         exception.Line.ShouldBe(3);
     }
 
+    [Fact]
+    public void Summarize_WhenUnitCallsItsDummyProcedures_ShouldSayWhatItsCallsShowOfEach()
+    {
+        // Act
+        var summary = Summarize(
+            "      SUBROUTINE SUB ( F, S, T, ON, TWO, N, X )",
+            "      EXTERNAL F, S, T, ON, TWO",
+            "      DOUBLE PRECISION F, X, TWO",
+            "      CHARACTER*4 NAME",
+            "      INTEGER N",
+            "      X = F ( X, N ) + F ( 1.0D0, 2 )",
+            "      CALL S ( NAME, ON, N .GT. 0 )",
+            "      CALL T",
+            "      X = TWO ( X )",
+            "      X = TWO ( N )",
+            "      END");
+
+        // Assert
+        var shapes = summary.EntryPoints.ShouldHaveSingleItem().Arguments.ToDictionary(argument => argument.Name, argument => argument.Shape);
+        shapes["F"].ShouldBe(new ProcedureShape(DataType.DoublePrecision, [DataType.DoublePrecision, DataType.Integer]));
+        shapes["S"].ShouldBe(new ProcedureShape(null, [DataType.Character, null, DataType.Logical]));
+        shapes["T"].ShouldBe(new ProcedureShape(null, []));
+        shapes["ON"].ShouldBeNull();
+        shapes["TWO"].ShouldBeNull();
+        shapes["N"].ShouldBeNull();
+    }
+
     private static UnitSummary Summarize(params string[] lines)
     {
         using var reader = new StringReader(string.Join('\n', lines));

@@ -269,6 +269,30 @@ capture written by mistake. Not translated yet are a statement function of
 type `CHARACTER`, an argument of assumed length, and a logical argument
 passed on to a procedure.
 
+**A procedure is passed as a function pointer that takes the instance
+first.** C# gives no address of an instance method, so the unit that passes
+a procedure of the program has a static forwarder to it in its own file,
+which takes the instance and then the procedure's arguments, and passes the
+forwarder's address. Calling through the pointer is an indirect call with
+`this` in front. Nothing is allocated, as a delegate over an instance
+method would be on every pass, and the instance in front is what lets a
+layer above bridge to anything else: it keeps a native pointer or a
+delegate in the instance and passes a forwarder that finds it there.
+
+**The pointer is typed where the unit calls it, and `void*` where it does
+not.** The language checks nothing about a procedure argument, and a unit
+that only passes one on says nothing of what it takes, not even whether it
+is a subroutine. So a unit's summary records, for each dummy procedure, the
+shape its own calls show, `ProcedureShape`, and the parameter has that type;
+a caller in C# then gets a compile error for a method of the wrong shape.
+Where the unit never calls it, or two of its calls take it differently, the
+parameter is `void*` and is cast at each call. A pointer is likewise cast
+wherever it goes from one of these forms to another. The casts exist for
+the compiler alone: nothing is checked when the program runs, and a
+procedure of the wrong shape does there what it does in FORTRAN. Not
+translated yet are a function of the language passed as an argument, and a
+procedure passed that the program does not define.
+
 **What a procedure looks like from outside is a convention, and can be
 replaced.** Its name, the type of a logical result and the place of a
 character argument's length are asked of an `EmitConvention`, not decided

@@ -32,7 +32,12 @@ internal sealed partial class UnitEmitter
     private string Invocation(string name, IReadOnlyList<Expression> arguments, IEnumerable<string>? leading = null)
     {
         _callsProcedure = true;
-        var procedure = _findProcedure(name);
+
+        // A dummy procedure is whatever was passed, and not the procedure
+        // of the program that happens to have its name.
+        var called = _table.Find(name);
+        var through = called is { IsDummyArgument: true };
+        var procedure = through ? null : _findProcedure(name);
         var addresses = new List<string>(leading ?? []);
         var lengths = new List<string>();
         var lengthsComeLast = _options.Convention.TextLengthsComeLast;
@@ -40,9 +45,15 @@ internal sealed partial class UnitEmitter
         for (var index = 0; index < arguments.Count; index++)
         {
             var dummy = procedure is not null && index < procedure.Arguments.Count ? procedure.Arguments[index] : null;
+            if (arguments[index] is Expression.Name named && _table.Find(named.Identifier) is { } passed && IsProcedure(passed))
+            {
+                addresses.Add(PassedProcedure(passed, dummy));
+                continue;
+            }
+
             if (dummy is { Kind: not (DummyArgumentKind.Variable or DummyArgumentKind.Array) })
             {
-                throw Unsupported("a procedure as an argument");
+                throw Unsupported("a value passed where a procedure is taken");
             }
 
             var (address, length) = Argument(arguments[index], dummy?.Type);
@@ -51,6 +62,11 @@ internal sealed partial class UnitEmitter
             {
                 (lengthsComeLast ? lengths : addresses).Add(length);
             }
+        }
+
+        if (through)
+        {
+            return CallThrough(called!, arguments, addresses.Concat(lengths));
         }
 
         return $"{_options.Convention.ProcedureName(name)}({string.Join(", ", addresses.Concat(lengths))})";

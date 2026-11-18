@@ -29,4 +29,13 @@ public sealed record DummyArgument(
     DataType? Type,
     int Rank,
     ArgumentUses Uses,
-    IReadOnlyList<ArgumentPass> PassedTo);
+    IReadOnlyList<ArgumentPass> PassedTo)
+{
+    /// <summary>
+    /// Gets what the unit's own calls show of the argument when it is a
+    /// procedure: <see langword="null"/> for a variable or an array, for
+    /// a procedure the unit only passes on, and for one that two of its
+    /// calls take differently.
+    /// </summary>
+    public ProcedureShape? Shape { get; init; }
+}

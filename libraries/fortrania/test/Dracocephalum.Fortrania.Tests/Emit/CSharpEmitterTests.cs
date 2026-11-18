@@ -274,7 +274,6 @@ public class CSharpEmitterTests
     [InlineData("      SUBROUTINE S|      INTEGER I, J|      DATA I, J / 1 /|      END", "Line 1: a DATA statement with a different number of values than of variables cannot be translated yet.")]
     [InlineData("      SUBROUTINE S|      INTEGER I|      DATA I / 'A' /|      END", "Line 1: a DATA value of another type than its variable cannot be translated yet.")]
     [InlineData("      SUBROUTINE S|      CHARACTER*2 C|      DATA C / 1 /|      END", "Line 1: a DATA value of another type than its variable cannot be translated yet.")]
-    [InlineData("      SUBROUTINE S ( F )|      EXTERNAL F|      CALL F|      END", "Line 1: a procedure as an argument cannot be translated yet.")]
     [InlineData("      SUBROUTINE S ( C )|      CHARACTER*(*) C|      C = C ( 2: ) // 'A'|      END", "Line 3: a concatenation of assumed length assigned to part of itself cannot be translated yet.")]
     [InlineData("      SUBROUTINE S ( C )|      CHARACTER*(*) C|      CALL T ( C // 'A' )|      END", "Line 3: a concatenation with an operand of assumed length, outside an assignment cannot be translated yet.")]
     [InlineData("      SUBROUTINE S|      CHARACTER*3000 A, B|      CALL T ( A // B )|      END", "Line 3: a character value of more than 4096 bytes that needs a place of its own cannot be translated yet.")]
@@ -283,7 +282,8 @@ public class CSharpEmitterTests
     [InlineData("      SUBROUTINE S|      COMPLEX Z|      Z = 1|      END", "Line 2: a COMPLEX variable cannot be translated yet.")]
     [InlineData("      SUBROUTINE S ( X )|      WRITE ( *, * ) X|      END", "Line 2: an input or output statement cannot be translated yet.")]
     [InlineData("      SUBROUTINE S ( I )|      I = ISHFT ( I, 2 )|      END", "Line 2: the intrinsic function ISHFT cannot be translated yet.")]
-    [InlineData("      SUBROUTINE S|      INTRINSIC SIN|      CALL T ( SIN )|      END", "Line 3: a procedure as an argument cannot be translated yet.")]
+    [InlineData("      SUBROUTINE S|      INTRINSIC SIN|      CALL T ( SIN )|      END", "Line 3: a function of the language as an argument cannot be translated yet.")]
+    [InlineData("      SUBROUTINE S|      EXTERNAL U|      CALL T ( U )|      END", "Line 3: a procedure as an argument that the program does not define cannot be translated yet.")]
     [InlineData("      SUBROUTINE S|      STOP 'DONE'|      END", "Line 2: STOP with a character constant cannot be translated yet.")]
     public void Emit_WhenUnitUsesWhatIsNotTranslatedYet_ShouldSayWhatAndWhere(string source, string message)
     {
