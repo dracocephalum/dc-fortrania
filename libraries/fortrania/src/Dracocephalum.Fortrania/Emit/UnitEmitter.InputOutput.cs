@@ -192,18 +192,16 @@ internal sealed partial class UnitEmitter
             : throw Unsupported("input or output on a character variable");
     }
 
-    // A statement that transfers text by a format: a call that begins it
-    // with the unit and the format, one for each item, typed as the item
-    // is so that the format can be checked against it, and one that ends
-    // it.
+    // A statement that transfers text: a call that begins it with the
+    // unit, and the format where it has one, one for each item, typed as
+    // the item is, and one that ends it.
     private void WriteText(string unit, Expression? format, IReadOnlyList<IOItem> items, bool isRead, Dictionary<string, Expression?> controls)
     {
-        if (format is null)
-        {
-            throw Unsupported("list-directed input or output");
-        }
-
-        _body.Line($"{IO}.{(isRead ? "ReadFormatted" : "WriteFormatted")}({unit}, {Bytes(format)});");
+        // An asterisk for the format is list-directed: the items' own types
+        // say how each is written or read.
+        _body.Line(format is null
+            ? $"{IO}.{(isRead ? "ReadList" : "WriteList")}({unit});"
+            : $"{IO}.{(isRead ? "ReadFormatted" : "WriteFormatted")}({unit}, {Bytes(format)});");
         WriteTextItems(items, isRead);
         Finish($"{IO}.{(isRead ? "EndRead" : "EndWrite")}()", controls);
     }

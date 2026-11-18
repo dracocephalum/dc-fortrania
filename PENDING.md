@@ -393,29 +393,25 @@ between builds. Nothing is downloaded unless the project asks.
 
 ## Input and output still to build
 
-`DESIGN.md` has what exists: units, the file provider, unformatted records
-read and written by number, and text read and written by a format. Measured in the main library of the
-reference sources, input and output is 256 statements in 69 program units,
-and what is left of it is text:
+`DESIGN.md` has what exists, and it is all the main library of the
+reference sources uses: 256 statements in 69 program units. Left for the
+rest of the reference sources and for other programs:
 
-- **With a format**, 60 statements, which are translated. All the formats
-  are character constants, and there are five: `(A)` in 53 of them,
-  `(1X,A)`, `(1X,3A)`, `(1X,A,D25.17,A)`, and `(A,$)`, the last a
-  compiler's extension that ends the line without a line ending, used once
-  to prompt. The runtime follows `A`, `I`, `F`, `E`, `D`, `L`, `X`, the
-  slash, the colon, the dollar sign, character constants, repeat counts,
-  groups and a scale factor with `E` and `D`. It gives a format error for
-  what it does not follow yet: `G`, `T`, `TL` and `TR`, `H`, `BZ`, `SP`,
-  and a scale factor with `F`.
-- **List-directed**, 53 statements: integers, double precision numbers and
-  character values, some through implied loops, mostly to write and read
-  the text form kernels are moved between machines in. What is written has
-  to be laid out as the reference compiler lays it out.
+- Reading from and writing to a character variable, of which the rest of
+  the reference sources have 14.
+- `BACKSPACE`, of which they have 6, and `ENDFILE`.
+- Unformatted sequential access, and formatted direct access.
+- The other answers `INQUIRE` can give, and `BLANK` in `OPEN`.
+- In formats: `G`, `T`, `TL` and `TR`, `H`, `BZ`, `SP`, and a scale factor
+  with `F`. The runtime gives a format error for each.
 
-Not used in the main library, and so left for the rest of the reference
-sources: reading from and writing to a character variable, of which those
-have 14; `BACKSPACE`, of which they have 6; `ENDFILE`; unformatted
-sequential access; and the other answers `INQUIRE` can give.
+**How the screen and keyboard are given to an instance** is to be looked at
+again with the managed layer. An instance starts with none, as a process
+started by another may be given no console. The ways wanted are the ones a
+started process has: none, the program's own console, or writers and a
+reader of the host's. A further one is to turn what the toolkit writes to
+its error output into an exception, which interrupts where the original
+only informed, and so depends on how the code being run uses that output.
 
 Four things about files are decided and not built:
 
@@ -670,6 +666,30 @@ It needs the emitter and enough of the runtime to print, so it starts when
 those exist. Until then the compiler is used by hand to settle single
 questions, and what it settles is recorded where the answer is used.
 
+## Validating the translated library
+
+Two checks are wanted once the main library of the reference sources runs,
+and neither replaces the other.
+
+- **The reference sources' own tests.** They come with a test program and
+  its families of test routines, in FORTRAN like the library. Translated
+  with the same translator and run, they test the translated library as
+  they test the original. They need the rest of what the reference sources
+  use beyond the main library, which *Input and output still to build*
+  lists, and a way to run a translated main program.
+- **The same run under both.** A test program run as the reference compiler
+  builds it and as the translator translates it writes two logs, and the
+  logs are compared. Where the tests only say pass or fail, this compares
+  the numbers themselves, to the last digit where the two agree and with
+  the difference shown where they do not. Differences are expected in the
+  last digits of what the mathematical library computes, a sine or a
+  logarithm, where .NET and the reference compiler's library need not
+  round alike; each is to be traced to such a call or treated as a fault.
+
+The second needs the reference compiler and so is run by hand or in a job
+of its own, like the regeneration of expected outputs under *Conformance
+tests against a reference compiler*.
+
 ## Measurements waiting for a benchmark project
 
 [`docs/rules/performance.md`](docs/rules/performance.md) asks that a change
@@ -828,6 +848,11 @@ each of these is reported as unsupported and never translated by guess:
   and a selector that says where to start, and a thin method per entry.
 
 ## Procedures taken from the compiler's library
+
+These are the last calls of the reference sources' main library that reach
+nothing: with every one of its 1,415 program units translated, the
+translation compiles but for `EXIT`, called in two places, and
+`DATE_AND_TIME`, called in one.
 
 The reference sources call six procedures that no FORTRAN 77 standard defines
 and no file of theirs supplies: `IARGC` and `GETARG` for the command line,

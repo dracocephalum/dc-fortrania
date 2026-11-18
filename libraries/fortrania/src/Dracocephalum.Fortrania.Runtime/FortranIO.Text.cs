@@ -121,32 +121,10 @@ sealed unsafe partial class FortranIO
     /// <param name="format">The format, parentheses included.</param>
     public void WriteFormatted(int unit, ReadOnlySpan<byte> format)
     {
-        BeginText(unit, Transfer.TextWrite);
-        if (_status != 0)
+        if (BeginWrite(unit))
         {
-            return;
+            BeginFormat(format);
         }
-
-        if (_current is null)
-        {
-            if (unit == 5)
-            {
-                _status = Fail(OptionConflict, "Unit 5 is the keyboard and cannot be written.");
-                return;
-            }
-
-            _screen = (unit == 0 ? Error : Output) ?? TextWriter.Null;
-        }
-        else if (!_current.File.CanWrite)
-        {
-            _status = Fail(NotPermitted, $"Unit {unit} is connected to a file that cannot be written.");
-            return;
-        }
-
-        _lineLength = 0;
-        _column = 0;
-        _staysOnLine = false;
-        BeginFormat(format);
     }
 
     /// <summary>Begins a formatted <c>READ</c>, which reads the first record.</summary>
@@ -154,10 +132,52 @@ sealed unsafe partial class FortranIO
     /// <param name="format">The format, parentheses included.</param>
     public void ReadFormatted(int unit, ReadOnlySpan<byte> format)
     {
+        if (BeginRead(unit))
+        {
+            BeginFormat(format);
+            if (_status == 0)
+            {
+                NextRecord();
+            }
+        }
+    }
+
+    private bool BeginWrite(int unit)
+    {
+        BeginText(unit, Transfer.TextWrite);
+        if (_status != 0)
+        {
+            return false;
+        }
+
+        if (_current is null)
+        {
+            if (unit == 5)
+            {
+                _status = Fail(OptionConflict, "Unit 5 is the keyboard and cannot be written.");
+                return false;
+            }
+
+            _screen = (unit == 0 ? Error : Output) ?? TextWriter.Null;
+        }
+        else if (!_current.File.CanWrite)
+        {
+            _status = Fail(NotPermitted, $"Unit {unit} is connected to a file that cannot be written.");
+            return false;
+        }
+
+        _lineLength = 0;
+        _column = 0;
+        _staysOnLine = false;
+        return true;
+    }
+
+    private bool BeginRead(int unit)
+    {
         BeginText(unit, Transfer.TextRead);
         if (_status != 0)
         {
-            return;
+            return false;
         }
 
         if (_current is null)
@@ -165,17 +185,13 @@ sealed unsafe partial class FortranIO
             if (unit != 5)
             {
                 _status = Fail(OptionConflict, $"Unit {unit} is the screen and cannot be read.");
-                return;
+                return false;
             }
 
             _keyboard = Input ?? TextReader.Null;
         }
 
-        BeginFormat(format);
-        if (_status == 0)
-        {
-            NextRecord();
-        }
+        return true;
     }
 
     /// <summary>Writes a character value as the next item.</summary>
@@ -183,7 +199,11 @@ sealed unsafe partial class FortranIO
     /// <param name="length">Its length.</param>
     public void Write(byte* text, int length)
     {
-        if (NextData() is { } item)
+        if (_isList)
+        {
+            ListWrite(new ReadOnlySpan<byte>(text, Math.Max(length, 0)));
+        }
+        else if (NextData() is { } item)
         {
             if (item.Kind != FormatKind.Text)
             {
@@ -199,7 +219,11 @@ sealed unsafe partial class FortranIO
     /// <param name="value">The number.</param>
     public void Write(int value)
     {
-        if (NextData() is { } item)
+        if (_isList)
+        {
+            ListWrite(NumberEditing.Integer(value, 11, -1));
+        }
+        else if (NextData() is { } item)
         {
             switch (item.Kind)
             {
@@ -220,7 +244,11 @@ sealed unsafe partial class FortranIO
     /// <param name="value">The number.</param>
     public void Write(float value)
     {
-        if (NextData() is { } item)
+        if (_isList)
+        {
+            ListWrite(NumberEditing.General(value, 16, 9, 2));
+        }
+        else if (NextData() is { } item)
         {
             if (item.Kind == FormatKind.Text)
             {
@@ -237,7 +265,11 @@ sealed unsafe partial class FortranIO
     /// <param name="value">The number.</param>
     public void Write(double value)
     {
-        if (NextData() is { } item)
+        if (_isList)
+        {
+            ListWrite(NumberEditing.General(value, 25, 17, 3));
+        }
+        else if (NextData() is { } item)
         {
             if (item.Kind == FormatKind.Text)
             {
@@ -254,7 +286,11 @@ sealed unsafe partial class FortranIO
     /// <param name="value">The value.</param>
     public void Write(bool value)
     {
-        if (NextData() is { } item)
+        if (_isList)
+        {
+            ListWrite(value ? "T" : "F");
+        }
+        else if (NextData() is { } item)
         {
             if (item.Kind != FormatKind.Logical)
             {
@@ -327,7 +363,11 @@ sealed unsafe partial class FortranIO
     /// <param name="length">Its length.</param>
     public void Read(byte* text, int length)
     {
-        if (NextData() is { } item)
+        if (_isList)
+        {
+            ListRead(text, length);
+        }
+        else if (NextData() is { } item)
         {
             if (item.Kind != FormatKind.Text)
             {
@@ -353,7 +393,11 @@ sealed unsafe partial class FortranIO
     /// <param name="value">Where it goes.</param>
     public void Read(int* value)
     {
-        if (NextData() is { } item)
+        if (_isList)
+        {
+            ListRead(value);
+        }
+        else if (NextData() is { } item)
         {
             if (item.Kind != FormatKind.Integer)
             {
@@ -396,7 +440,11 @@ sealed unsafe partial class FortranIO
     /// <param name="value">Where it goes, as it is stored.</param>
     public void ReadLogical(int* value)
     {
-        if (NextData() is { } item)
+        if (_isList)
+        {
+            ListReadLogical(value);
+        }
+        else if (NextData() is { } item)
         {
             if (item.Kind != FormatKind.Logical)
             {
@@ -475,6 +523,7 @@ sealed unsafe partial class FortranIO
 
         _status = 0;
         _transfer = transfer;
+        _isList = false;
         _screen = null;
         _keyboard = null;
         _current = Find(unit);
@@ -702,11 +751,17 @@ sealed unsafe partial class FortranIO
     {
         // What the format still holds before its next item that takes a
         // value is done all the same: text to write, records to end.
+        // A list-directed statement has no format, and what it wrote is
+        // its one record.
         var transfer = _transfer;
-        Next(atEnd: true);
+        if (!_isList)
+        {
+            Next(atEnd: true);
+        }
+
         if (_status == 0 && transfer == Transfer.TextWrite)
         {
-            WriteLine(endsLine: !_staysOnLine);
+            WriteLine(endsLine: _isList || !_staysOnLine);
         }
 
         _transfer = Transfer.None;
@@ -866,6 +921,11 @@ sealed unsafe partial class FortranIO
 
     private bool GetReal(double* value)
     {
+        if (_isList)
+        {
+            return ListRead(value);
+        }
+
         if (NextData() is not { } item)
         {
             return false;

@@ -141,6 +141,39 @@ internal static class NumberEditing
         return Pointed(sign, whole, fraction, tail, width);
     }
 
+    /// <summary>
+    /// A number as list-directed output has it: with all the digits its
+    /// type holds, as a plain number where it is neither very large nor
+    /// very small, followed by blanks where an exponent would stand, and
+    /// with an exponent otherwise.
+    /// </summary>
+    /// <param name="value">The number.</param>
+    /// <param name="width">The field's width.</param>
+    /// <param name="digits">The significant digits to write.</param>
+    /// <param name="exponentDigits">The digits of an exponent.</param>
+    /// <returns>The field, <paramref name="width"/> characters long.</returns>
+    public static string General(double value, int width, int digits, int exponentDigits)
+    {
+        if (!double.IsFinite(value))
+        {
+            return NotFinite(value, width);
+        }
+
+        var sign = double.IsNegative(value) ? "-" : string.Empty;
+        var (all, exponent) = value == 0 ? (new string('0', digits), 1) : Round(Math.Abs(value), digits, decimals: null);
+
+        if (exponent >= 0 && exponent <= digits)
+        {
+            var whole = exponent > 0 ? all[..exponent] : "0";
+            var plain = sign + whole + "." + all[exponent..];
+            return plain.PadLeft(width - exponentDigits - 2).PadRight(width);
+        }
+
+        var power = exponent - 1;
+        var size = Math.Abs(power).ToString(CultureInfo.InvariantCulture).PadLeft(exponentDigits, '0');
+        return (sign + all[..1] + "." + all[1..] + "E" + (power < 0 ? "-" : "+") + size).PadLeft(width);
+    }
+
     /// <summary>Reads a field as an integer.</summary>
     /// <param name="field">The field's characters. Blanks in it do not count, and a field of blanks is zero.</param>
     /// <param name="value">The number.</param>

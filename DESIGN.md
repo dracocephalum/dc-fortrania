@@ -441,3 +441,18 @@ instance is one of perhaps many in a program, on as many threads, and the
 console belongs to the program and not to any of them; `UseConsole` hands
 it to the one instance that is to have it. Here alone text is decoded,
 since a writer takes characters and has an encoding of its own.
+
+**List-directed output is laid out as the reference compiler lays it out.**
+The language leaves the layout to the compiler, and a program written
+against one compiler reads what that compiler writes, so the runtime
+writes the same: a blank to begin the record, an integer in eleven columns,
+a number to all the digits its type holds, plain where it is neither very
+large nor very small and with an exponent otherwise, a character value as
+it is, and a blank between two items unless both are character values. The
+record is one line however long. Reading takes values apart at blanks,
+commas and the ends of records, with what the language allows there: a
+value in apostrophes or quotation marks, which may run on into the next
+record, a count and an asterisk before a value given several times, two
+commas for an item that keeps its value, and a slash that ends the list.
+The item's own type says how its value is read, as with a format, and the
+item's call is the same call.
