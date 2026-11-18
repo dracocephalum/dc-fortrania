@@ -339,3 +339,58 @@ Inside the emitted class a method of the class is found before anything a
 `using` brings in, so where the program has a procedure emitted under the
 very name that would be written, the runtime's method is written with the
 full name of its class.
+
+**An input or output statement is calls on the instance's `FortranIO`.**
+The translated code knows a file as FORTRAN does, by a name when it opens
+it and by a unit number afterwards; what is behind a unit is the runtime's
+alone. `OPEN`, `CLOSE`, `INQUIRE` and `REWIND` are one call each, with the
+specifiers the statement gives passed by name and the rest left out. A
+`READ` or `WRITE` is a call that begins it, one for each item of its list,
+and one that ends it, so that an implied loop in the list is an ordinary
+loop around the item's call. Each statement gives a status. It is stored
+where `IOSTAT` says, and where the statement has none it goes to `Require`,
+which throws for anything but zero: FORTRAN ends the program there, and a
+library must not.
+
+**The status values are the reference compiler's.** The sources test only
+whether a status is zero, negative or positive, but they print the number
+in their messages, so the runtime gives the number the reference compiler
+gives for the same failure, each one measured: the operating system's for a
+file that is missing or already there, and the compiler library's own from
+5001 on.
+
+**Where the runtime behaves otherwise than the reference compiler, the
+difference is listed here.** The list is the whole of them, and a new one
+is added to it in the change that makes it. `PENDING.md`, *A setting for
+each departure from the reference compiler*, has what is to become of them.
+
+| Where | The reference compiler | The runtime | Why |
+|---|---|---|---|
+| A `READ` or `WRITE` on a unit that is not connected | connects the unit to a file it names itself, `fort.` and the unit number, in the working directory | gives status 5001 | a library must not leave files where its host happens to run |
+| A statement after one that failed | was seen to refuse a good `READ` of a record after a `WRITE` that overran another | is not affected by the earlier failure | it looks like an accident of that library and not like something to rely on |
+| A `WRITE` to a file that may only be read | not measured | gives status 13, the operating system's number for it | a number had to be chosen; it is to be replaced by the measured one |
+
+**A record read by number is one read from the file.** Direct access
+divides a file into records of the length `OPEN` gives, and a statement
+names its record. Reading fetches the record once, into a buffer the
+instance keeps, and copies each item out; an item that is the whole record
+is read straight to where it goes. Writing puts the items together in the
+buffer, zeros where they do not fill it, and writes the record when the
+statement ends, so a statement that fails writes nothing. Bytes are copied
+as they are, in the machine's order. What the unit of `RECL` is the
+language leaves to the compiler: bytes here by default, as in the reference
+compiler, and a property of `FortranIO` for the compilers that count words.
+
+**A file name goes to a provider, and a stream can be given a name.** By
+default a name is a path on disk, opened through the operating system's own
+handle and read and written a record at a time with no buffer in between; a
+file that may only be read is opened for reading. A seekable stream
+registered under a name is that file from then on to every statement, and
+is left open when its unit is closed. A stream has one position, so it
+serves one instance. Bytes held in memory can be registered too, as a file
+to read and not to write: every read says where it reads, nothing is kept
+between reads, and so one copy of a kernel in memory can be registered with
+any number of instances and read by all of them at once. The provider can
+be replaced altogether. Two names are one file when the provider says so, which for the
+disk is the full path, compared without regard to case where the file
+system has none.

@@ -103,7 +103,8 @@ internal sealed partial class UnitEmitter
 
             case Statement.Read or Statement.Write or Statement.Print or Statement.Open or Statement.Close
                 or Statement.Inquire or Statement.Rewind or Statement.Backspace or Statement.EndFile:
-                throw Unsupported("an input or output statement");
+                WriteInputOutput(statement);
+                break;
 
             // What is left declares, and the symbol table has taken it in,
             // or does nothing: CONTINUE, and the END that closes the unit. An

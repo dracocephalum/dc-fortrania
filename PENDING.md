@@ -322,30 +322,60 @@ which it never overwrites. The defaults that make this work:
 This is also the path the conformance tests take: translate, run, and set
 the output against the reference compiler's.
 
-## Files are opened through a provider, and a stream is a file
+## Input and output still to build
 
-FORTRAN names a file by a string and refers to it afterwards by a unit
-number, and the translated code does the same. What that string resolves to
-is the runtime's decision, made by a file provider the library instance is
-given:
+`DESIGN.md` has what exists: units, the file provider, and unformatted
+records read and written by number. Measured in the main library of the
+reference sources, input and output is 256 statements in 69 program units,
+and what is left of it is text:
 
-- By default a name is a path on disk, opened for random access by the
-  operating system's own handle, which is the fast path.
-- A name can instead be registered against any seekable `Stream`, a
-  `MemoryStream` or one of the caller's own, and from then on it behaves as
-  a file of that name: it can be opened, inquired about and read at any
-  record, and written if the stream allows it. `ISpiceCore` offers this
-  directly, as an overload that takes the stream.
-- An application can replace the provider altogether, for platforms where
-  bundled data is not reachable by path.
+- **With a format**, 60 statements. All the formats are character
+  constants, and there are five: `(A)` in 53 of them, `(1X,A)`,
+  `(1X,3A)`, `(1X,A,D25.17,A)`, and `(A,$)`, the last a compiler's
+  extension that ends the line without a line ending, used once to prompt.
+  The rest of the reference sources add `I`, `E` and `F` with widths, a
+  scale factor, and a few formats put together when the program runs.
+- **List-directed**, 53 statements: integers, double precision numbers and
+  character values, some through implied loops, mostly to write and read
+  the text form kernels are moved between machines in. What is written has
+  to be laid out as the reference compiler lays it out.
+- **The standard units**: 16 of those statements write to the screen and
+  one reads the keyboard.
 
-Nothing in the translator or the translated code knows which of these is in
-use; every input and output statement becomes a call into the runtime, and
-only the runtime sees what is behind a unit.
+Not used in the main library, and so left for the rest of the reference
+sources: reading from and writing to a character variable, of which those
+have 14; `BACKSPACE`, of which they have 6; `ENDFILE`; unformatted
+sequential access; and the other answers `INQUIRE` can give.
 
-A registered stream belongs to one library instance while it is registered.
-A stream has a single position, so it is not shared between instances or
-read by the caller in the meantime.
+Three things about files are decided and not built:
+
+- The emitted class creates its `FortranIO` itself and keeps it to itself.
+  A host has to be able to hand in a provider, register a stream and set
+  what `RECL` counts; `ISpiceCore` is to offer a stream directly, as an
+  overload that takes one. How the class takes these is tied to how it is
+  constructed at all, with *Saved state is placed at translation and loaded
+  at run time* and *What the translator is told*.
+- A registered stream belongs to one library instance while it is
+  registered. A stream has a single position, so it is not shared between
+  instances or read by the caller in the meantime.
+- What a disk file costs per record, read and written with one system call
+  each and no buffer, against a buffered or memory-mapped file, is for the
+  benchmark project.
+
+## A setting for each departure from the reference compiler
+
+The runtime follows the reference compiler wherever a program can tell the
+difference, and `DESIGN.md` lists the places where it does not, under
+*Where the runtime behaves otherwise than the reference compiler*. Each of
+those was chosen for a library hosted in another program, and a FORTRAN
+program translated to run on its own may count on what the compiler does.
+
+So each entry of that list is to get a setting that turns the compiler's
+behaviour back on, when a program is met that needs it and not before, with
+the library's choice as the default. The settings belong with the rest of
+what the runtime is told, *Settings for what differs by platform*, and a
+program translated as an executable may want them all on at once, as one
+choice of the translator's.
 
 ## Any line ending is read, and the platform's is written
 
@@ -602,6 +632,10 @@ that is not to be made before it does:
 - **Saved state.** The two questions at the end of *Saved state is placed
   at translation and loaded at run time*: what an allocated and untouched
   block costs, and what the test on entry costs.
+- **Records.** A record read by number is one system call, and one copy
+  unless the item is the whole record. Kernel reading is made of these, so
+  what a buffer of several records, or a mapped file, would save is the
+  first thing to measure once kernels load.
 - **Callbacks from native code.** What the two transitions cost when a C
   program passes one of the library's own exports as a callback, against
   the direct managed call, in a search that calls it per step.

@@ -56,9 +56,11 @@ public sealed class CSharpEmitter
         file.Line("/// </summary>");
         file.Open($"public unsafe partial class {_options.ClassName} : IDisposable");
         file.Line("private readonly StateMemory _memory = new();");
+        file.Line("private readonly FortranIO _io = new();");
         file.Blank();
-        file.Line("/// <summary>Frees what the instance keeps between calls. It must not be called again afterwards.</summary>");
+        file.Line("/// <summary>Closes the instance's files and frees what it keeps between calls. It must not be called again afterwards.</summary>");
         file.Open("public void Dispose()");
+        file.Line("_io.Dispose();");
         file.Line("_memory.Dispose();");
         file.Line("GC.SuppressFinalize(this);");
         file.Close();

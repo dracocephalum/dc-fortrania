@@ -279,7 +279,6 @@ public class CSharpEmitterTests
     [InlineData("      SUBROUTINE S ( C )|      CHARACTER*(*) C, F|      C = F ( )|      END", "Line 3: a CHARACTER function whose length the calling unit does not fix cannot be translated yet.")]
     [InlineData("      SUBROUTINE S ( C, N )|      INTEGER N|      CHARACTER*(N) C|      C = 'A'|      END", "Line 4: a CHARACTER length that is not constant cannot be translated yet.")]
     [InlineData("      SUBROUTINE S|      COMPLEX Z|      Z = 1|      END", "Line 2: a COMPLEX variable cannot be translated yet.")]
-    [InlineData("      SUBROUTINE S ( X )|      WRITE ( *, * ) X|      END", "Line 2: an input or output statement cannot be translated yet.")]
     [InlineData("      SUBROUTINE S ( I )|      I = ISHFT ( I, 2 )|      END", "Line 2: the intrinsic function ISHFT cannot be translated yet.")]
     [InlineData("      SUBROUTINE S|      INTRINSIC SIN|      CALL T ( SIN )|      END", "Line 3: a function of the language as an argument cannot be translated yet.")]
     [InlineData("      SUBROUTINE S|      EXTERNAL U|      CALL T ( U )|      END", "Line 3: a procedure as an argument that the program does not define cannot be translated yet.")]
