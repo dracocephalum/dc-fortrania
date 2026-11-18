@@ -344,6 +344,47 @@ A registered stream belongs to one library instance while it is registered.
 A stream has a single position, so it is not shared between instances or
 read by the caller in the meantime.
 
+## Any line ending is read, and the platform's is written
+
+A text file made on one system is read on another, and the three line
+endings in use, a line feed, a carriage return with a line feed, and a
+carriage return alone, must all end a record.
+
+- **Reading.** A formatted sequential read takes any of the three as the
+  end of its record. The runtime finds the ending in the bytes itself, by
+  the rule the framework's own line reader follows; it does not go through
+  that reader, because text here is bytes from end to end.
+- **Writing.** What ends a record written is a setting of the runtime. Its
+  default is the platform's own ending, which is what the reference
+  compiler writes on each system and what an original toolkit beside ours
+  expects to find. A program that wants the same bytes on every platform
+  sets one ending.
+- **Direct access** reads and writes records of a fixed length and sees the
+  bytes as they are, endings included. Nothing is done for it.
+
+The reference library does not leave this to the runtime. On loading a text
+kernel it reads the file's first bytes by direct access, works out which
+ending the file has, and refuses the kernel when that is not the ending of
+the platform the library says it was built for. Translated faithfully, the
+check is still there, and reading any ending in the runtime does not get a
+file past it.
+
+The check is left as it is for now. How to change what one translated
+routine does, without editing translated code, is open, and there are two
+ways to weigh:
+
+- Leave the routine out of the translation and supply it by hand, which
+  the translator's settings already provide for. Nothing is paid at run
+  time; the whole routine has to be written again, and kept right when the
+  source changes.
+- Emit the routine as a method a class derived from the library can
+  override, so that only what differs is written. A call of such a method
+  is no longer direct and cannot be inlined, which
+  [`docs/rules/performance.md`](docs/rules/performance.md) rules out on a
+  computation path. So it could only be asked for routine by routine, in
+  the translator's settings, never for all, and what it costs is to be
+  measured before it is offered.
+
 ## Errors stay in the toolkit's error state until the managed boundary
 
 The reference toolkit does not throw. A routine that detects a fault records
