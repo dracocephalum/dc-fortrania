@@ -34,5 +34,25 @@ internal sealed class CodeWriter
         }
     }
 
+    /// <summary>Gets a value indicating whether nothing has been written.</summary>
+    public bool IsEmpty => _text.Length == 0;
+
+    /// <summary>Adds lines written elsewhere, each moved in to the current depth, blank ones kept.</summary>
+    public void Append(CodeWriter other)
+    {
+        var lines = other.ToString().Split('\n');
+        foreach (var line in lines[..^1])
+        {
+            if (line.Length == 0)
+            {
+                Blank();
+            }
+            else
+            {
+                Line(line);
+            }
+        }
+    }
+
     public override string ToString() => _text.ToString();
 }

@@ -96,15 +96,13 @@ internal sealed partial class UnitEmitter
                 });
                 break;
 
-            case Statement.Entry:
-                throw Unsupported("ENTRY");
-
             case Statement.Read or Statement.Write or Statement.Print or Statement.Open or Statement.Close
                 or Statement.Inquire or Statement.Rewind or Statement.Backspace or Statement.EndFile:
                 throw Unsupported("an input or output statement");
 
             // What is left declares, and the symbol table has taken it in,
-            // or does nothing: CONTINUE, and the END that closes the unit.
+            // or does nothing: CONTINUE, and the END that closes the unit. An
+            // ENTRY is where another method starts, and is not met here.
         }
     }
 
@@ -113,7 +111,7 @@ internal sealed partial class UnitEmitter
     // returned as a bool unless the convention has it stay one.
     private string ReturnOf(Symbol result)
     {
-        var name = result.Name.ToCSharpLocal();
+        var name = Local(result);
         return result.Type!.Type == DataType.Logical && !_options.Convention.ReturnsLogicalAsInteger
             ? $"return {name} != 0;"
             : $"return {name};";

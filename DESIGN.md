@@ -218,13 +218,41 @@ kept those and programs count on it, and local arrays too large for the
 stack, which may be kept since the language has no recursion. Each unit has
 one block of the instance's memory for them, handed out zeroed on the
 unit's first call, when the `DATA` values are stored; a value of zero needs
-no storing, and a run of equal values is one fill. A method of the unit
-loads the block's address, tests it, and declares a pointer into it for
-each kept variable. From there on a kept variable is written exactly as a
+no storing, and a run of equal values is one fill. A method that names a
+kept variable loads the block's address, tests it, and declares a pointer
+into it for each one it names. From there on a kept variable is written exactly as a
 dummy argument is, which is also a pointer, so the rest of the emitter does
 not tell the two apart. The class has one file that belongs to no unit,
 with the instance's memory and its disposal, which frees the memory; the
 garbage collector does not.
+
+**An entry point is a method of its own.** A unit with `ENTRY` statements
+has several ways in, and is commonly one routine holding saved variables
+with an operation per entry. Each entry point, the unit's own heading
+included, becomes a method that takes that entry's dummy arguments and
+holds the statements control passes through from there, as `EntryLayout`
+gives them. Kept variables are shared through the unit's block. Other
+locals belong to each method, since the language does not keep them between
+calls. In a function the results of all entry points are one variable under
+several names, so each of those names is the result of the method it is
+written in; results of different types, one stored through the name of
+another, are refused. Where control runs on from one entry point into the
+next, the first method holds the statements of both: the same statement is
+then written twice, and no call stands in for running on, because a call
+would give the second its own locals. The form `f2c` writes, one body with
+every entry's arguments and a selector, is always correct too, and was not
+chosen because every call then passes every entry's arguments.
+
+**A method declares only what its statements name.** A method for one entry
+point names few of its unit's variables, and a local array it does not name
+would still be taken from the stack on every call; a method that names no
+kept variable does not ask for the unit's block. The same holds for a unit
+with one way in. The language forbids an entry's statements to name a dummy
+argument of another entry, since nothing was passed for it, and programs do
+it all the same in branches never taken. The method declares such a name as
+a local holding zero or blanks, an array with one element and text of
+assumed length one character, so that the statement does something
+harmless where the original would follow an address nobody set.
 
 **What a procedure looks like from outside is a convention, and can be
 replaced.** Its name, the type of a logical result and the place of a
@@ -238,9 +266,9 @@ it expects. The translation
 inside a procedure does not change with the convention.
 
 **Every emitted file switches off the diagnostics it is known to raise.** A
-faithful translation has statements that cannot be reached and variables
-set and never read, because the source has them. The emitter names those
-two in a `#pragma` at the top of each file and adds whatever the options
+faithful translation has statements that cannot be reached, variables set
+and never read, and variables assigned to themselves, because the source
+has them. The emitter names those three in a `#pragma` at the top of each file and adds whatever the options
 list, so that a project with warnings as errors can take the files as they
 are. A convention with lower-case method names is the usual reason to list
 more.

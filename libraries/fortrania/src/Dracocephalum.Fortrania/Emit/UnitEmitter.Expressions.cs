@@ -123,7 +123,7 @@ internal sealed partial class UnitEmitter
             throw Unsupported("a whole array or a procedure used as a value");
         }
 
-        var name = symbol.Name.ToCSharpLocal();
+        var name = Local(symbol);
         if (symbol.Type!.Type == DataType.Character)
         {
             return new Code(name, DataType.Character, Level.Primary, LengthOf(symbol));
@@ -136,7 +136,7 @@ internal sealed partial class UnitEmitter
 
     private Code Element(Symbol array, IReadOnlyList<Expression> subscripts)
     {
-        var name = array.Name.ToCSharpLocal();
+        var name = Local(array);
         var offset = Offset(array, subscripts);
 
         if (array.Type!.Type != DataType.Character)
@@ -187,6 +187,7 @@ internal sealed partial class UnitEmitter
     // one more underscore in front keeps the two apart.
     private string LengthName(Symbol dummy)
     {
+        dummy = Use(dummy);
         var name = dummy.Name.ToLowerInvariant() + "_len";
         return _table.Find(dummy.Name + "_LEN") is null ? name : "_" + name;
     }

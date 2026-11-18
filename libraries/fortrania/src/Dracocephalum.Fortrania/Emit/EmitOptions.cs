@@ -27,8 +27,9 @@ public sealed record EmitOptions(string Namespace, string ClassName)
     /// Gets the diagnostics every emitted file switches off for itself, by
     /// their identifiers, such as <c>CA1707</c>; none unless set. They are
     /// added to the ones the emitter always switches off because a faithful
-    /// translation raises them: a statement that cannot be reached and a
-    /// variable that is set and never read, both of which the source has.
+    /// translation raises them: a statement that cannot be reached, a
+    /// variable that is set and never read, and a variable assigned to
+    /// itself, all of which the source has.
     /// </summary>
     public IReadOnlyList<string> SuppressedWarnings { get; init; } = [];
 }

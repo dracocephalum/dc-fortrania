@@ -19,14 +19,14 @@ internal sealed partial class UnitEmitter
     private const string RuntimeClass = "Dracocephalum.Fortrania.Runtime.Fortran";
 
     // What a faithful translation raises: a statement that cannot be
-    // reached, and a variable that is set and never read.
-    private static readonly string[] OwnSuppressions = ["CS0162", "CS0219"];
+    // reached, a variable that is set and never read, and a variable
+    // assigned to itself, which a conversion to its own type comes to.
+    private static readonly string[] OwnSuppressions = ["CS0162", "CS0219", "CS1717"];
 
     private readonly SymbolTable _table;
     private readonly EmitOptions _options;
     private readonly Func<string, ProcedureInterface?> _findProcedure;
     private readonly ConstantEvaluator _evaluator;
-    private readonly CodeWriter _body = new();
 
     // Whether the short name the options give the runtime's class can be
     // used: inside the emitted class a method is found before a name the
@@ -35,15 +35,26 @@ internal sealed partial class UnitEmitter
     // the program, since it is asked of the whole.
     private readonly bool _usesAlias;
 
+    // What follows is kept for the method being written, and started afresh
+    // for the next: a unit with ENTRY statements is several methods.
+    //
     // The named constants the statements use, in the order met; only these
     // are declared, since an include file may bring hundreds no statement
     // names.
     private readonly List<Symbol> _constantsUsed = [];
 
+    // The variables the statements name. Only these are declared: a method
+    // for one entry point names few of its unit's variables, and an array it
+    // does not name would still be taken from the stack on every call.
+    private readonly HashSet<Symbol> _named = [];
+
     // For each type, how many locals for passing values are in use in the
     // statement being written, and the most any statement needed.
     private readonly Dictionary<DataType, (int InUse, int Most)> _slots = [];
 
+    private CodeWriter _body = new();
+    private IReadOnlyList<string> _parameters = [];
+    private Symbol? _result;
     private int _loops;
     private int _line;
 
@@ -74,10 +85,10 @@ internal sealed partial class UnitEmitter
 
     public string Emit()
     {
-        var (name, parameters, isFunction) = _table.Unit.Header?.Statement switch
+        var isFunction = _table.Unit.Header?.Statement switch
         {
-            Statement.Subroutine subroutine => (subroutine.Name, subroutine.Parameters, false),
-            Statement.Function function => (function.Name, function.Parameters, true),
+            Statement.Subroutine => false,
+            Statement.Function => true,
             Statement.BlockData => throw Unsupported("a block data subprogram"),
             _ => throw Unsupported("a main program"),
         };
@@ -85,18 +96,22 @@ internal sealed partial class UnitEmitter
         RefuseWhatIsNotTranslatedYet();
         LayOutState();
 
-        var result = isFunction ? _table.Find(name)! : null;
-
-        foreach (var construct in _table.Unit.Body)
+        var methods = new CodeWriter();
+        if (_table.EntryPoints.Count > 1)
         {
-            Write(construct, result);
+            // Each entry point is a method of its own, holding the statements
+            // control passes through from there. Where control runs on from
+            // one entry point into the next, both methods hold the statements
+            // after the second, which is what running on does.
+            foreach (var entry in EntryLayout.Of(_table).Bodies)
+            {
+                WriteMethod(methods, entry.Name, entry.Parameters, entry.Statements, isFunction);
+            }
         }
-
-        // A function gives its result where control runs off its end; one that
-        // ends on a RETURN has already done so.
-        if (result is not null && !EndsOnReturn(_table.Unit.Body))
+        else
         {
-            _body.Line(ReturnOf(result));
+            var heading = _table.Unit.Header!.Statement.ProcedureHeading();
+            WriteMethod(methods, heading.Name, heading.Parameters, _table.Unit.Body, isFunction);
         }
 
         var file = new CodeWriter();
@@ -119,17 +134,71 @@ internal sealed partial class UnitEmitter
         file.Open($"public unsafe partial class {_options.ClassName}");
 
         WriteState(file);
+        file.Append(methods);
 
-        var returns = result is null ? "void" : ResultType(result.Type!.Type);
-        file.Open($"public {returns} {_options.Convention.ProcedureName(name)}({string.Join(", ", Parameters(parameters, result))})");
-
-        WriteDeclarations(file);
-        file.Lines(_body);
-
-        file.Close();
         file.Close();
         return file.ToString();
     }
+
+    private void WriteMethod(CodeWriter methods, string name, IReadOnlyList<string> parameters, IReadOnlyList<Construct> statements, bool isFunction)
+    {
+        _body = new CodeWriter();
+        _constantsUsed.Clear();
+        _named.Clear();
+        _slots.Clear();
+        _buffers.Clear();
+        _loops = 0;
+        _parameters = parameters;
+        _result = isFunction ? _table.Find(name)! : null;
+
+        Write(statements, _result);
+
+        // A function gives its result where control runs off its end; one that
+        // ends on a RETURN has already done so.
+        if (_result is not null && !EndsOnReturn(statements))
+        {
+            _body.Line(ReturnOf(_result));
+        }
+
+        if (!methods.IsEmpty)
+        {
+            methods.Blank();
+        }
+
+        var returns = _result is null ? "void" : ResultType(_result.Type!.Type);
+        methods.Open($"public {returns} {_options.Convention.ProcedureName(name)}({string.Join(", ", Parameters(parameters, _result))})");
+        WriteDeclarations(methods);
+        methods.Lines(_body);
+        methods.Close();
+    }
+
+    // Records that the method being written names a variable, and gives the
+    // variable it is there. In a function with ENTRY statements the results
+    // of all its entry points are one variable under several names, so each
+    // of those names is the result of the method being written.
+    private Symbol Use(Symbol symbol)
+    {
+        if (_result is not null && symbol is { IsEntryPoint: true, Kind: SymbolKind.Variable } && symbol.Name != _result.Name)
+        {
+            if (symbol.Type!.Type != _result.Type!.Type)
+            {
+                throw Unsupported("entry points whose results differ in type, one used through the name of another");
+            }
+
+            symbol = _result;
+        }
+
+        _named.Add(symbol);
+        return symbol;
+    }
+
+    private string Local(Symbol symbol) => Use(symbol).Name.ToCSharpLocal();
+
+    // A dummy argument of another entry point than the one being written.
+    // The language forbids naming it, since nothing was passed for it, and
+    // programs do all the same in branches never taken.
+    private bool IsStray(Symbol symbol) =>
+        symbol.IsDummyArgument && !_parameters.Contains(symbol.Name, StringComparer.Ordinal);
 
     // Every dummy argument is a pointer. A character one comes with its
     // length, which the procedure takes even where its declaration fixes
@@ -222,11 +291,6 @@ internal sealed partial class UnitEmitter
 
     private void RefuseWhatIsNotTranslatedYet()
     {
-        if (_table.EntryPoints.Count > 1)
-        {
-            throw Unsupported("ENTRY");
-        }
-
         if (_table.StatementFunctions.Count > 0)
         {
             throw Unsupported("a statement function");
@@ -268,7 +332,13 @@ internal sealed partial class UnitEmitter
 
         WriteStateAccess(file);
 
-        foreach (var symbol in _table.Symbols.Where(symbol => symbol is { Kind: SymbolKind.Variable, IsDummyArgument: false }))
+        foreach (var symbol in _table.Symbols.Where(symbol => _named.Contains(symbol) && IsStray(symbol)))
+        {
+            _line = symbol.Line;
+            WriteStray(file, symbol);
+        }
+
+        foreach (var symbol in _table.Symbols.Where(symbol => symbol is { Kind: SymbolKind.Variable, IsDummyArgument: false } && _named.Contains(symbol)))
         {
             // The result of a character function is an argument, not a local,
             // and a kept variable has been declared with the unit's block.
@@ -311,6 +381,39 @@ internal sealed partial class UnitEmitter
                 file.Line($"{type.ToCSharpStorageType()} {Slot(type, number)} = 0;");
             }
         }
+    }
+
+    // A stray argument is a local that holds zero or blanks: an array has
+    // one element, and text of assumed length one character. The statement
+    // that names it then does something harmless, where the original would
+    // follow an address nobody set.
+    private void WriteStray(CodeWriter file, Symbol symbol)
+    {
+        if (symbol.Kind != SymbolKind.Variable)
+        {
+            throw Unsupported("a procedure as an argument");
+        }
+
+        var name = symbol.Name.ToCSharpLocal();
+        if (symbol.Type!.Type != DataType.Character)
+        {
+            var type = symbol.Type.Type.ToCSharpStorageType();
+            file.Line($"{type}* {name} = stackalloc {type}[1] {{ 0 }};");
+            return;
+        }
+
+        var length = "1";
+        if (symbol.Type.Length is { IsAssumed: true })
+        {
+            file.Line($"int {LengthName(symbol)} = 1;");
+        }
+        else
+        {
+            length = LengthOf(symbol);
+        }
+
+        file.Line($"byte* {name} = stackalloc byte[{length}];");
+        file.Line($"new Span<byte>({name}, {length}).Fill((byte)' ');");
     }
 
     private static string Slot(DataType type, int number) => type switch

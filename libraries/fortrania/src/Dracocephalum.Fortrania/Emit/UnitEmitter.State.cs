@@ -130,10 +130,12 @@ internal sealed partial class UnitEmitter
         file.Blank();
     }
 
-    // The lines that open a method of a unit with kept variables.
+    // The lines that open a method that names kept variables. A method that
+    // names none does not ask for the block.
     private void WriteStateAccess(CodeWriter file)
     {
-        if (_stateSize == 0)
+        var kept = _table.Symbols.Where(symbol => IsKept(symbol) && _named.Contains(symbol)).ToList();
+        if (kept.Count == 0)
         {
             return;
         }
@@ -143,7 +145,7 @@ internal sealed partial class UnitEmitter
         file.Line($"_state = {StateLoader}();");
         file.Close();
 
-        foreach (var symbol in _table.Symbols.Where(IsKept))
+        foreach (var symbol in kept)
         {
             file.Line(KeptDeclaration(symbol));
         }

@@ -33,7 +33,7 @@ public class CSharpEmitterTests
             // </auto-generated>
 
             #nullable enable
-            #pragma warning disable CS0162, CS0219
+            #pragma warning disable CS0162, CS0219, CS1717
 
             using System;
             using System.Runtime.CompilerServices;
@@ -167,6 +167,32 @@ public class CSharpEmitterTests
     }
 
     [Fact]
+    public void Emit_WhenTheCodeOfACharacterIsAnArgumentOfAGenericFunction_ShouldPassItAsAnInteger()
+    {
+        // Arrange
+        var program = TranslatedProgram.Compile(
+            """
+                  INTEGER FUNCTION CAPPED ( C )
+                  CHARACTER*(*) C
+                  CAPPED = MIN ( 100, ICHAR ( C ( 2:2 ) ) )
+                 .       + MAX ( ICHAR ( C ( 1:1 ) ), 70 )
+                  END
+            """,
+            """
+                public static int Run()
+                {
+                    fixed (byte* text = "Az"u8)
+                    {
+                        return new Library().CAPPED(text, 2);
+                    }
+                }
+            """);
+
+        // Act & Assert
+        program.Run<int>("Run").ShouldBe(170);
+    }
+
+    [Fact]
     public void Emit_WhenStopIsReached_ShouldThrowWithItsCode()
     {
         // Arrange
@@ -244,7 +270,6 @@ public class CSharpEmitterTests
     [Theory]
     [InlineData("      PROGRAM MAIN|      END", "Line 1: a main program cannot be translated yet.")]
     [InlineData("      BLOCK DATA|      END", "Line 1: a block data subprogram cannot be translated yet.")]
-    [InlineData("      SUBROUTINE S|      RETURN|      ENTRY T|      END", "Line 1: ENTRY cannot be translated yet.")]
     [InlineData("      SUBROUTINE S ( X )|      SF ( Y ) = Y + 1|      X = SF ( X )|      END", "Line 1: a statement function cannot be translated yet.")]
     [InlineData("      SUBROUTINE S|      INTEGER I, J|      EQUIVALENCE ( I, J )|      END", "Line 1: EQUIVALENCE cannot be translated yet.")]
     [InlineData("      SUBROUTINE S|      INTEGER I, J|      DATA I, J / 1 /|      END", "Line 1: a DATA statement with a different number of values than of variables cannot be translated yet.")]

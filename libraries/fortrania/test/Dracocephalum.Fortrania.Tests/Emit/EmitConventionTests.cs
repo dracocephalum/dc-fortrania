@@ -175,7 +175,7 @@ public class EmitConventionTests
 
         // Assert
         files.Count.ShouldBe(3);
-        files.ShouldAllBe(file => file.Contains("\n#pragma warning disable CS0162, CS0219, CA1707, SA1300\n"));
+        files.ShouldAllBe(file => file.Contains("\n#pragma warning disable CS0162, CS0219, CS1717, CA1707, SA1300\n"));
     }
 
     // A function of one unit, referenced from another, with a call into
@@ -274,7 +274,7 @@ public class EmitConventionTests
 
     [Fact]
     public void Emit_WhenNoWarningsAreNamed_ShouldSwitchOffTheEmittersOwnAlone() =>
-        TranslatedProgram.Translate(Source)[0].ShouldContain("\n#pragma warning disable CS0162, CS0219\n");
+        TranslatedProgram.Translate(Source)[0].ShouldContain("\n#pragma warning disable CS0162, CS0219, CS1717\n");
 
     [Fact]
     public void Emit_WhenAFunctionEndsOnAReturn_ShouldNotReturnItsResultASecondTime()

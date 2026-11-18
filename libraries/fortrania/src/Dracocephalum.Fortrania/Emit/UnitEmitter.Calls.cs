@@ -62,10 +62,10 @@ internal sealed partial class UnitEmitter
             // A character variable or a whole character array is its own
             // address already, with the length of one element.
             case Expression.Name name when _table.Find(name.Identifier) is { Kind: SymbolKind.Variable, Type.Type: DataType.Character } text:
-                return (text.Name.ToCSharpLocal(), LengthOf(text));
+                return (Local(text), LengthOf(text));
 
             case Expression.Name name when _table.Find(name.Identifier) is { Kind: SymbolKind.Variable } variable:
-                var local = variable.Name.ToCSharpLocal();
+                var local = Local(variable);
                 var address = variable.IsArray || variable.IsDummyArgument || IsKept(variable) ? local : $"&{local}";
                 return (Cast(address, variable.Type!.Type, expected), null);
 
@@ -217,9 +217,12 @@ internal sealed partial class UnitEmitter
                 return new Code($"~{first.At(Level.Unary)}", DataType.Integer, Level.Unary);
 
             // The code of a character is its byte, and the character of a
-            // code is one byte put where it has an address.
+            // code is one byte put where it has an address. The byte is
+            // widened where it is read, so that what takes the code sees
+            // an integer whatever it is: C# widens it in arithmetic, and
+            // not where it chooses between overloads.
             case "ICHAR":
-                return new Code($"{first.At(Level.Primary)}[0]", DataType.Integer, Level.Primary);
+                return new Code($"(int){first.At(Level.Primary)}[0]", DataType.Integer, Level.Unary);
             case "CHAR":
                 return new Code($"{Runtime("Arg")}(&{TakeSlot(DataType.Character)}, {first.Text})", DataType.Character, Level.Primary, "1");
 
