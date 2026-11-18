@@ -240,8 +240,9 @@ emitted as a separate method that takes only its own dummy arguments:
 
 This is right only when the entries are disjoint: no entry can be reached
 by control running on from the code before it, and no jump crosses from one
-entry's code into another's. Analysis decides that for each routine. In the
-reference sources it holds everywhere: of 550 entries in 133 routines, every
+entry's code into another's. Analysis decides that for each routine, as
+`EntryLayout`, which also gives each entry the statements it reaches. In the
+reference sources it holds everywhere: of 593 entries in 144 routines, every
 one directly follows a `RETURN`, none is inside a block, and the sources
 have no `GO TO`.
 
@@ -260,8 +261,15 @@ boundary in either direction. A call at the end of the first method has none
 of these. It could stand in only where analysis shows none of them matters,
 and that is to be added only if real code and a benchmark ask for it.
 
-Not yet checked for the reference sources: that no entry's code uses a dummy
-argument of another entry. FORTRAN forbids it; analysis is to confirm it.
+FORTRAN forbids an entry's code to use a dummy argument of another entry,
+since nothing was passed for it, and a method that takes only its own
+arguments has no such name. The reference sources do it all the same, in two
+entries of one routine, each in an error branch its own comment says is
+never reached. So it cannot be refused. `EntryLayout` lists such arguments
+for each entry, and the method declares each as a local variable of the
+argument's type holding zero or blanks: an array has one element and text of
+assumed length one character. The statement then does something harmless,
+where the original would follow an address nobody set.
 
 ## A C interface for callers outside .NET
 

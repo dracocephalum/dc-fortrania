@@ -167,7 +167,7 @@ public class UnitSummarizerUsesTests
             "      SAVE SAVED",
             "      CALL COMPLAIN ( N )",
             "      RETURN",
-            "      ENTRY PUT ( X )",
+            "      ENTRY PUT ( X, N )",
             "      SAVED = X",
             "      IF ( X .LT. 0 ) THEN",
             "         RETURN",
@@ -183,7 +183,7 @@ public class UnitSummarizerUsesTests
         summary.EntryPoints.Select(Render).ShouldBe(
         [
             "STORE: X None; N None > COMPLAIN#0",
-            "PUT: X Read",
+            "PUT: X Read; N Written",
             "COUNT: N Written",
             "GET: X Written",
         ]);

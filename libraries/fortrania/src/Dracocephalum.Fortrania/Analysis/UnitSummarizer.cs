@@ -34,17 +34,9 @@ public static class UnitSummarizer
         return new UnitSummary(kind, name, entryPoints, collector.Calls);
     }
 
-    private static (string Name, IReadOnlyList<string> Parameters) Heading(Statement entry) => entry switch
-    {
-        Statement.Subroutine subroutine => (subroutine.Name, subroutine.Parameters),
-        Statement.Function function => (function.Name, function.Parameters),
-        Statement.Entry other => (other.Name, other.Parameters),
-        _ => throw new ArgumentOutOfRangeException(nameof(entry)),
-    };
-
     private static ProcedureInterface Describe(SymbolTable table, ParsedStatement entry, Collector collector)
     {
-        var (name, parameters) = Heading(entry.Statement);
+        var (name, parameters) = EntryLayout.Heading(entry.Statement);
         var reach = collector.ReachOf(name);
 
         // Inside a function its name, and that of each entry, is the variable
@@ -75,15 +67,17 @@ public static class UnitSummarizer
 
     // What the statements one entry point reaches do with dummy arguments,
     // by the names of the arguments.
-    private sealed class Reach
+    private sealed class Reach(EntryBody body)
     {
+        public EntryBody Body { get; } = body;
+
         public Dictionary<string, ArgumentUses> Uses { get; } = new(StringComparer.Ordinal);
 
         public Dictionary<string, List<ArgumentPass>> Passes { get; } = new(StringComparer.Ordinal);
     }
 
-    // Walks every statement once, noting the calls made and what is done
-    // with each dummy argument that is a variable or an array.
+    // Walks the statements, noting the calls made and what is done with each
+    // dummy argument that is a variable or an array.
     private sealed class Collector(SymbolTable table)
     {
         private const ArgumentUses Both = ArgumentUses.Read | ArgumentUses.Written;
@@ -92,12 +86,17 @@ public static class UnitSummarizer
 
         private readonly Dictionary<string, Reach> _reaches = new(StringComparer.Ordinal);
 
-        // The entry points the statement being read can be reached from.
+        // The entry points whose arguments the statement being read counts
+        // for.
         private readonly List<Reach> _open = [];
 
         // The dummy arguments of the statement function being read, which
         // are not the unit's variables of the same names.
         private IReadOnlyList<Expression> _shadowed = [];
+
+        // Whether calls are being listed, which is done in a pass of its
+        // own so that each is listed once, whatever reaches it.
+        private bool _listsCalls;
 
         public List<CallSite> Calls { get; } = [];
 
@@ -105,9 +104,9 @@ public static class UnitSummarizer
 
         public void Run()
         {
-            foreach (var entry in table.EntryPoints)
+            foreach (var body in EntryLayout.Of(table).Bodies)
             {
-                _reaches.Add(Heading(entry.Statement).Name, new Reach());
+                _reaches.Add(body.Name, new Reach(body));
             }
 
             // A declaration belongs to every entry point.
@@ -115,29 +114,15 @@ public static class UnitSummarizer
             CollectDeclarations();
             _open.Clear();
 
-            if (table.EntryPoints.Count > 0)
-            {
-                _open.Add(_reaches[Heading(table.EntryPoints[0].Statement).Name]);
-            }
+            _listsCalls = true;
+            Collect(table.Unit.Body);
+            _listsCalls = false;
 
-            // With no GO TO in the language as read so far, control runs
-            // down the unit's own list of statements: in at an entry, on
-            // through any ENTRY after it, and out at a RETURN or STOP that
-            // stands in no block.
-            foreach (var construct in table.Unit.Body)
+            foreach (var reach in _reaches.Values)
             {
-                switch (construct)
-                {
-                    case Construct.Simple { Statement.Statement: Statement.Entry entry }:
-                        _open.Add(_reaches[entry.Name]);
-                        break;
-                    case Construct.Simple { Statement.Statement: Statement.Return or Statement.Stop }:
-                        _open.Clear();
-                        break;
-                    default:
-                        Collect(construct);
-                        break;
-                }
+                _open.Add(reach);
+                Collect(reach.Body.Statements);
+                _open.Clear();
             }
         }
 
@@ -339,7 +324,7 @@ public static class UnitSummarizer
         {
             // What a dummy argument stands for is known only where the unit
             // itself is called, so such a call is no call site.
-            if (!procedure.IsDummyArgument)
+            if (!procedure.IsDummyArgument && _listsCalls)
             {
                 Calls.Add(new CallSite(procedure.Name, resultType, [.. arguments.Select(argument => Describe(argument, at))], at.Line));
             }
@@ -376,9 +361,11 @@ public static class UnitSummarizer
 
         private bool IsVariable(string name) => table.Find(name)!.Kind == SymbolKind.Variable;
 
+        private bool IsShadowed(string name) =>
+            _shadowed.Any(dummy => dummy is Expression.Name shadow && shadow.Identifier == name);
+
         private bool IsDummyVariable(string name) =>
-            table.Find(name) is { IsDummyArgument: true, Kind: SymbolKind.Variable }
-            && !_shadowed.Any(dummy => dummy is Expression.Name shadow && shadow.Identifier == name);
+            table.Find(name) is { IsDummyArgument: true, Kind: SymbolKind.Variable } && !IsShadowed(name);
 
         private void Mark(string name, ArgumentUses uses)
         {
