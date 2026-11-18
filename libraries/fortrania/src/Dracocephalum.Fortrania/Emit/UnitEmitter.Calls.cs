@@ -11,6 +11,18 @@ internal sealed partial class UnitEmitter
     // the pointer is cast, which is what passing by address amounts to.
     private Code Call(string name, IReadOnlyList<Expression> arguments)
     {
+        // The type is the one the calling unit gives the function; the two
+        // agree, or the call would not have passed the check across units.
+        var type = _table.Find(name)!.Type!.Type;
+        var invocation = Invocation(name, arguments);
+
+        return type == DataType.Logical && _options.Convention.ReturnsLogicalAsInteger
+            ? new Code($"{invocation} != 0", type, Level.Equality)
+            : new Code(invocation, type, Level.Primary);
+    }
+
+    private string Invocation(string name, IReadOnlyList<Expression> arguments)
+    {
         var procedure = _findProcedure(name);
         var passed = new List<string>(arguments.Count);
 
@@ -25,10 +37,7 @@ internal sealed partial class UnitEmitter
             passed.Add(Argument(arguments[index], dummy?.Type));
         }
 
-        // The type is the one the calling unit gives the function; the two
-        // agree, or the call would not have passed the check across units.
-        var type = _table.Find(name)!.Type?.Type ?? DataType.Integer;
-        return new Code($"{name}({string.Join(", ", passed)})", type, Level.Primary);
+        return $"{_options.Convention.ProcedureName(name)}({string.Join(", ", passed)})";
     }
 
     private string Argument(Expression argument, DataType? expected)

@@ -182,3 +182,19 @@ The values they expect are the ones the reference compiler's program prints
 for the same source, so the tests say what the code does and not how it
 reads. One test compares text, to keep the shape above from drifting
 unnoticed.
+
+**What a procedure looks like from outside is a convention, and can be
+replaced.** Its name and the type of a logical result are asked of an
+`EmitConvention`, not decided in the emitter. Fortrania's own keeps the
+FORTRAN name and returns a `bool`; the one for `f2c` gives the lower-case
+name with its underscore and returns an integer, so that code written
+against that translator's output finds what it expects. The translation
+inside a procedure does not change with the convention.
+
+**Every emitted file switches off the diagnostics it is known to raise.** A
+faithful translation has statements that cannot be reached and variables
+set and never read, because the source has them. The emitter names those
+two in a `#pragma` at the top of each file and adds whatever the options
+list, so that a project with warnings as errors can take the files as they
+are. A convention with lower-case method names is the usual reason to list
+more.

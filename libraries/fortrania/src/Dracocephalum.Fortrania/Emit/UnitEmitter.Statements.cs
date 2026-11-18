@@ -68,7 +68,7 @@ internal sealed partial class UnitEmitter
                 break;
 
             case Statement.Call call:
-                _body.Line($"{Call(call.Name, call.Arguments).Text};");
+                _body.Line($"{Invocation(call.Name, call.Arguments)};");
                 break;
 
             case Statement.LogicalIf logical:
@@ -103,12 +103,14 @@ internal sealed partial class UnitEmitter
     }
 
     // Inside a function its name is a variable; what it holds on the way
-    // out is the result. A logical one is stored as an integer and
-    // returned as a bool.
-    private static string ReturnOf(Symbol result)
+    // out is the result. A logical one is stored as an integer, and
+    // returned as a bool unless the convention has it stay one.
+    private string ReturnOf(Symbol result)
     {
         var name = CSharpText.Local(result.Name);
-        return result.Type!.Type == DataType.Logical ? $"return {name} != 0;" : $"return {name};";
+        return result.Type!.Type == DataType.Logical && !_options.Convention.ReturnsLogicalAsInteger
+            ? $"return {name} != 0;"
+            : $"return {name};";
     }
 
     private string Condition(Expression condition) => Value(condition).Text;

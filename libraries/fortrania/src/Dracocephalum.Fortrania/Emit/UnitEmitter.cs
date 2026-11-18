@@ -16,6 +16,10 @@ internal sealed partial class UnitEmitter
     // A local array up to this many bytes is taken from the stack.
     private const int StackLimit = 4096;
 
+    // What a faithful translation raises: a statement that cannot be
+    // reached, and a variable that is set and never read.
+    private static readonly string[] OwnSuppressions = ["CS0162", "CS0219"];
+
     private readonly SymbolTable _table;
     private readonly EmitOptions _options;
     private readonly Func<string, ProcedureInterface?> _findProcedure;
@@ -77,7 +81,9 @@ internal sealed partial class UnitEmitter
             Write(construct, result);
         }
 
-        if (result is not null)
+        // A function gives its result where control runs off its end; one that
+        // ends on a RETURN has already done so.
+        if (result is not null && !EndsOnReturn(_table.Unit.Body))
         {
             _body.Line(ReturnOf(result));
         }
@@ -88,6 +94,7 @@ internal sealed partial class UnitEmitter
         file.Line("// </auto-generated>");
         file.Blank();
         file.Line("#nullable enable");
+        file.Line($"#pragma warning disable {string.Join(", ", Suppressed())}");
         file.Blank();
         file.Line("using System;");
         file.Line("using Dracocephalum.Fortrania.Runtime;");
@@ -96,10 +103,10 @@ internal sealed partial class UnitEmitter
         file.Blank();
         file.Open($"public unsafe partial class {_options.ClassName}");
 
-        var returns = result is null ? "void" : ValueType(result.Type!.Type);
+        var returns = result is null ? "void" : ResultType(result.Type!.Type);
         var arguments = parameters.Select(parameter =>
             $"{CSharpText.Storage(_table.Find(parameter)!.Type!.Type)}* {CSharpText.Local(parameter)}");
-        file.Open($"public {returns} {name}({string.Join(", ", arguments)})");
+        file.Open($"public {returns} {_options.Convention.ProcedureName(name)}({string.Join(", ", arguments)})");
 
         WriteDeclarations(file);
         file.Lines(_body);
@@ -112,6 +119,34 @@ internal sealed partial class UnitEmitter
     // The type of a value in an expression: a logical one is a C# bool
     // there, whatever it is stored as.
     private static string ValueType(DataType type) => type == DataType.Logical ? "bool" : CSharpText.Storage(type);
+
+    private static bool EndsOnReturn(IReadOnlyList<Construct> body)
+    {
+        // The END that closes the unit is its last statement, and declarations
+        // or CONTINUE may stand between it and the RETURN.
+        for (var index = body.Count - 1; index >= 0; index--)
+        {
+            switch (body[index])
+            {
+                case Construct.Simple { Statement.Statement: Statement.Return }:
+                    return true;
+                case Construct.Simple { Statement.Statement: Statement.End or Statement.Continue }:
+                    continue;
+                default:
+                    return false;
+            }
+        }
+
+        return false;
+    }
+
+    // The type a function returns. Under some conventions a logical result
+    // goes back as the integer it is stored as.
+    private string ResultType(DataType type) =>
+        type == DataType.Logical && _options.Convention.ReturnsLogicalAsInteger ? "int" : ValueType(type);
+
+    private IEnumerable<string> Suppressed() =>
+        OwnSuppressions.Concat(_options.SuppressedWarnings).Distinct(StringComparer.Ordinal);
 
     private void RefuseWhatIsNotTranslatedYet()
     {

@@ -33,6 +33,7 @@ public class CSharpEmitterTests
             // </auto-generated>
 
             #nullable enable
+            #pragma warning disable CS0162, CS0219
 
             using System;
             using Dracocephalum.Fortrania.Runtime;

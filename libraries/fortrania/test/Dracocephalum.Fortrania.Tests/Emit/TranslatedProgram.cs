@@ -32,7 +32,7 @@ internal sealed class TranslatedProgram
     private TranslatedProgram(Assembly assembly) => _assembly = assembly;
 
     /// <summary>Translates every program unit of <paramref name="fortran"/>, one C# file each.</summary>
-    public static IReadOnlyList<string> Translate(string fortran)
+    public static IReadOnlyList<string> Translate(string fortran, EmitOptions? options = null)
     {
         using var reader = new StringReader(fortran);
         var tables = SourceParser.Parse(FixedFormReader.Read(reader)).Units
@@ -53,7 +53,7 @@ internal sealed class TranslatedProgram
             CallChecker.Check(summary, catalogue.Find);
         }
 
-        var emitter = new CSharpEmitter(new EmitOptions(Namespace, ClassName), catalogue.Find);
+        var emitter = new CSharpEmitter(options ?? new EmitOptions(Namespace, ClassName), catalogue.Find);
         return tables.Select(emitter.Emit).ToList();
     }
 
@@ -62,9 +62,9 @@ internal sealed class TranslatedProgram
     /// <paramref name="driver"/>, the members of a static class named
     /// <c>Driver</c> in the same namespace as the translated class.
     /// </summary>
-    public static TranslatedProgram Compile(string fortran, string driver)
+    public static TranslatedProgram Compile(string fortran, string driver, EmitOptions? options = null)
     {
-        var sources = Translate(fortran).Append(
+        var sources = Translate(fortran, options).Append(
             $$"""
             using System;
             using Dracocephalum.Fortrania.Runtime;
