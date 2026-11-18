@@ -194,6 +194,23 @@ are calls to the runtime, which pads the shorter with blanks as the language
 defines. A dummy argument takes its length from the caller even when its
 declaration fixes it, because the caller cannot know which it is.
 
+**A character value that is made needs a place, and gets the cheapest that
+is right.** Concatenation and a character function's result are values
+that were not there before. Joined in an assignment, the pieces are copied
+straight into the variable assigned to, one after another, and nothing is
+copied twice. That would go wrong where a piece is part of that same
+variable, since what is written first would be read afterwards; the emitter
+sees that by the variable's name, and then joins elsewhere first. Anywhere
+else, as an argument or in a comparison, the value lies in a local of the
+method set aside for it. Such a local is as long as the value can be at
+most, which is known when translating for everything but a dummy argument
+of assumed length, and the language does not allow one of those in a
+concatenation outside an assignment. The locals are declared once at the
+top of the method and used again from statement to statement, so a loop
+does not grow the stack. A character function is handed the place for its
+result, of the length the calling unit declares for it, and gives the
+address back, which makes a reference to it a value like any other.
+
 **What a procedure looks like from outside is a convention, and can be
 replaced.** Its name, the type of a logical result and the place of a
 character argument's length are asked of an `EmitConvention`, not decided

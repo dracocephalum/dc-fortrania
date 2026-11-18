@@ -37,7 +37,8 @@ internal static class NameWalker
         _ => [],
     };
 
-    private static IEnumerable<string> NamesIn(Expression? expression) => expression switch
+    /// <summary>Gives every name in <paramref name="expression"/>, as often as it is written.</summary>
+    public static IEnumerable<string> NamesIn(Expression? expression) => expression switch
     {
         Expression.Name name => [name.Identifier],
         Expression.Reference reference => NamesIn(reference.Arguments).Prepend(reference.Identifier),

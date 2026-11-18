@@ -40,7 +40,7 @@ internal sealed partial class UnitEmitter
                 {
                     SymbolKind.Variable => Loaded(Element(referenced, reference.Arguments)),
                     SymbolKind.IntrinsicFunction => Intrinsic(reference),
-                    SymbolKind.ExternalFunction => Call(referenced.Name, reference.Arguments),
+                    SymbolKind.ExternalFunction => Call(referenced, reference.Arguments),
                     _ => throw Unsupported("a statement function"),
                 };
 
@@ -169,7 +169,11 @@ internal sealed partial class UnitEmitter
 
         if (length.IsAssumed)
         {
-            return symbol.IsDummyArgument ? LengthName(symbol) : throw Unsupported("a CHARACTER function");
+            // Of assumed length are a dummy argument and, inside a character
+            // function, its result; the caller passes the length of both.
+            return symbol.IsDummyArgument || symbol.IsEntryPoint
+                ? LengthName(symbol)
+                : throw Unsupported("a CHARACTER length that is not constant");
         }
 
         return _evaluator.TryEvaluate(length.Value!, _line) is Constant.Integer constant
@@ -397,7 +401,7 @@ internal sealed partial class UnitEmitter
 
         if (binary.Operator == BinaryOperator.Concatenate)
         {
-            throw Unsupported("a character concatenation");
+            return Joined(binary);
         }
 
         var left = Value(binary.Left);

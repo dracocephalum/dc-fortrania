@@ -7,17 +7,17 @@ namespace Dracocephalum.Fortrania.Emit;
 internal sealed partial class UnitEmitter
 {
     // A reference to a function of the program, as a value.
-    private Code Call(string name, IReadOnlyList<Expression> arguments)
+    private Code Call(Symbol function, IReadOnlyList<Expression> arguments)
     {
         // The type is the one the calling unit gives the function; the two
         // agree, or the call would not have passed the check across units.
-        var type = _table.Find(name)!.Type!.Type;
+        var type = function.Type!.Type;
         if (type == DataType.Character)
         {
-            throw Unsupported("a CHARACTER function");
+            return TextCall(function, arguments);
         }
 
-        var invocation = Invocation(name, arguments);
+        var invocation = Invocation(function.Name, arguments);
 
         return type == DataType.Logical && _options.Convention.ReturnsLogicalAsInteger
             ? new Code($"{invocation} != 0", type, Level.Equality)
@@ -29,10 +29,10 @@ internal sealed partial class UnitEmitter
     // the pointer is cast, which is what passing by address amounts to. A
     // character argument is an address and a length, and the convention
     // says where the length goes.
-    private string Invocation(string name, IReadOnlyList<Expression> arguments)
+    private string Invocation(string name, IReadOnlyList<Expression> arguments, IEnumerable<string>? leading = null)
     {
         var procedure = _findProcedure(name);
-        var addresses = new List<string>(arguments.Count);
+        var addresses = new List<string>(leading ?? []);
         var lengths = new List<string>();
         var lengthsComeLast = _options.Convention.TextLengthsComeLast;
 
@@ -112,9 +112,12 @@ internal sealed partial class UnitEmitter
         // LEN alone takes a whole array, and asks nothing of its value.
         if (reference.Identifier == "LEN")
         {
+            // Nor is a concatenation joined to be measured.
             var length = reference.Arguments[0] is Expression.Name name && _table.Find(name.Identifier) is { Kind: SymbolKind.Variable } measured
                 ? LengthOf(measured)
-                : Value(reference.Arguments[0]).Length!;
+                : IsConcatenation(reference.Arguments[0])
+                    ? JoinedLength(reference.Arguments[0])
+                    : Value(reference.Arguments[0]).Length!;
             return new Code(Grouped(length), DataType.Integer, Level.Primary);
         }
 

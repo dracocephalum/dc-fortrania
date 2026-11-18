@@ -76,6 +76,13 @@ static unsafe partial class Fortran
         new Span<byte>(target + sourceLength, targetLength - sourceLength).Fill(Blank);
     }
 
+    /// <summary>Starts joining character values end to end into one place.</summary>
+    /// <param name="target">Where the joined value is to lie.</param>
+    /// <param name="capacity">The most it may hold; below one it holds nothing.</param>
+    /// <returns>A concatenation with nothing added yet.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static Concatenation Concat(byte* target, int capacity) => new(target, Math.Max(capacity, 0), 0);
+
     /// <summary>Sets two character values in order, byte by byte, the shorter taken as followed by blanks.</summary>
     /// <param name="left">The first value.</param>
     /// <param name="leftLength">The length of the first value.</param>

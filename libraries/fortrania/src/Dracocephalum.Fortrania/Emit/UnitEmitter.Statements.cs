@@ -66,8 +66,7 @@ internal sealed partial class UnitEmitter
                 var target = Target(assignment.Target);
                 if (target.Type == DataType.Character)
                 {
-                    var text = Value(assignment.Value);
-                    _body.Line($"{Runtime("Assign")}({target.Text}, {target.Length}, {text.Text}, {text.Length});");
+                    AssignText(target, assignment);
                     break;
                 }
 

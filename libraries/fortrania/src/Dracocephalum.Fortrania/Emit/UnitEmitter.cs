@@ -85,10 +85,6 @@ internal sealed partial class UnitEmitter
         RefuseWhatIsNotTranslatedYet();
 
         var result = isFunction ? _table.Find(name)! : null;
-        if (result?.Type!.Type == DataType.Character)
-        {
-            throw Unsupported("a CHARACTER function");
-        }
 
         foreach (var construct in _table.Unit.Body)
         {
@@ -121,7 +117,7 @@ internal sealed partial class UnitEmitter
         file.Open($"public unsafe partial class {_options.ClassName}");
 
         var returns = result is null ? "void" : ResultType(result.Type!.Type);
-        file.Open($"public {returns} {_options.Convention.ProcedureName(name)}({string.Join(", ", Parameters(parameters))})");
+        file.Open($"public {returns} {_options.Convention.ProcedureName(name)}({string.Join(", ", Parameters(parameters, result))})");
 
         WriteDeclarations(file);
         file.Lines(_body);
@@ -135,10 +131,18 @@ internal sealed partial class UnitEmitter
     // length, which the procedure takes even where its declaration fixes
     // the length, since the caller cannot know; the convention says whether
     // the length follows its pointer or all lengths follow all pointers.
-    private IEnumerable<string> Parameters(IReadOnlyList<string> names)
+    private IEnumerable<string> Parameters(IReadOnlyList<string> names, Symbol? result)
     {
         var addresses = new List<string>();
         var lengths = new List<string>();
+
+        // The place for a character function's result comes first, address
+        // and length together under every convention.
+        if (result?.Type!.Type == DataType.Character)
+        {
+            addresses.Add($"byte* {result.Name.ToCSharpLocal()}");
+            addresses.Add($"int {LengthName(result)}");
+        }
 
         foreach (var name in names)
         {
@@ -200,8 +204,14 @@ internal sealed partial class UnitEmitter
 
     // The type a function returns. Under some conventions a logical result
     // goes back as the integer it is stored as.
-    private string ResultType(DataType type) =>
-        type == DataType.Logical && _options.Convention.ReturnsLogicalAsInteger ? "int" : ValueType(type);
+    private string ResultType(DataType type) => type switch
+    {
+        // A character function is handed the place for its result and gives
+        // back that address.
+        DataType.Character => "byte*",
+        DataType.Logical when _options.Convention.ReturnsLogicalAsInteger => "int",
+        _ => ValueType(type),
+    };
 
     private IEnumerable<string> Suppressed() =>
         OwnSuppressions.Concat(_options.SuppressedWarnings).Distinct(StringComparer.Ordinal);
@@ -269,6 +279,12 @@ internal sealed partial class UnitEmitter
 
         foreach (var symbol in _table.Symbols.Where(symbol => symbol is { Kind: SymbolKind.Variable, IsDummyArgument: false }))
         {
+            // The result of a character function is an argument, not a local.
+            if (symbol.IsEntryPoint && symbol.Type!.Type == DataType.Character)
+            {
+                continue;
+            }
+
             _line = symbol.Line;
             var type = symbol.Type!.Type.ToCSharpStorageType();
             var name = symbol.Name.ToCSharpLocal();
@@ -297,6 +313,11 @@ internal sealed partial class UnitEmitter
             }
 
             file.Line(string.Create(CultureInfo.InvariantCulture, $"{type}* {name} = stackalloc {type}[{count}];"));
+        }
+
+        for (var number = 1; number <= _buffers.Count; number++)
+        {
+            file.Line(string.Create(CultureInfo.InvariantCulture, $"byte* _s{number} = stackalloc byte[{_buffers[number - 1]}];"));
         }
 
         foreach (var (type, (_, most)) in _slots.OrderBy(slot => slot.Key))
@@ -328,6 +349,7 @@ internal sealed partial class UnitEmitter
 
     private void ReleaseSlots()
     {
+        _buffersInUse = 0;
         foreach (var type in _slots.Keys.ToList())
         {
             _slots[type] = (0, _slots[type].Most);
