@@ -23,7 +23,7 @@ internal sealed partial class UnitEmitter
         switch (expression)
         {
             case Expression.Literal literal:
-                return Constant(literal);
+                return LiteralValue(literal);
 
             case Expression.Name name:
                 var symbol = _table.Find(name.Identifier)!;
@@ -62,7 +62,7 @@ internal sealed partial class UnitEmitter
         }
     }
 
-    private Code Constant(Expression.Literal literal)
+    private Code LiteralValue(Expression.Literal literal)
     {
         if (literal.Type == DataType.Complex)
         {
@@ -129,7 +129,7 @@ internal sealed partial class UnitEmitter
             return new Code(name, DataType.Character, Level.Primary, LengthOf(symbol));
         }
 
-        return symbol.IsDummyArgument
+        return symbol.IsDummyArgument || IsKept(symbol)
             ? new Code($"*{name}", symbol.Type.Type, Level.Unary)
             : new Code(name, symbol.Type.Type, Level.Primary);
     }

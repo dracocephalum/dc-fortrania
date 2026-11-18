@@ -36,6 +36,7 @@ public class CSharpEmitterTests
             #pragma warning disable CS0162, CS0219
 
             using System;
+            using System.Runtime.CompilerServices;
             using Dracocephalum.Fortrania.Runtime;
             using static Dracocephalum.Fortrania.Runtime.Fortran;
 
@@ -246,19 +247,16 @@ public class CSharpEmitterTests
     [InlineData("      SUBROUTINE S|      RETURN|      ENTRY T|      END", "Line 1: ENTRY cannot be translated yet.")]
     [InlineData("      SUBROUTINE S ( X )|      SF ( Y ) = Y + 1|      X = SF ( X )|      END", "Line 1: a statement function cannot be translated yet.")]
     [InlineData("      SUBROUTINE S|      INTEGER I, J|      EQUIVALENCE ( I, J )|      END", "Line 1: EQUIVALENCE cannot be translated yet.")]
-    [InlineData("      SUBROUTINE S|      INTEGER I|      DATA I / 1 /|      END", "Line 1: DATA cannot be translated yet.")]
-    [InlineData("      SUBROUTINE S|      SAVE|      END", "Line 1: SAVE cannot be translated yet.")]
-    [InlineData("      SUBROUTINE S|      INTEGER I|      SAVE I|      END", "Line 2: SAVE cannot be translated yet.")]
+    [InlineData("      SUBROUTINE S|      INTEGER I, J|      DATA I, J / 1 /|      END", "Line 1: a DATA statement with a different number of values than of variables cannot be translated yet.")]
+    [InlineData("      SUBROUTINE S|      INTEGER I|      DATA I / 'A' /|      END", "Line 1: a DATA value of another type than its variable cannot be translated yet.")]
+    [InlineData("      SUBROUTINE S|      CHARACTER*2 C|      DATA C / 1 /|      END", "Line 1: a DATA value of another type than its variable cannot be translated yet.")]
     [InlineData("      SUBROUTINE S ( F )|      EXTERNAL F|      CALL F|      END", "Line 1: a procedure as an argument cannot be translated yet.")]
     [InlineData("      SUBROUTINE S ( C )|      CHARACTER*(*) C|      C = C ( 2: ) // 'A'|      END", "Line 3: a concatenation of assumed length assigned to part of itself cannot be translated yet.")]
     [InlineData("      SUBROUTINE S ( C )|      CHARACTER*(*) C|      CALL T ( C // 'A' )|      END", "Line 3: a concatenation with an operand of assumed length, outside an assignment cannot be translated yet.")]
     [InlineData("      SUBROUTINE S|      CHARACTER*3000 A, B|      CALL T ( A // B )|      END", "Line 3: a character value of more than 4096 bytes that needs a place of its own cannot be translated yet.")]
     [InlineData("      SUBROUTINE S ( C )|      CHARACTER*(*) C, F|      C = F ( )|      END", "Line 3: a CHARACTER function whose length the calling unit does not fix cannot be translated yet.")]
     [InlineData("      SUBROUTINE S ( C, N )|      INTEGER N|      CHARACTER*(N) C|      C = 'A'|      END", "Line 4: a CHARACTER length that is not constant cannot be translated yet.")]
-    [InlineData("      SUBROUTINE S|      CHARACTER*4097 C|      C = 'A'|      END", "Line 2: a local array or character variable of more than 4096 bytes cannot be translated yet.")]
-    [InlineData("      SUBROUTINE S|      CHARACTER*100 C ( 41 )|      C ( 1 ) = 'A'|      END", "Line 2: a local array or character variable of more than 4096 bytes cannot be translated yet.")]
     [InlineData("      SUBROUTINE S|      COMPLEX Z|      Z = 1|      END", "Line 2: a COMPLEX variable cannot be translated yet.")]
-    [InlineData("      SUBROUTINE S|      DOUBLE PRECISION A ( 513 )|      A ( 1 ) = 0|      END", "Line 2: a local array or character variable of more than 4096 bytes cannot be translated yet.")]
     [InlineData("      SUBROUTINE S ( X )|      WRITE ( *, * ) X|      END", "Line 2: an input or output statement cannot be translated yet.")]
     [InlineData("      SUBROUTINE S ( I )|      I = ISHFT ( I, 2 )|      END", "Line 2: the intrinsic function ISHFT cannot be translated yet.")]
     [InlineData("      SUBROUTINE S|      INTRINSIC SIN|      CALL T ( SIN )|      END", "Line 3: a procedure as an argument cannot be translated yet.")]

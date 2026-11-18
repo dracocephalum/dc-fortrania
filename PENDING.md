@@ -182,6 +182,9 @@ that converts times and nothing else should not pay for the rest, so state
 is not all allocated with the instance.
 
 Two decisions are kept apart, because the second cannot undo the first.
+Of them the emitter so far has one placement, *Lazy*, and one loading, on
+the first call; `DESIGN.md` describes it. The shared block, the choice
+between placements and every choice at run time are still to be built.
 
 **Placement, by the translator.** A unit's state is either part of one block
 shared by all such units, which exists as long as the instance does and is

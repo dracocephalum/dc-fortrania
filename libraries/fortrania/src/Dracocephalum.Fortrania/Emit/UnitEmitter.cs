@@ -83,6 +83,7 @@ internal sealed partial class UnitEmitter
         };
 
         RefuseWhatIsNotTranslatedYet();
+        LayOutState();
 
         var result = isFunction ? _table.Find(name)! : null;
 
@@ -107,6 +108,7 @@ internal sealed partial class UnitEmitter
         file.Line($"#pragma warning disable {string.Join(", ", Suppressed())}");
         file.Blank();
         file.Line("using System;");
+        file.Line("using System.Runtime.CompilerServices;");
         file.Line("using Dracocephalum.Fortrania.Runtime;");
         file.Line(_usesAlias
             ? $"using {_options.RuntimeAlias} = {RuntimeClass};"
@@ -115,6 +117,8 @@ internal sealed partial class UnitEmitter
         file.Line($"namespace {_options.Namespace};");
         file.Blank();
         file.Open($"public unsafe partial class {_options.ClassName}");
+
+        WriteState(file);
 
         var returns = result is null ? "void" : ResultType(result.Type!.Type);
         file.Open($"public {returns} {_options.Convention.ProcedureName(name)}({string.Join(", ", Parameters(parameters, result))})");
@@ -233,16 +237,6 @@ internal sealed partial class UnitEmitter
             throw Unsupported("EQUIVALENCE");
         }
 
-        if (_table.Data.Count > 0)
-        {
-            throw Unsupported("DATA");
-        }
-
-        if (_table.SavesEverything)
-        {
-            throw Unsupported("SAVE");
-        }
-
         foreach (var symbol in _table.Symbols)
         {
             _line = symbol.Line;
@@ -261,11 +255,6 @@ internal sealed partial class UnitEmitter
             {
                 throw Unsupported("a COMPLEX variable");
             }
-
-            if (symbol.IsSaved)
-            {
-                throw Unsupported("SAVE");
-            }
         }
     }
 
@@ -277,10 +266,13 @@ internal sealed partial class UnitEmitter
             file.Line($"const {type} {constant.Name.ToCSharpLocal()} = {_evaluator.ValueOf(constant).ToCSharpLiteral()};");
         }
 
+        WriteStateAccess(file);
+
         foreach (var symbol in _table.Symbols.Where(symbol => symbol is { Kind: SymbolKind.Variable, IsDummyArgument: false }))
         {
-            // The result of a character function is an argument, not a local.
-            if (symbol.IsEntryPoint && symbol.Type!.Type == DataType.Character)
+            // The result of a character function is an argument, not a local,
+            // and a kept variable has been declared with the unit's block.
+            if ((symbol.IsEntryPoint && symbol.Type!.Type == DataType.Character) || IsKept(symbol))
             {
                 continue;
             }
@@ -299,17 +291,9 @@ internal sealed partial class UnitEmitter
             // A character variable is so many bytes, and an array of them so
             // many times that, end to end.
             long count = isText ? long.Parse(LengthOf(symbol), CultureInfo.InvariantCulture) : 1;
-            long size = isText ? 1 : symbol.Type.Type.GetStorageSize();
             foreach (var bound in symbol.Dimensions)
             {
                 count *= ConstantExtent(bound) ?? throw Unsupported("a local array whose size is not constant");
-            }
-
-            if (count * size > StackLimit)
-            {
-                throw Unsupported(string.Create(
-                    CultureInfo.InvariantCulture,
-                    $"a local array or character variable of more than {StackLimit} bytes"));
             }
 
             file.Line(string.Create(CultureInfo.InvariantCulture, $"{type}* {name} = stackalloc {type}[{count}];"));

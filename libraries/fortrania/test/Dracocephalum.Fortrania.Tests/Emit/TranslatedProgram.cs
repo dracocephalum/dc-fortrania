@@ -64,7 +64,8 @@ internal sealed class TranslatedProgram
     /// </summary>
     public static TranslatedProgram Compile(string fortran, string driver, EmitOptions? options = null)
     {
-        var sources = Translate(fortran, options).Append(
+        var whole = new CSharpEmitter(options ?? new EmitOptions(Namespace, ClassName), _ => null).EmitClass();
+        var sources = Translate(fortran, options).Append(whole).Append(
             $$"""
             using System;
             using Dracocephalum.Fortrania.Runtime;

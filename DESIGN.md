@@ -211,6 +211,21 @@ does not grow the stack. A character function is handed the place for its
 result, of the length the calling unit declares for it, and gives the
 address back, which makes a reference to it a value like any other.
 
+**What a unit keeps between calls lies in a block of the instance, and is a
+pointer inside the method.** Kept are the variables a unit declares `SAVE`
+or initializes with `DATA`, the second because every compiler since has
+kept those and programs count on it, and local arrays too large for the
+stack, which may be kept since the language has no recursion. Each unit has
+one block of the instance's memory for them, handed out zeroed on the
+unit's first call, when the `DATA` values are stored; a value of zero needs
+no storing, and a run of equal values is one fill. A method of the unit
+loads the block's address, tests it, and declares a pointer into it for
+each kept variable. From there on a kept variable is written exactly as a
+dummy argument is, which is also a pointer, so the rest of the emitter does
+not tell the two apart. The class has one file that belongs to no unit,
+with the instance's memory and its disposal, which frees the memory; the
+garbage collector does not.
+
 **What a procedure looks like from outside is a convention, and can be
 replaced.** Its name, the type of a logical result and the place of a
 character argument's length are asked of an `EmitConvention`, not decided
