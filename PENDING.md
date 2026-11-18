@@ -61,6 +61,14 @@ so that the call is direct and can be inlined —
 [`docs/rules/performance.md`](docs/rules/performance.md) rules out interface
 dispatch on a computation path.
 
+`ISpiceCore` is shaped for C# first, and for callers outside .NET second;
+neither gives anything up for another language. Visual Basic cannot use a
+span, so a member that takes or returns one cannot be called from it. Such
+members get an array-taking counterpart for Visual Basic, added beside the
+core as further overloads or extension methods that forward to it. The core
+members themselves are never reshaped to suit, and where the two pull apart
+the counterpart pays the cost, a copy for instance, not the core.
+
 ## The translated layer passes pointers
 
 Every argument of a translated routine is a raw pointer: `double*` for a
@@ -376,8 +384,57 @@ So that back end has two possible shapes, to be chosen when it is built:
 - Managed arrays with an offset, never a pointer or a span. Its code is
   verifiably safe where the C# back end's is not, and it shares nothing.
 
+The second shape is not tied to expression trees. Written out as source it
+is also how a language without pointers or spans, Visual Basic for one,
+could be a target of the translator: an array argument is an array and a
+starting index, a single value is passed by reference, and text is bytes
+with an offset and a length. Three things about it are worth knowing ahead:
+
+- FORTRAN 77 has no recursion, so a local array can be allocated once and
+  kept by the library instance; after the first call nothing is allocated.
+- Every array access is bounds-checked, and an array argument costs two
+  values where a pointer costs one.
+- A call that leans on arguments being passed by address has no direct
+  form. A single value given where an array is expected needs a temporary
+  array copied in and out, and storage read as another type, by such a call
+  or by `EQUIVALENCE`, needs runtime helpers that copy or reinterpret bytes.
+
 None of these is for the translated SPICE library, which ships as compiled
 C# so that it runs where code cannot be generated at run time.
+
+## The runtime can be handed out as source
+
+Translated code needs the Fortrania runtime, and there are to be two ways to
+have it: a reference to the runtime assembly, which is the default, or the
+runtime's own source files written out beside the translated ones, so that
+everything compiles into one assembly with no second file to ship. The second
+suits a plugin, a trimmed or ahead-of-time compiled program, and anyone who
+has to vet each dependency. Its cost is that a fix to the runtime reaches
+such a user only when the files are written out again.
+
+The runtime is its own project and assembly from the first day, never part
+of the translator, and translated code references nothing else of Fortrania.
+Its source files are embedded in the translator as resources, the very files
+the runtime assembly is compiled from, so there is no second copy to drift.
+An option of the command-line tool chooses between the two ways. A package
+that delivers the same files as source, for use without the tool, can follow.
+
+For the files to compile in a project that is not ours, the runtime keeps to
+these rules:
+
+- It depends on nothing but the base class library.
+- Each file stands alone: it states its own `using` directives and nullable
+  setting, and relies on nothing the repository's build configuration
+  supplies.
+- Its types are public in the runtime assembly and internal when compiled
+  into another, decided by one conditional compilation symbol, so that they
+  do not become part of that assembly's own surface.
+- Its namespace is fixed, and the emitter writes the same code for either
+  way.
+- Each file carries the licence header, since the file then travels alone.
+
+The project that receives the files has to allow unsafe code, as the
+translated code needs in any case.
 
 ## FORTRAN 77 that Fortrania does not handle yet
 
