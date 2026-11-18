@@ -369,6 +369,9 @@ each departure from the reference compiler*, has what is to become of them.
 | A `READ` or `WRITE` on a unit that is not connected | connects the unit to a file it names itself, `fort.` and the unit number, in the working directory | gives status 5001 | a library must not leave files where its host happens to run |
 | A statement after one that failed | was seen to refuse a good `READ` of a record after a `WRITE` that overran another | is not affected by the earlier failure | it looks like an accident of that library and not like something to rely on |
 | A `WRITE` to a file that may only be read | not measured | gives status 13, the operating system's number for it | a number had to be chosen; it is to be replaced by the measured one |
+| A carriage return with no line feed after it, in text that is read | is part of the record | ends the record | a file made on any system is to be read on any other |
+| Units 6, 0 and 5, while no file is opened on them | are the console | write nowhere and read nothing, until the host sets them or calls `UseConsole` | the console is the program's, and a program may hold many instances |
+| A formatted `WRITE` that fails part of the way through its list | has written what came before the failure, with no line ending | writes nothing of the record | a record is written when it is whole |
 
 **A record read by number is one read from the file.** Direct access
 divides a file into records of the length `OPEN` gives, and a statement
@@ -394,3 +397,47 @@ any number of instances and read by all of them at once. The provider can
 be replaced altogether. Two names are one file when the provider says so, which for the
 disk is the full path, compared without regard to case where the file
 system has none.
+
+**A format is followed as the items come.** A format is a character value,
+most often a constant and sometimes put together when the program runs, so
+the runtime reads it then, and keeps the last one read since a statement is
+mostly run again with the format it had. A formatted `READ` or `WRITE` is a
+call that begins it with the unit and the format, a call for each item, and
+one that ends it. Each item's call follows the format to the next part that
+takes a value, doing on the way what the parts before it ask, blanks, text,
+the end of a record, and edits the item as that part says; when the format
+is used up and items are left it starts again as the language lays down,
+on a new record. The item's call is typed as the item is, an integer, a
+real, a logical or a character value, which is how the runtime can refuse
+an integer under `F` editing as the reference compiler does. What the
+runtime writes for each kind of editing was set against the reference
+compiler's output line by line, and the tests keep that output.
+
+**A number is rounded from its exact value, half way to even.** The digits
+come from the framework's own conversion, which is exact to any length, and
+are then laid out as the format asks. The framework rounds a number that is
+exactly half way upwards, and the reference compiler's library to the even
+digit, so that case is settled here: where twenty digits past the last one
+kept still look like a half, the number's whole expansion is taken and
+looked at. It is rare, and only it pays for the long conversion.
+
+**Text in sequence is lines, and bytes.** A unit opened for formatted
+sequential access reads and writes records that are lines. Reading finds
+the end of a line in the bytes itself, in a part of the file read ahead for
+the unit, and takes a line feed, a carriage return, or the two together for
+it, so a file made on one system is read on any other. Writing ends a
+record with the running platform's line ending, which is what the reference
+compiler writes there, or with whatever `NewLine` is set to. A record
+written becomes the last of its file, as the language has it: what followed
+it is cut off when the unit is next rewound or closed. Nothing is decoded
+or encoded on the way, so text that is not ASCII passes through as the
+bytes it is.
+
+**The screen and the keyboard are units 6, 0 and 5 until a file is opened
+on them.** An asterisk for the unit is 6 to write and 5 to read. They go to
+whatever writers and reader the host sets, and nowhere until it sets them:
+what is written is dropped and a read finds the end of the file. An
+instance is one of perhaps many in a program, on as many threads, and the
+console belongs to the program and not to any of them; `UseConsole` hands
+it to the one instance that is to have it. Here alone text is decoded,
+since a writer takes characters and has an encoding of its own.

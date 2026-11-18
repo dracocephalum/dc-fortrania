@@ -393,30 +393,37 @@ between builds. Nothing is downloaded unless the project asks.
 
 ## Input and output still to build
 
-`DESIGN.md` has what exists: units, the file provider, and unformatted
-records read and written by number. Measured in the main library of the
+`DESIGN.md` has what exists: units, the file provider, unformatted records
+read and written by number, and text read and written by a format. Measured in the main library of the
 reference sources, input and output is 256 statements in 69 program units,
 and what is left of it is text:
 
-- **With a format**, 60 statements. All the formats are character
-  constants, and there are five: `(A)` in 53 of them, `(1X,A)`,
-  `(1X,3A)`, `(1X,A,D25.17,A)`, and `(A,$)`, the last a compiler's
-  extension that ends the line without a line ending, used once to prompt.
-  The rest of the reference sources add `I`, `E` and `F` with widths, a
-  scale factor, and a few formats put together when the program runs.
+- **With a format**, 60 statements, which are translated. All the formats
+  are character constants, and there are five: `(A)` in 53 of them,
+  `(1X,A)`, `(1X,3A)`, `(1X,A,D25.17,A)`, and `(A,$)`, the last a
+  compiler's extension that ends the line without a line ending, used once
+  to prompt. The runtime follows `A`, `I`, `F`, `E`, `D`, `L`, `X`, the
+  slash, the colon, the dollar sign, character constants, repeat counts,
+  groups and a scale factor with `E` and `D`. It gives a format error for
+  what it does not follow yet: `G`, `T`, `TL` and `TR`, `H`, `BZ`, `SP`,
+  and a scale factor with `F`.
 - **List-directed**, 53 statements: integers, double precision numbers and
   character values, some through implied loops, mostly to write and read
   the text form kernels are moved between machines in. What is written has
   to be laid out as the reference compiler lays it out.
-- **The standard units**: 16 of those statements write to the screen and
-  one reads the keyboard.
 
 Not used in the main library, and so left for the rest of the reference
 sources: reading from and writing to a character variable, of which those
 have 14; `BACKSPACE`, of which they have 6; `ENDFILE`; unformatted
 sequential access; and the other answers `INQUIRE` can give.
 
-Three things about files are decided and not built:
+Four things about files are decided and not built:
+
+- A program translated to run on its own has the console, as the FORTRAN
+  did: the `Main` the translator emits for an executable calls
+  `UseConsole`. A library leaves the screen and keyboard unset, and the
+  managed layer decides what it shows of what the toolkit writes there,
+  its error messages above all.
 
 - The emitted class creates its `FortranIO` itself and keeps it to itself.
   A host has to be able to hand in a provider, register a stream and set
@@ -446,25 +453,11 @@ what the runtime is told, *Settings for what differs by platform*, and a
 program translated as an executable may want them all on at once, as one
 choice of the translator's.
 
-## Any line ending is read, and the platform's is written
+## The reference library checks line endings itself
 
-A text file made on one system is read on another, and the three line
-endings in use, a line feed, a carriage return with a line feed, and a
-carriage return alone, must all end a record.
-
-- **Reading.** A formatted sequential read takes any of the three as the
-  end of its record. The runtime finds the ending in the bytes itself, by
-  the rule the framework's own line reader follows; it does not go through
-  that reader, because text here is bytes from end to end.
-- **Writing.** What ends a record written is a setting of the runtime. Its
-  default is the platform's own ending, which is what the reference
-  compiler writes on each system and what an original toolkit beside ours
-  expects to find. A program that wants the same bytes on every platform
-  sets one ending.
-- **Direct access** reads and writes records of a fixed length and sees the
-  bytes as they are, endings included. Nothing is done for it.
-
-The reference library does not leave this to the runtime. On loading a text
+The runtime reads a text file whatever its line ending, as `DESIGN.md` has
+it under *Text in sequence is lines, and bytes*. The reference library does
+not leave this to the runtime. On loading a text
 kernel it reads the file's first bytes by direct access, works out which
 ending the file has, and refuses the kernel when that is not the ending of
 the platform the library says it was built for. Translated faithfully, the

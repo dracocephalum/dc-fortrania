@@ -143,6 +143,12 @@ sealed unsafe partial class FortranIO
     /// <returns>Zero, or what went wrong.</returns>
     public int EndRead()
     {
+        if (_transfer != Transfer.Direct)
+        {
+            return EndText();
+        }
+
+        _transfer = Transfer.None;
         _current = null;
         return _status;
     }
@@ -151,6 +157,12 @@ sealed unsafe partial class FortranIO
     /// <returns>Zero, or what went wrong.</returns>
     public int EndWrite()
     {
+        if (_transfer != Transfer.Direct)
+        {
+            return EndText();
+        }
+
+        _transfer = Transfer.None;
         var unit = _current;
         _current = null;
         if (_status != 0)
@@ -175,6 +187,7 @@ sealed unsafe partial class FortranIO
         ObjectDisposedException.ThrowIf(_isDisposed, this);
 
         _status = 0;
+        _transfer = Transfer.Direct;
         _recordPosition = 0;
         _current = Find(unit);
 

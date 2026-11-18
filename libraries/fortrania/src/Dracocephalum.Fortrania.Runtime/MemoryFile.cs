@@ -49,6 +49,10 @@ sealed class MemoryFile : FortranFile
         throw new NotSupportedException("A file held in memory for reading cannot be written.");
 
     /// <inheritdoc/>
+    public override void Truncate(long length) =>
+        throw new NotSupportedException("A file held in memory for reading cannot be written.");
+
+    /// <inheritdoc/>
     protected override void Dispose(bool disposing)
     {
         // The bytes are the caller's, and there is nothing else to release.

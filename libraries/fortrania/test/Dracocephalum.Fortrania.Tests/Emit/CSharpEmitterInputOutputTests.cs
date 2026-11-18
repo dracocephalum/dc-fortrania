@@ -127,13 +127,10 @@ public class CSharpEmitterInputOutputTests
 
         // Assert
         file.ShouldContain("_io.Put(table, 16 * (*n - 0 + 1));");
-        file.ShouldContain("_io.Put(names, 1 * names_len * *m);");
+        file.ShouldContain("_io.Put(names, names_len * *m);");
     }
 
     [Theory]
-    [InlineData("      SUBROUTINE S ( X )|      WRITE ( *, * ) X|      END", "Line 2: input or output of text cannot be translated yet.")]
-    [InlineData("      SUBROUTINE S ( X )|      WRITE ( 6, '(A)' ) 'X'|      END", "Line 2: input or output of text cannot be translated yet.")]
-    [InlineData("      SUBROUTINE S ( X )|      PRINT *, X|      END", "Line 2: input or output of text cannot be translated yet.")]
     [InlineData("      SUBROUTINE S ( X )|      READ ( 9 ) X|      END", "Line 2: unformatted input or output without a record number cannot be translated yet.")]
     [InlineData("      SUBROUTINE S ( X )|      BACKSPACE ( 9 )|      END", "Line 2: BACKSPACE cannot be translated yet.")]
     [InlineData("      SUBROUTINE S ( X )|      ENDFILE ( 9 )|      END", "Line 2: ENDFILE cannot be translated yet.")]

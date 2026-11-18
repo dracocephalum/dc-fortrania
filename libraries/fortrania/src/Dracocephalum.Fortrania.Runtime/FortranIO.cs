@@ -431,7 +431,17 @@ sealed unsafe partial class FortranIO : IDisposable
             return Fail(BadOption, $"Unit {unit} is opened for direct access and cannot be rewound.");
         }
 
+        try
+        {
+            Settle(connected);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or NotSupportedException)
+        {
+            return Fail(StatusOf(exception), $"Unit {unit} could not be rewound: {exception.Message}");
+        }
+
         connected.Position = 0;
+        connected.IsAtEnd = false;
         return 0;
     }
 
@@ -457,16 +467,37 @@ sealed unsafe partial class FortranIO : IDisposable
         _isDisposed = true;
         foreach (var unit in _fast)
         {
-            unit?.File.Dispose();
+            Release(unit);
         }
 
         foreach (var unit in _others.Values)
         {
-            unit.File.Dispose();
+            Release(unit);
         }
 
         Array.Clear(_fast);
         _others.Clear();
+    }
+
+    // Closes a unit's file when the instance is disposed, where nothing
+    // can be reported any more.
+    private static void Release(Unit? unit)
+    {
+        if (unit is null)
+        {
+            return;
+        }
+
+        try
+        {
+            Settle(unit);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or NotSupportedException or ObjectDisposedException)
+        {
+            // The file keeps what follows the last record written.
+        }
+
+        unit.File.Dispose();
     }
 
     private static void Set(int* answer, bool value)
@@ -563,6 +594,11 @@ sealed unsafe partial class FortranIO : IDisposable
             _others.Remove(unit.Number);
         }
 
+        if (!delete)
+        {
+            Settle(unit);
+        }
+
         unit.File.Dispose();
         if (delete && !unit.IsScratch && !Unregister(unit.Name))
         {
@@ -598,5 +634,23 @@ sealed unsafe partial class FortranIO : IDisposable
 
         // Where the next record begins, for sequential access.
         public long Position { get; set; }
+
+        // Whether the last statement on the unit wrote, which makes what
+        // it wrote the end of the file.
+        public bool HasWritten { get; set; }
+
+        // Whether a read has found the end of the file.
+        public bool IsAtEnd { get; set; }
+
+        // The part of the file read ahead to find the ends of lines: the
+        // bytes, where the first of them lies in the file, how many there
+        // are, and whether the file ends with them.
+        public byte[]? Buffer { get; set; }
+
+        public long BufferStart { get; set; } = -1;
+
+        public int BufferCount { get; set; }
+
+        public bool BufferEndsFile { get; set; }
     }
 }

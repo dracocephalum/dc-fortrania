@@ -67,6 +67,9 @@ sealed class StreamFile : FortranFile
     }
 
     /// <inheritdoc/>
+    public override void Truncate(long length) => _stream.SetLength(length);
+
+    /// <inheritdoc/>
     protected override void Dispose(bool disposing)
     {
         if (disposing && !_leavesOpen)

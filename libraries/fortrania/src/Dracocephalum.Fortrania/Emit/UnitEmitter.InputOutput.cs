@@ -40,15 +40,17 @@ internal sealed partial class UnitEmitter
                 break;
 
             case Statement.Read read:
-                WriteTransfer("READ", read.Controls, read.Items, "ReadDirect", "Get", "EndRead");
+                WriteTransfer("READ", read.Controls, read.Items, isRead: true);
                 break;
 
             case Statement.Write write:
-                WriteTransfer("WRITE", write.Controls, write.Items, "WriteDirect", "Put", "EndWrite");
+                WriteTransfer("WRITE", write.Controls, write.Items, isRead: false);
                 break;
 
-            case Statement.Print:
-                throw Unsupported("input or output of text");
+            // PRINT writes where WRITE with an asterisk for its unit does.
+            case Statement.Print print:
+                WriteText("6", print.Format, print.Items, isRead: false, []);
+                break;
 
             case Statement.Backspace:
                 throw Unsupported("BACKSPACE");
@@ -80,7 +82,7 @@ internal sealed partial class UnitEmitter
     private string Unit(Dictionary<string, Expression?> controls) =>
         controls.GetValueOrDefault("UNIT") is { } unit && Value(unit) is { Type: DataType.Integer } number
             ? number.Text
-            : throw Unsupported("input or output of text");
+            : throw Unsupported("input or output that names no unit by its number");
 
     private void WriteOpen(Dictionary<string, Expression?> controls)
     {
@@ -150,12 +152,18 @@ internal sealed partial class UnitEmitter
             : $"{IO}.Require({call});");
     }
 
-    private void WriteTransfer(string statement, IReadOnlyList<IOControl> controlList, IReadOnlyList<IOItem> items, string begin, string item, string end)
+    private void WriteTransfer(string statement, IReadOnlyList<IOControl> controlList, IReadOnlyList<IOItem> items, bool isRead)
     {
         var controls = Controls(statement, controlList, "UNIT", "FMT", "REC", "IOSTAT");
-        if (controls.ContainsKey("FMT"))
+        if (controls.TryGetValue("FMT", out var format))
         {
-            throw Unsupported("input or output of text");
+            if (controls.ContainsKey("REC"))
+            {
+                throw Unsupported("formatted input or output by record number");
+            }
+
+            WriteText(TextUnit(controls, isRead), format, items, isRead, controls);
+            return;
         }
 
         var unit = Unit(controls);
@@ -164,9 +172,86 @@ internal sealed partial class UnitEmitter
             throw Unsupported("unformatted input or output without a record number");
         }
 
-        _body.Line($"{IO}.{begin}({unit}, {Stored(Value(record), DataType.Integer)});");
-        WriteItems(items, item);
-        Finish($"{IO}.{end}()", controls);
+        _body.Line($"{IO}.{(isRead ? "ReadDirect" : "WriteDirect")}({unit}, {Stored(Value(record), DataType.Integer)});");
+        WriteItems(items, isRead ? "Get" : "Put");
+        Finish($"{IO}.{(isRead ? "EndRead" : "EndWrite")}()", controls);
+    }
+
+    // The unit of a statement that transfers text. An asterisk is the unit
+    // a program starts with for that direction: 5 to read, 6 to write.
+    private string TextUnit(Dictionary<string, Expression?> controls, bool isRead)
+    {
+        if (controls.GetValueOrDefault("UNIT") is not { } unit)
+        {
+            return isRead ? "5" : "6";
+        }
+
+        var number = Value(unit);
+        return number.Type == DataType.Integer
+            ? number.Text
+            : throw Unsupported("input or output on a character variable");
+    }
+
+    // A statement that transfers text by a format: a call that begins it
+    // with the unit and the format, one for each item, typed as the item
+    // is so that the format can be checked against it, and one that ends
+    // it.
+    private void WriteText(string unit, Expression? format, IReadOnlyList<IOItem> items, bool isRead, Dictionary<string, Expression?> controls)
+    {
+        if (format is null)
+        {
+            throw Unsupported("list-directed input or output");
+        }
+
+        _body.Line($"{IO}.{(isRead ? "ReadFormatted" : "WriteFormatted")}({unit}, {Bytes(format)});");
+        WriteTextItems(items, isRead);
+        Finish($"{IO}.{(isRead ? "EndRead" : "EndWrite")}()", controls);
+    }
+
+    private void WriteTextItems(IReadOnlyList<IOItem> items, bool isRead)
+    {
+        var method = isRead ? "Read" : "Write";
+        foreach (var item in items)
+        {
+            switch (item)
+            {
+                case IOItem.Value { Expression: Expression.Name name } when _table.Find(name.Identifier) is { Kind: SymbolKind.Variable, IsArray: true } array:
+                    var count = WholeSize(array, asBytes: false);
+                    _body.Line(array.Type!.Type switch
+                    {
+                        DataType.Character => $"{IO}.{method}({Local(array)}, {LengthOf(array)}, {count});",
+                        DataType.Logical => $"{IO}.{method}Logicals({Local(array)}, {count});",
+                        _ => $"{IO}.{method}({Local(array)}, {count});",
+                    });
+                    break;
+
+                case IOItem.Value value:
+                    _typer ??= new ExpressionTyper(_table);
+                    var type = _typer.TypeOf(value.Expression, _line, null);
+                    if (type == DataType.Character)
+                    {
+                        var (text, length) = Argument(value.Expression, null);
+                        _body.Line($"{IO}.{method}({text}, {length});");
+                    }
+                    else if (!isRead)
+                    {
+                        _body.Line($"{IO}.Write({Value(value.Expression).Text});");
+                    }
+                    else
+                    {
+                        var address = Argument(value.Expression, null).Address;
+                        _body.Line(type == DataType.Logical ? $"{IO}.ReadLogical({address});" : $"{IO}.Read({address});");
+                    }
+
+                    break;
+
+                case IOItem.ImpliedDo loop:
+                    _body.Open(CountedLoop(new Statement.Do(null, loop.ControlVariable, loop.First, loop.Last, loop.Step)));
+                    WriteTextItems(loop.Items, isRead);
+                    _body.Close();
+                    break;
+            }
+        }
     }
 
     private void WriteItems(IReadOnlyList<IOItem> items, string method)
@@ -197,14 +282,14 @@ internal sealed partial class UnitEmitter
         }
     }
 
-    // The bytes a whole array takes, which for a dummy argument may be
-    // known only when the program runs.
-    private string WholeSize(Symbol array)
+    // The bytes a whole array takes, or the elements it has, which for a
+    // dummy argument may be known only when the program runs.
+    private string WholeSize(Symbol array, bool asBytes = true)
     {
-        long known = array.Type!.Type == DataType.Character ? 1 : array.Type.Type.GetStorageSize();
+        long known = !asBytes || array.Type!.Type == DataType.Character ? 1 : array.Type.Type.GetStorageSize();
         var factors = new List<string>();
 
-        if (array.Type.Type == DataType.Character)
+        if (asBytes && array.Type!.Type == DataType.Character)
         {
             var length = LengthOf(array);
             if (long.TryParse(length, NumberStyles.None, CultureInfo.InvariantCulture, out var constant))
@@ -236,7 +321,11 @@ internal sealed partial class UnitEmitter
             }
         }
 
-        factors.Insert(0, known.ToString(CultureInfo.InvariantCulture));
+        if (known != 1 || factors.Count == 0)
+        {
+            factors.Insert(0, known.ToString(CultureInfo.InvariantCulture));
+        }
+
         return string.Join(" * ", factors);
     }
 }

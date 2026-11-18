@@ -89,6 +89,8 @@ sealed class DiskFileProvider : IFileProvider
 
         public override void Write(long offset, ReadOnlySpan<byte> buffer) => RandomAccess.Write(handle, buffer, offset);
 
+        public override void Truncate(long length) => RandomAccess.SetLength(handle, length);
+
         protected override void Dispose(bool disposing)
         {
             if (disposing)

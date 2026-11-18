@@ -38,6 +38,10 @@ abstract class FortranFile : IDisposable
     /// <param name="buffer">The bytes.</param>
     public abstract void Write(long offset, ReadOnlySpan<byte> buffer);
 
+    /// <summary>Makes the file end at a position, dropping what lies after it.</summary>
+    /// <param name="length">The number of bytes the file is to have.</param>
+    public abstract void Truncate(long length);
+
     /// <summary>Releases what the file holds.</summary>
     public void Dispose()
     {
