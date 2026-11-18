@@ -295,9 +295,13 @@ which it never overwrites. The defaults that make this work:
 - The namespace and class name are taken from the main program's name, or
   from the output folder's when there is none.
 - An include file is looked for beside the source that names it.
-- The project targets the framework of the SDK the translator runs on,
-  allows unsafe code, and references the runtime package of the
-  translator's own version, so that the two always agree.
+- The project targets the framework of the SDK the translator runs on and
+  allows unsafe code.
+- An executable gets the runtime as source. Its project then references no
+  package at all, so the SDK alone builds and runs it, with nothing to
+  download. A library references the runtime package of the translator's
+  own version, so that the two always agree and several libraries in one
+  program share one runtime.
 - At run time the standard units are the console, a file name is relative
   to the current folder, and the command line reaches the program through
   the procedures the runtime supplies for it.
@@ -572,12 +576,14 @@ C# so that it runs where code cannot be generated at run time.
 ## The runtime can be handed out as source
 
 Translated code needs the Fortrania runtime, and there are to be two ways to
-have it: a reference to the runtime assembly, which is the default, or the
-runtime's own source files written out beside the translated ones, so that
-everything compiles into one assembly with no second file to ship. The second
-suits a plugin, a trimmed or ahead-of-time compiled program, and anyone who
-has to vet each dependency. Its cost is that a fix to the runtime reaches
-such a user only when the files are written out again.
+have it: a reference to the runtime assembly, or the runtime's own source
+files written out beside the translated ones, so that everything compiles
+into one assembly with no second file to ship. The second suits an
+executable, a plugin, a trimmed or ahead-of-time compiled program, and
+anyone who has to vet each dependency. Its cost is that a fix to the runtime
+reaches such a user only when the files are written out again. Source is
+the default for an executable and the reference for a library, for the
+reasons under *What the translator is told*; either can be asked for.
 
 The runtime is its own project and assembly from the first day, never part
 of the translator, and translated code references nothing else of Fortrania.
