@@ -378,6 +378,9 @@ each of these is reported as unsupported and never translated by guess:
 - `FORMAT` statements. The reference sources give every format as a
   character constant.
 - Hollerith constants.
+- Complex constants, and with them complex constant expressions.
+- An intrinsic function in a constant expression, which later standards
+  allow and FORTRAN 77 does not. The reference sources have none.
 - An include file that holds an executable statement or an `ENTRY`. Every
   include file of the reference sources holds declarations alone.
 - A name starting with `E` or `D` directly after a length, as in
