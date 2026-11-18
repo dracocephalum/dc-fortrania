@@ -85,3 +85,30 @@ The two exceptions are narrow and are handled where they arise. Inside a
 function its own name is the variable that holds the result. And a statement
 function's dummy arguments are names of that one statement, sharing only
 their type with the unit's variable of the same name.
+
+## What crosses program units is a summary, not a tree
+
+To translate a call, Fortrania has to know the procedure called: how many
+arguments it takes, which are arrays, what type each is. That is a fact about
+another program unit, often in another file.
+
+Each unit is therefore reduced to a `UnitSummary`: how each of its entry
+points is called, and every call it makes itself. A summary holds nothing of
+the unit's text. A program is read in two passes: the first keeps only the
+summaries, in a `ProcedureCatalogue`, and the second reads each file again
+and translates it with the catalogue at hand. No more than one file's tree
+is in memory at a time, and a file needs translating again only when it, an
+include file it names, or the summary of something it calls has changed.
+
+The role is that of a C header, except that nobody writes it: FORTRAN 77 has
+no declarations of other units' procedures, so the summary is drawn from the
+definition.
+
+Calls are set against definitions with a light hand. The language asks that
+arguments agree in type and shape, but a compiler that takes one file at a
+time cannot check it, and programs written for such compilers lean on
+arguments being passed by address: one value where an array is expected, an
+array of one type read as another, a function called as a subroutine for its
+side effects. `CallChecker` passes all of these and refuses only what no
+address can stand in for, such as a wrong number of arguments or text where
+a number is expected.

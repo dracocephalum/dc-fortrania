@@ -80,6 +80,20 @@ Pointers and not spans, because that is what the source language does:
 - A facade for callers outside .NET, C exports or COM, needs this shape
   anyway and becomes a one-line forward per routine.
 - There is no bounds check and one register per argument.
+- The reference sources pass arguments that do not agree with what the
+  procedure declares, and a pointer honours each as the original does: a
+  single variable or a constant where an array is expected, a whole array
+  where one value is, a double precision array to a routine that moves
+  integers, a logical or double precision variable where an integer is
+  expected. Where the types differ the emitter casts the pointer. One
+  function entry is called as a subroutine; its value is dropped.
+
+A value that is not a variable, a constant or an expression, is copied to a
+temporary whose address is passed. When its type is not the one the procedure
+declares, as with a real constant given for a double precision argument in
+one test program, the temporary is at least as large as the declared type,
+so that the procedure never reads or writes past it; the original leaves
+what lies there to chance.
 
 Two obligations follow, and both are the design's to meet, not the caller's
 to remember.
