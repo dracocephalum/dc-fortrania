@@ -226,6 +226,20 @@ not tell the two apart. The class has one file that belongs to no unit,
 with the instance's memory and its disposal, which frees the memory; the
 garbage collector does not.
 
+**Variables that share storage are pointers into one run of bytes.**
+`EQUIVALENCE` says that two variables, or elements of them, begin at the
+same byte. The emitter gathers the variables that share, directly or
+through one another, works out where each begins in bytes from the start of
+the set, and declares each as a pointer to its place, of its own type. The
+set lies in the unit's block when any of its variables is kept between
+calls or it is too large for the stack, and on the stack otherwise. Nothing
+converts: a number read through a variable of another type shows the other
+type's bytes, in the order the machine keeps them, which is what the
+language says and what programs use it for. A variable may begin where its
+own type would not be aligned; the processors .NET runs on read it all the
+same. Two lists that put one variable in two places are an error in the
+source, found here because this is where places are worked out.
+
 **An entry point is a method of its own.** A unit with `ENTRY` statements
 has several ways in, and is commonly one routine holding saved variables
 with an operation per entry. Each entry point, the unit's own heading

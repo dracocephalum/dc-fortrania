@@ -168,7 +168,7 @@ internal sealed partial class UnitEmitter
 
     // Whether the method has a variable as an address and not as a local
     // of its own: a character variable, an array, a dummy argument, and a
-    // variable kept between calls.
+    // variable kept between calls or sharing storage.
     private bool IsAddress(Symbol symbol) =>
-        symbol.Type!.Type == DataType.Character || symbol.IsArray || symbol.IsDummyArgument || IsKept(symbol);
+        symbol.Type!.Type == DataType.Character || symbol.IsArray || symbol.IsDummyArgument || IsPlaced(symbol);
 }

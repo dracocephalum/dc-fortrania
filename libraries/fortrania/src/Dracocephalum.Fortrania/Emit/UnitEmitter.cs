@@ -315,11 +315,6 @@ internal sealed partial class UnitEmitter
 
     private void RefuseWhatIsNotTranslatedYet()
     {
-        if (_table.Equivalences.Count > 0)
-        {
-            throw Unsupported("EQUIVALENCE");
-        }
-
         foreach (var symbol in _table.Symbols)
         {
             _line = symbol.Line;
@@ -345,6 +340,7 @@ internal sealed partial class UnitEmitter
         }
 
         WriteStateAccess(file);
+        WriteOverlays(file);
 
         foreach (var symbol in _table.Symbols.Where(symbol => _named.Contains(symbol) && IsStray(symbol)))
         {
@@ -356,7 +352,7 @@ internal sealed partial class UnitEmitter
         {
             // The result of a character function is an argument, not a local,
             // and a kept variable has been declared with the unit's block.
-            if ((symbol.IsEntryPoint && symbol.Type!.Type == DataType.Character) || IsKept(symbol))
+            if ((symbol.IsEntryPoint && symbol.Type!.Type == DataType.Character) || IsPlaced(symbol))
             {
                 continue;
             }

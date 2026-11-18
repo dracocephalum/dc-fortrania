@@ -70,6 +70,7 @@ public sealed class CSharpEmitter
     /// <param name="table">The names of a program unit that has passed the type check.</param>
     /// <returns>The text of a C# source file.</returns>
     /// <exception cref="UnsupportedConstructException">The unit uses something the emitter cannot translate yet.</exception>
+    /// <exception cref="Analysis.FortranAnalysisException">The unit lays variables out in a way the language forbids, which shows only when their places are worked out.</exception>
     public string Emit(SymbolTable table)
     {
         ArgumentNullException.ThrowIfNull(table);

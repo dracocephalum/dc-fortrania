@@ -33,29 +33,62 @@ internal sealed partial class UnitEmitter
     {
         var initialized = new HashSet<string>(StringComparer.Ordinal);
         Roots(_table.Data.SelectMany(group => group.Targets), initialized);
+        LayOutOverlays();
+
+        bool IsKeptAlone(Symbol symbol) => symbol.IsSaved || _table.SavesEverything || initialized.Contains(symbol.Name);
+
+        // Variables that share storage are kept together or not at all,
+        // and take their places in the block as one.
+        foreach (var overlay in _overlays)
+        {
+            overlay.IsKept = overlay.Size > StackLimit || overlay.Starts.Keys.Any(IsKeptAlone);
+            if (!overlay.IsKept)
+            {
+                continue;
+            }
+
+            Reserve(overlay.Size, 8);
+            foreach (var (member, start) in overlay.Starts)
+            {
+                _offsets[member.Name] = (int)(_stateSize + start);
+            }
+
+            _stateSize += (int)overlay.Size;
+        }
 
         foreach (var symbol in _table.Symbols.Where(symbol => symbol is { Kind: SymbolKind.Variable, IsDummyArgument: false, IsEntryPoint: false }))
         {
+            if (_overlayOf.ContainsKey(symbol.Name))
+            {
+                continue;
+            }
+
             _line = symbol.Line;
             var bytes = ElementCount(symbol) * ElementSize(symbol);
-            var isKept = symbol.IsSaved || _table.SavesEverything || initialized.Contains(symbol.Name) || bytes > StackLimit;
+            var isKept = IsKeptAlone(symbol) || bytes > StackLimit;
             if (!isKept)
             {
                 continue;
             }
 
-            if (_stateSize + bytes > int.MaxValue - 16)
-            {
-                throw Unsupported("kept variables of two gigabytes or more in one program unit");
-            }
-
-            var alignment = Math.Min(ElementSize(symbol), 8);
-            _stateSize = (int)((_stateSize + alignment - 1) / alignment * alignment);
+            Reserve(bytes, Math.Min(ElementSize(symbol), 8));
             _offsets[symbol.Name] = _stateSize;
             _stateSize += (int)bytes;
         }
 
         _stateSize = (_stateSize + 7) / 8 * 8;
+    }
+
+    // Moves the end of the block up to a multiple of an alignment, having
+    // made sure that so many bytes more still fit.
+    private void Reserve(long bytes, long alignment)
+    {
+        if (_stateSize + bytes > int.MaxValue - 16)
+        {
+            throw Unsupported("kept variables of two gigabytes or more in one program unit");
+        }
+
+        _stateSize = (int)((_stateSize + alignment - 1) / alignment * alignment);
     }
 
     private static void Roots(IEnumerable<DataTarget> targets, HashSet<string> names)
@@ -90,12 +123,15 @@ internal sealed partial class UnitEmitter
         ? long.Parse(LengthOf(symbol), CultureInfo.InvariantCulture)
         : symbol.Type.Type.GetStorageSize();
 
-    private string KeptDeclaration(Symbol symbol)
+    private string KeptDeclaration(Symbol symbol) => PlacedDeclaration(symbol, "_state", _offsets[symbol.Name]);
+
+    // Declares a variable as a pointer to its place in a block of bytes.
+    private static string PlacedDeclaration(Symbol symbol, string block, long place)
     {
         var type = symbol.Type!.Type.ToCSharpStorageType();
         var name = symbol.Name.ToCSharpLocal();
-        var offset = _offsets[symbol.Name].ToString(CultureInfo.InvariantCulture);
-        return type == "byte" ? $"byte* {name} = _state + {offset};" : $"{type}* {name} = ({type}*)(_state + {offset});";
+        var offset = place.ToString(CultureInfo.InvariantCulture);
+        return type == "byte" ? $"byte* {name} = {block} + {offset};" : $"{type}* {name} = ({type}*)({block} + {offset});";
     }
 
     // The field that holds the unit's block, and the method that hands the

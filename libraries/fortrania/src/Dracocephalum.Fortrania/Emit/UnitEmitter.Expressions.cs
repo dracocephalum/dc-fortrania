@@ -137,7 +137,7 @@ internal sealed partial class UnitEmitter
             return new Code(name, DataType.Character, Level.Primary, LengthOf(symbol));
         }
 
-        return symbol.IsDummyArgument || IsKept(symbol)
+        return symbol.IsDummyArgument || IsPlaced(symbol)
             ? new Code($"*{name}", symbol.Type.Type, Level.Unary)
             : new Code(name, symbol.Type.Type, Level.Primary);
     }

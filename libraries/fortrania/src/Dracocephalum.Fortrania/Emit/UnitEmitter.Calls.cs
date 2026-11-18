@@ -93,7 +93,7 @@ internal sealed partial class UnitEmitter
 
             case Expression.Name name when _table.Find(name.Identifier) is { Kind: SymbolKind.Variable } variable:
                 var local = Local(variable);
-                var address = variable.IsArray || variable.IsDummyArgument || IsKept(variable) ? local : $"&{local}";
+                var address = variable.IsArray || variable.IsDummyArgument || IsPlaced(variable) ? local : $"&{local}";
                 return (Cast(address, variable.Type!.Type, expected), null);
 
             case Expression.Name name when _table.Find(name.Identifier)!.Kind != SymbolKind.Constant:
