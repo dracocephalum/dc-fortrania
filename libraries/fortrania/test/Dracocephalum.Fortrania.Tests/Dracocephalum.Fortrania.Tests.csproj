@@ -6,6 +6,9 @@
 
   <ItemGroup>
     <ProjectReference Include="../../src/Dracocephalum.Fortrania/Dracocephalum.Fortrania.csproj" />
+    <!-- Emitted code is compiled against the runtime and run, to test what it does and not how it reads. -->
+    <ProjectReference Include="../../src/Dracocephalum.Fortrania.Runtime/Dracocephalum.Fortrania.Runtime.csproj" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
   </ItemGroup>
 
 </Project>

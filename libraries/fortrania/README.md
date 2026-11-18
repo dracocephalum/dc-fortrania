@@ -8,7 +8,7 @@ translated code runs on.
 | Category | `libraries/` |
 | Kind | library |
 | Solution | `Dracocephalum.Fortrania.slnx` |
-| Projects | `src/Dracocephalum.Fortrania`, `test/Dracocephalum.Fortrania.Tests` |
+| Projects | `src/Dracocephalum.Fortrania`, the translator; `src/Dracocephalum.Fortrania.Runtime`, what translated code calls; and a test project for each under `test/` |
 
 ## What it does
 
@@ -32,7 +32,10 @@ before:
 | Lexer | a statement | tokens | done |
 | Parser | tokens | a syntax tree per program unit | done for every construct the reference sources use; [`PENDING.md`](../../PENDING.md) lists what is left |
 | Analysis | every program unit | symbols, types, and what each call does to its arguments | started: each unit has a symbol table that says what every name in it stands for, every expression is typed and checked against its place, and constant expressions are evaluated; each unit has a summary of how it is called and what it calls, every call is set against the procedure it reaches, and what each procedure reads and writes through its arguments is worked out across the program |
-| Emitter | the analysed program | C# source | not started |
+| Emitter | the analysed program | C# source | started: subroutines and functions over integer, real, double precision and logical values, with their arrays, loops, branches and calls of one another. Not yet: `CHARACTER`, saved and initialized variables, `ENTRY`, statement functions, input and output, and procedures passed as arguments |
+
+The emitter refuses a program unit that uses what it does not translate yet,
+naming the construct and the line, and never writes a partial translation.
 
 Everything up to the emitter is independent of the output language, and the
 emitter sits behind a seam of its own, so another back end is an addition

@@ -132,3 +132,53 @@ Where nothing can be known the answer is both: an argument passed to a
 procedure that is itself a dummy argument, or to one the program does not
 define. And nothing is said about order, so an argument that is written and
 then read back counts as read.
+
+## What emitted code looks like, and why
+
+The emitter writes each program unit as methods of one partial class, every
+argument a pointer; `PENDING.md` has the reasons for pointers and for the
+class, which are settled but not all built. What is built so far made these
+choices of its own.
+
+**A value with no address is passed through an expression.** A constant or
+an expression given as an argument has to be stored somewhere its address can
+be taken. A statement before the call would do that, but a call can stand in
+the condition of an `ELSE IF` or a `DO WHILE`, where there is no place for a
+statement that runs each time the condition does. So the store is itself an
+expression: `Fortran.Arg(&_i1, n + 1)` stores into a local set aside for it
+and returns its address, and the just-in-time compiler inlines it to the
+store. The locals are reused from statement to statement.
+
+**A logical value is an integer in storage and a `bool` in an expression.**
+The language gives a logical variable the room of an integer and lets the
+two share storage, and programs pass arrays of one to routines that move the
+other. Stored as `bool` they would not be the same size. In an expression
+the natural C# type is kept, so a condition reads as written.
+
+**An integer power multiplies, in the reference compiler's order.** `X**N`
+with an integer `N` is repeated multiplication, and the order of the
+multiplications decides the last bit. The runtime's `Pow` multiplies in the
+order the reference compiler's library does, so the results agree exactly.
+A real exponent goes to the platform's `Math.Pow`, which may differ from
+another platform's in the last place.
+
+**A `DO` loop takes one of two forms.** The language fixes the number of
+passes before the first and leaves the variable one step past the last value
+used. With an integer variable and a step known when translating, a plain
+`for` with a comparison against the limit does exactly that and is what a
+person would write. Otherwise the count is worked out first, as the language
+defines it, and counted down.
+
+**FORTRAN names are written in lower case, and the methods keep their
+spelling.** A variable `STATE` becomes `state` and the subroutine `VADD`
+stays `VADD`, so no variable can meet a member of the class, the two differing
+in case, and the code reads beside its source. A name that is a C# keyword
+once in lower case takes the `@` escape. Locals the emitter adds begin with
+an underscore, which begins no FORTRAN name.
+
+**The emitter is tested by running what it writes.** The tests translate
+FORTRAN, compile the result with the C# compiler as a library, and call it.
+The values they expect are the ones the reference compiler's program prints
+for the same source, so the tests say what the code does and not how it
+reads. One test compares text, to keep the shape above from drifting
+unnoticed.
