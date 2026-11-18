@@ -1,5 +1,6 @@
 using System.Collections.Frozen;
 using System.Globalization;
+using System.Text;
 using Dracocephalum.Fortrania.Analysis;
 using Dracocephalum.Fortrania.Syntax;
 
@@ -39,6 +40,7 @@ internal static class CSharpText
         DataType.Integer or DataType.Logical => "int",
         DataType.Real => "float",
         DataType.DoublePrecision => "double",
+        DataType.Character => "byte",
         _ => throw new ArgumentOutOfRangeException(nameof(type)),
     };
 
@@ -54,6 +56,33 @@ internal static class CSharpText
         Constant.Logical logical => logical.Value ? "true" : "false",
         _ => throw new ArgumentOutOfRangeException(nameof(constant)),
     };
+
+    /// <summary>Spells ASCII text as a literal of bytes.</summary>
+    public static string Utf8Literal(string text)
+    {
+        const char Backslash = (char)92;
+        const char Quote = (char)34;
+        const char Delete = (char)127;
+
+        var literal = new StringBuilder().Append(Quote);
+        foreach (var character in text)
+        {
+            if (character is Quote or Backslash)
+            {
+                literal.Append(Backslash).Append(character);
+            }
+            else if (character is < ' ' or Delete)
+            {
+                literal.Append(Backslash).Append('u').Append(((int)character).ToString("x4", CultureInfo.InvariantCulture));
+            }
+            else
+            {
+                literal.Append(character);
+            }
+        }
+
+        return literal.Append(Quote).Append("u8").ToString();
+    }
 
     // The shortest text that reads back as the same value, made to look
     // like a double where it would otherwise look like an integer.

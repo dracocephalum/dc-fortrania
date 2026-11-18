@@ -18,7 +18,8 @@ public abstract class EmitConvention
     /// <summary>
     /// Gets the convention of the translator <c>f2c</c>: a procedure's name
     /// is in lower case with an underscore after it, two when the name
-    /// already holds one, and a logical function returns an integer. Code
+    /// already holds one, a logical function returns an integer, and the
+    /// lengths of character arguments follow all the other arguments. Code
     /// emitted under it can be called by the names and with the results
     /// that code written against that translator's output expects.
     /// </summary>
@@ -29,6 +30,13 @@ public abstract class EmitConvention
     /// integer, zero for false, and not a <see langword="bool"/>.
     /// </summary>
     public virtual bool ReturnsLogicalAsInteger => false;
+
+    /// <summary>
+    /// Gets a value indicating whether the lengths of character arguments
+    /// follow all the other arguments, in the order of the arguments they
+    /// belong to, and not each its own argument directly.
+    /// </summary>
+    public virtual bool TextLengthsComeLast => false;
 
     /// <summary>Names the method a subroutine, a function or an entry of one becomes.</summary>
     /// <param name="name">The procedure's FORTRAN name, in upper case.</param>
@@ -46,6 +54,8 @@ public abstract class EmitConvention
     private sealed class F2cConvention : EmitConvention
     {
         public override bool ReturnsLogicalAsInteger => true;
+
+        public override bool TextLengthsComeLast => true;
 
         public override string ProcedureName(string name)
         {

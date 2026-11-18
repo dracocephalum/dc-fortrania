@@ -75,6 +75,10 @@ internal sealed partial class UnitEmitter
         RefuseWhatIsNotTranslatedYet();
 
         var result = isFunction ? _table.Find(name)! : null;
+        if (result?.Type!.Type == DataType.Character)
+        {
+            throw Unsupported("a CHARACTER function");
+        }
 
         foreach (var construct in _table.Unit.Body)
         {
@@ -104,9 +108,7 @@ internal sealed partial class UnitEmitter
         file.Open($"public unsafe partial class {_options.ClassName}");
 
         var returns = result is null ? "void" : ResultType(result.Type!.Type);
-        var arguments = parameters.Select(parameter =>
-            $"{CSharpText.Storage(_table.Find(parameter)!.Type!.Type)}* {CSharpText.Local(parameter)}");
-        file.Open($"public {returns} {_options.Convention.ProcedureName(name)}({string.Join(", ", arguments)})");
+        file.Open($"public {returns} {_options.Convention.ProcedureName(name)}({string.Join(", ", Parameters(parameters))})");
 
         WriteDeclarations(file);
         file.Lines(_body);
@@ -114,6 +116,28 @@ internal sealed partial class UnitEmitter
         file.Close();
         file.Close();
         return file.ToString();
+    }
+
+    // Every dummy argument is a pointer. A character one comes with its
+    // length, which the procedure takes even where its declaration fixes
+    // the length, since the caller cannot know; the convention says whether
+    // the length follows its pointer or all lengths follow all pointers.
+    private IEnumerable<string> Parameters(IReadOnlyList<string> names)
+    {
+        var addresses = new List<string>();
+        var lengths = new List<string>();
+
+        foreach (var name in names)
+        {
+            var symbol = _table.Find(name)!;
+            addresses.Add($"{CSharpText.Storage(symbol.Type!.Type)}* {CSharpText.Local(name)}");
+            if (symbol.Type.Type == DataType.Character)
+            {
+                (_options.Convention.TextLengthsComeLast ? lengths : addresses).Add($"int {LengthName(symbol)}");
+            }
+        }
+
+        return addresses.Concat(lengths);
     }
 
     // The type of a value in an expression: a logical one is a C# bool
@@ -189,12 +213,7 @@ internal sealed partial class UnitEmitter
                 continue;
             }
 
-            if (symbol.Type!.Type == DataType.Character)
-            {
-                throw Unsupported("a CHARACTER variable");
-            }
-
-            if (symbol.Type.Type == DataType.Complex)
+            if (symbol.Type!.Type == DataType.Complex)
             {
                 throw Unsupported("a COMPLEX variable");
             }
@@ -220,21 +239,27 @@ internal sealed partial class UnitEmitter
             var type = CSharpText.Storage(symbol.Type!.Type);
             var name = CSharpText.Local(symbol.Name);
 
-            if (!symbol.IsArray)
+            var isText = symbol.Type.Type == DataType.Character;
+            if (!symbol.IsArray && !isText)
             {
                 file.Line($"{type} {name} = 0;");
                 continue;
             }
 
-            long count = 1;
+            // A character variable is so many bytes, and an array of them so
+            // many times that, end to end.
+            long count = isText ? long.Parse(LengthOf(symbol), CultureInfo.InvariantCulture) : 1;
+            long size = isText ? 1 : CSharpText.Size(symbol.Type.Type);
             foreach (var bound in symbol.Dimensions)
             {
                 count *= ConstantExtent(bound) ?? throw Unsupported("a local array whose size is not constant");
             }
 
-            if (count * CSharpText.Size(symbol.Type.Type) > StackLimit)
+            if (count * size > StackLimit)
             {
-                throw Unsupported(string.Create(CultureInfo.InvariantCulture, $"a local array of more than {StackLimit} bytes"));
+                throw Unsupported(string.Create(
+                    CultureInfo.InvariantCulture,
+                    $"a local array or character variable of more than {StackLimit} bytes"));
             }
 
             file.Line(string.Create(CultureInfo.InvariantCulture, $"{type}* {name} = stackalloc {type}[{count}];"));
@@ -253,6 +278,7 @@ internal sealed partial class UnitEmitter
     {
         DataType.Integer => string.Create(CultureInfo.InvariantCulture, $"_i{number}"),
         DataType.Real => string.Create(CultureInfo.InvariantCulture, $"_r{number}"),
+        DataType.Character => string.Create(CultureInfo.InvariantCulture, $"_c{number}"),
         _ => string.Create(CultureInfo.InvariantCulture, $"_d{number}"),
     };
 
@@ -294,7 +320,7 @@ internal sealed partial class UnitEmitter
 
     // A piece of C# with what is needed to join it to another: the type of
     // its value, and how strongly it holds together.
-    private readonly record struct Code(string Text, DataType Type, Level Level)
+    private readonly record struct Code(string Text, DataType Type, Level Level, string? Length = null)
     {
         public string At(Level needed) => Level >= needed ? Text : $"({Text})";
     }

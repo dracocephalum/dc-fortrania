@@ -60,6 +60,51 @@ public class CSharpEmitterTests
     }
 
     [Fact]
+    public void Emit_WhenUnitHandlesCharacterData_ShouldWriteAddressesWithLengthsBesideThem()
+    {
+        // Act
+        var file = TranslatedProgram.Translate(
+            """
+                  LOGICAL FUNCTION SAME ( NAME, LIST, N )
+                  IMPLICIT NONE
+                  INTEGER N, I
+                  CHARACTER*(*) NAME, LIST ( N )
+                  CHARACTER*8 KEY
+                  KEY = NAME ( 2: )
+                  SAME = .FALSE.
+                  DO I = 1, N
+                     IF ( LIST ( I ) .EQ. KEY ) SAME = .TRUE.
+                  END DO
+                  CALL CHKIN ( 'SAME' )
+                  END
+            """).ShouldHaveSingleItem();
+
+        // Assert
+        file.ShouldContain(
+            """
+                public bool SAME(byte* name, int name_len, byte* list, int list_len, int* n)
+                {
+                    int same = 0;
+                    int i = 0;
+                    byte* key = stackalloc byte[8];
+                    Fortran.Assign(key, 8, name + 1, name_len - 1);
+                    same = 0;
+                    int _last1 = *n;
+                    for (i = 1; i <= _last1; i += 1)
+                    {
+                        if (Fortran.Compare(list + (i - 1) * list_len, list_len, key, 8) == 0)
+                        {
+                            same = 1;
+                        }
+                    }
+                    CHKIN(Fortran.Text("SAME"u8), 4);
+                    return same != 0;
+                }
+            """.ReplaceLineEndings("\n"),
+            Case.Sensitive);
+    }
+
+    [Fact]
     public void Emit_WhenNamesAreKeywordsOfCSharp_ShouldEscapeThem()
     {
         // Arrange
@@ -84,6 +129,39 @@ public class CSharpEmitterTests
 
         // Act & Assert
         program.Run<int[]>("Run").ShouldBe([110, 10]);
+    }
+
+    [Fact]
+    public void Emit_WhenALogicalValueIsPassed_ShouldPassItAsTheIntegerItIsStoredAs()
+    {
+        // Arrange
+        var program = TranslatedProgram.Compile(
+            """
+                  INTEGER FUNCTION TALLY ( A, B, C )
+                  LOGICAL A, B, C
+                  TALLY = 0
+                  IF ( A ) TALLY = TALLY + 1
+                  IF ( B ) TALLY = TALLY + 10
+                  IF ( C ) TALLY = TALLY + 100
+                  END
+                  INTEGER FUNCTION PASS ( N )
+                  INTEGER N, TALLY
+                  LOGICAL YES
+                  PARAMETER ( YES = .TRUE. )
+                  PASS = TALLY ( .TRUE., N .GT. 5, .FALSE. )
+                 .     + 1000 * TALLY ( .NOT. YES, YES, N .LT. 5 .OR. YES )
+                  END
+            """,
+            """
+                public static int Run()
+                {
+                    int seven = 7;
+                    return new Library().PASS(&seven);
+                }
+            """);
+
+        // Act & Assert
+        program.Run<int>("Run").ShouldBe(110011);
     }
 
     [Fact]
@@ -171,10 +249,14 @@ public class CSharpEmitterTests
     [InlineData("      SUBROUTINE S|      SAVE|      END", "Line 1: SAVE cannot be translated yet.")]
     [InlineData("      SUBROUTINE S|      INTEGER I|      SAVE I|      END", "Line 2: SAVE cannot be translated yet.")]
     [InlineData("      SUBROUTINE S ( F )|      EXTERNAL F|      CALL F|      END", "Line 1: a procedure as an argument cannot be translated yet.")]
-    [InlineData("      SUBROUTINE S ( C )|      CHARACTER*(*) C|      END", "Line 1: a CHARACTER variable cannot be translated yet.")]
+    [InlineData("      SUBROUTINE S ( C )|      CHARACTER*(*) C|      C = C // 'A'|      END", "Line 3: a character concatenation cannot be translated yet.")]
+    [InlineData("      CHARACTER*(*) FUNCTION F ( )|      F = 'A'|      END", "Line 1: a CHARACTER function cannot be translated yet.")]
+    [InlineData("      SUBROUTINE S ( C )|      CHARACTER*(*) C|      CHARACTER*4 F|      C = F ( )|      END", "Line 4: a CHARACTER function cannot be translated yet.")]
+    [InlineData("      SUBROUTINE S ( C, N )|      INTEGER N|      CHARACTER*(N) C|      C = 'A'|      END", "Line 4: a CHARACTER length that is not constant cannot be translated yet.")]
+    [InlineData("      SUBROUTINE S|      CHARACTER*4097 C|      C = 'A'|      END", "Line 2: a local array or character variable of more than 4096 bytes cannot be translated yet.")]
+    [InlineData("      SUBROUTINE S|      CHARACTER*100 C ( 41 )|      C ( 1 ) = 'A'|      END", "Line 2: a local array or character variable of more than 4096 bytes cannot be translated yet.")]
     [InlineData("      SUBROUTINE S|      COMPLEX Z|      Z = 1|      END", "Line 2: a COMPLEX variable cannot be translated yet.")]
-    [InlineData("      SUBROUTINE S|      CALL T ( 'A' )|      END", "Line 2: a character constant cannot be translated yet.")]
-    [InlineData("      SUBROUTINE S|      DOUBLE PRECISION A ( 513 )|      A ( 1 ) = 0|      END", "Line 2: a local array of more than 4096 bytes cannot be translated yet.")]
+    [InlineData("      SUBROUTINE S|      DOUBLE PRECISION A ( 513 )|      A ( 1 ) = 0|      END", "Line 2: a local array or character variable of more than 4096 bytes cannot be translated yet.")]
     [InlineData("      SUBROUTINE S ( X )|      WRITE ( *, * ) X|      END", "Line 2: an input or output statement cannot be translated yet.")]
     [InlineData("      SUBROUTINE S ( I )|      I = ISHFT ( I, 2 )|      END", "Line 2: the intrinsic function ISHFT cannot be translated yet.")]
     [InlineData("      SUBROUTINE S|      INTRINSIC SIN|      CALL T ( SIN )|      END", "Line 3: a procedure as an argument cannot be translated yet.")]

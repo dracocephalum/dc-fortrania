@@ -64,6 +64,13 @@ internal sealed partial class UnitEmitter
         {
             case Statement.Assignment assignment:
                 var target = Target(assignment.Target);
+                if (target.Type == DataType.Character)
+                {
+                    var text = Value(assignment.Value);
+                    _body.Line($"Fortran.Assign({target.Text}, {target.Length}, {text.Text}, {text.Length});");
+                    break;
+                }
+
                 _body.Line($"{target.Text} = {Stored(Value(assignment.Value), target.Type)};");
                 break;
 

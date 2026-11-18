@@ -281,15 +281,11 @@ over; and the placement of saved state, above.
 The convention is the shape procedures present to their callers, and it is
 a type a caller of the library can derive from, `EmitConvention`. Fortrania's
 own is the default and that of `f2c` is supplied, so that code written
-against that translator's output can call ours. It decides names and how a
-logical result comes back today, and is to decide two more things as they
-are built:
-
-- Where the length of a text argument goes. Fortrania's own puts it
-  directly after the pointer it belongs to, which reads as the pair it is;
-  `f2c` puts all the lengths after all the other arguments.
-- Whether an argument the procedure never writes may be passed by value.
-  Under `f2c` every argument stays a pointer.
+against that translator's output can call ours. It decides names, how a
+logical result comes back and where the length of a text argument goes, and
+is to decide one more thing when it is built: whether an argument the
+procedure never writes may be passed by value. Under `f2c` every argument
+stays a pointer.
 
 For a real project: the summaries of libraries the sources call into; the
 units to leave out because they are written by hand; and the settings for

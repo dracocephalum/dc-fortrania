@@ -18,7 +18,7 @@ internal
 #else
 public
 #endif
-static unsafe class Fortran
+static unsafe partial class Fortran
 {
     /// <summary>
     /// Stores a value that is not a variable where a procedure can be given

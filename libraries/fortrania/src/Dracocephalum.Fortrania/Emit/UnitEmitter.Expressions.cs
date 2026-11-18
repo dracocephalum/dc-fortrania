@@ -9,8 +9,15 @@ internal sealed partial class UnitEmitter
 {
     private static DataType Wider(DataType left, DataType right) => left > right ? left : right;
 
+    // A length or a position is put in parentheses before it joins an
+    // expression, unless it is a single name or number.
+    private static string Grouped(string text) => text.All(character => char.IsLetterOrDigit(character) || character == '_')
+        ? text
+        : $"({text})";
+
     // The value of an expression. A logical value is a C# bool here; it
-    // becomes an integer only where it is stored.
+    // becomes an integer only where it is stored. A character value is
+    // the address of its first byte, with its length beside it.
     private Code Value(Expression expression)
     {
         switch (expression)
@@ -37,9 +44,12 @@ internal sealed partial class UnitEmitter
                     _ => throw Unsupported("a statement function"),
                 };
 
+            case Expression.Substring substring:
+                return Substring(substring);
+
             case Expression.Parenthesized parenthesized:
                 var inner = Value(parenthesized.Inner);
-                return new Code($"({inner.Text})", inner.Type, Level.Primary);
+                return new Code($"({inner.Text})", inner.Type, Level.Primary, inner.Length);
 
             case Expression.Unary unary:
                 return Unary(unary);
@@ -48,25 +58,35 @@ internal sealed partial class UnitEmitter
                 return Binary(binary);
 
             default:
-                throw Unsupported("a substring");
+                throw new ArgumentOutOfRangeException(nameof(expression));
         }
     }
 
     private Code Constant(Expression.Literal literal)
     {
-        if (literal.Type is DataType.Character or DataType.Complex)
+        if (literal.Type == DataType.Complex)
         {
-            throw Unsupported(literal.Type == DataType.Character ? "a character constant" : "a complex constant");
+            throw Unsupported("a complex constant");
         }
 
-        return new Code(CSharpText.Literal(_evaluator.TryEvaluate(literal, _line)!), literal.Type, Level.Primary);
+        var value = _evaluator.TryEvaluate(literal, _line)!;
+        return value is Constant.Character text
+            ? Text(text.Value)
+            : new Code(CSharpText.Literal(value), literal.Type, Level.Primary);
     }
 
     private Code Named(Symbol constant)
     {
-        if (constant.Type!.Type is DataType.Character or DataType.Complex)
+        if (constant.Type!.Type == DataType.Complex)
         {
-            throw Unsupported(constant.Type.Type == DataType.Character ? "a character constant" : "a complex constant");
+            throw Unsupported("a complex constant");
+        }
+
+        // A character constant is written out where it is used: its bytes
+        // lie in the assembly once, however often they are named.
+        if (_evaluator.ValueOf(constant) is Constant.Character text)
+        {
+            return Text(text.Value);
         }
 
         if (!_constantsUsed.Contains(constant))
@@ -77,8 +97,25 @@ internal sealed partial class UnitEmitter
         return new Code(CSharpText.Local(constant.Name), constant.Type.Type, Level.Primary);
     }
 
+    // A character constant: the address of a literal the compiler keeps in
+    // the assembly, and the number of its bytes.
+    private Code Text(string value)
+    {
+        if (value.Any(character => character > '\u007f'))
+        {
+            throw Unsupported("a character constant with a character outside ASCII");
+        }
+
+        return new Code(
+            $"Fortran.Text({CSharpText.Utf8Literal(value)})",
+            DataType.Character,
+            Level.Primary,
+            value.Length.ToString(CultureInfo.InvariantCulture));
+    }
+
     // Where a variable that is not an array is kept: a local of the method,
-    // or behind the pointer the caller passed.
+    // or behind the pointer the caller passed. A character variable is the
+    // pointer itself, wherever it is kept.
     private Code Variable(Symbol symbol)
     {
         if (symbol.Kind != SymbolKind.Variable || symbol.IsArray)
@@ -87,13 +124,116 @@ internal sealed partial class UnitEmitter
         }
 
         var name = CSharpText.Local(symbol.Name);
+        if (symbol.Type!.Type == DataType.Character)
+        {
+            return new Code(name, DataType.Character, Level.Primary, LengthOf(symbol));
+        }
+
         return symbol.IsDummyArgument
-            ? new Code($"*{name}", symbol.Type!.Type, Level.Unary)
-            : new Code(name, symbol.Type!.Type, Level.Primary);
+            ? new Code($"*{name}", symbol.Type.Type, Level.Unary)
+            : new Code(name, symbol.Type.Type, Level.Primary);
     }
 
-    private Code Element(Symbol array, IReadOnlyList<Expression> subscripts) =>
-        new($"{CSharpText.Local(array.Name)}[{Offset(array, subscripts)}]", array.Type!.Type, Level.Primary);
+    private Code Element(Symbol array, IReadOnlyList<Expression> subscripts)
+    {
+        var name = CSharpText.Local(array.Name);
+        var offset = Offset(array, subscripts);
+
+        if (array.Type!.Type != DataType.Character)
+        {
+            return new Code($"{name}[{offset}]", array.Type.Type, Level.Primary);
+        }
+
+        // Elements of a character array lie end to end, each of the
+        // array's length.
+        var length = LengthOf(array);
+        if (offset == "0")
+        {
+            return new Code(name, DataType.Character, Level.Primary, length);
+        }
+
+        var distance = length == "1" ? Grouped(offset) : $"{Grouped(offset)} * {Grouped(length)}";
+        return new Code($"{name} + {distance}", DataType.Character, Level.Additive, length);
+    }
+
+    // The length of a character variable or array element: the one its
+    // declaration gives, or for a dummy argument of assumed length, the one
+    // the caller passed.
+    private string LengthOf(Symbol symbol)
+    {
+        var length = symbol.Type!.Length;
+        if (length is null)
+        {
+            return "1";
+        }
+
+        if (length.IsAssumed)
+        {
+            return symbol.IsDummyArgument ? LengthName(symbol) : throw Unsupported("a CHARACTER function");
+        }
+
+        return _evaluator.TryEvaluate(length.Value!, _line) is Constant.Integer constant
+            ? constant.Value.ToString(CultureInfo.InvariantCulture)
+            : throw Unsupported("a CHARACTER length that is not constant");
+    }
+
+    // Names the argument that carries the length of a character dummy
+    // argument. The underscore inside it is in no FORTRAN 77 name; where a
+    // compiler's extension has let the unit have such a name all the same,
+    // one more underscore in front keeps the two apart.
+    private string LengthName(Symbol dummy)
+    {
+        var name = dummy.Name.ToLowerInvariant() + "_len";
+        return _table.Find(dummy.Name + "_LEN") is null ? name : "_" + name;
+    }
+
+    // Part of a character value, from one position to another, both counted
+    // from one and both included.
+    private Code Substring(Expression.Substring substring)
+    {
+        var whole = Value(substring.Target);
+        var first = substring.First is null ? new Code("1", DataType.Integer, Level.Primary) : Value(substring.First);
+        var last = substring.Last is null ? new Code(Grouped(whole.Length!), DataType.Integer, Level.Primary) : Value(substring.Last);
+
+        // Where the positions are known when translating, the address and
+        // the length come out as plain numbers.
+        var firstKnown = substring.First is null ? 1 : Known(substring.First);
+        var lastKnown = substring.Last is not null
+            ? Known(substring.Last)
+            : int.TryParse(whole.Length, NumberStyles.None, CultureInfo.InvariantCulture, out var wholeLength) ? wholeLength : null;
+
+        var address = firstKnown switch
+        {
+            1 => whole,
+            { } position => new Code(
+                string.Create(CultureInfo.InvariantCulture, $"{whole.At(Level.Additive)} + {position - 1}"),
+                DataType.Character,
+                Level.Additive),
+            null => new Code($"{whole.At(Level.Additive)} + {first.At(Level.Additive)} - 1", DataType.Character, Level.Additive),
+        };
+
+        string length;
+        if (firstKnown is { } start && lastKnown is { } end)
+        {
+            length = (end - start + 1).ToString(CultureInfo.InvariantCulture);
+        }
+        else if (firstKnown == 1)
+        {
+            length = last.Text;
+        }
+        else if (firstKnown is { } known)
+        {
+            length = string.Create(CultureInfo.InvariantCulture, $"{last.At(Level.Additive)} - {known - 1}");
+        }
+        else
+        {
+            length = $"{last.At(Level.Additive)} - {first.At(Level.Multiplicative)} + 1";
+        }
+
+        return new Code(address.Text, DataType.Character, address.Level, length);
+    }
+
+    private int? Known(Expression expression) => (_evaluator.TryEvaluate(expression, _line) as Constant.Integer)?.Value;
 
     // What a stored value is in an expression: itself, or for a logical
     // one, whether it is not zero.
@@ -101,12 +241,13 @@ internal sealed partial class UnitEmitter
         ? new Code($"{storage.At(Level.Relational)} != 0", DataType.Logical, Level.Equality)
         : storage;
 
-    // The variable or array element an assignment stores into.
+    // The variable, array element or substring an assignment stores into.
     private Code Target(Expression target) => target switch
     {
         Expression.Name name => Variable(_table.Find(name.Identifier)!),
         Expression.Reference reference => Element(_table.Find(reference.Identifier)!, reference.Arguments),
-        _ => throw Unsupported("a substring"),
+        Expression.Substring substring => Substring(substring),
+        _ => throw new ArgumentOutOfRangeException(nameof(target)),
     };
 
     // A value as it is stored in a place of the given type. Numbers convert
@@ -256,7 +397,7 @@ internal sealed partial class UnitEmitter
 
         if (binary.Operator == BinaryOperator.Concatenate)
         {
-            throw Unsupported("a character expression");
+            throw Unsupported("a character concatenation");
         }
 
         var left = Value(binary.Left);
@@ -280,11 +421,21 @@ internal sealed partial class UnitEmitter
             _ => ("!=", Level.Equality, true),
         };
 
+        // Character values are set in order by the runtime, and the
+        // operator then asks how that came out.
+        if (left.Type == DataType.Character)
+        {
+            return new Code($"{Compared(left, right)} {symbol} 0", DataType.Logical, level);
+        }
+
         // The right side is held one level tighter, so that what the source
         // grouped to the right stays grouped: a - (b - c).
         var text = $"{left.At(level)} {symbol} {right.At(level + 1)}";
         return new Code(text, isLogical ? DataType.Logical : Wider(left.Type, right.Type), level);
     }
+
+    private static string Compared(Code left, Code right) =>
+        $"Fortran.Compare({left.Text}, {left.Length}, {right.Text}, {right.Length})";
 
     // An integer exponent multiplies; any other is a call to the library.
     private Code Power(Expression.Binary power)

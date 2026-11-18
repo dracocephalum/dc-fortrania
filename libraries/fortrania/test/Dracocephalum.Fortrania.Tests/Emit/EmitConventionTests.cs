@@ -93,6 +93,57 @@ public class EmitConventionTests
     }
 
     [Fact]
+    public void TextLengthsComeLast_ShouldBeFalseForFortraniaAndTrueForF2c()
+    {
+        EmitConvention.Fortrania.TextLengthsComeLast.ShouldBeFalse();
+        EmitConvention.F2c.TextLengthsComeLast.ShouldBeTrue();
+    }
+
+    [Theory]
+    [InlineData(false, "library.JOIN(first, 2, &count, second, 3, result, 6);")]
+    [InlineData(true, "library.join_(first, &count, second, result, 2, 3, 6);")]
+    public void Emit_WhenArgumentsAreCharacter_ShouldPutTheirLengthsWhereTheConventionSays(bool isF2c, string call)
+    {
+        // Arrange: JOIN passes its arguments on, in another order, so that
+        // both taking the lengths and handing them over are tried.
+        var options = new EmitOptions(TranslatedProgram.Namespace, TranslatedProgram.ClassName)
+        {
+            Convention = isF2c ? EmitConvention.F2c : EmitConvention.Fortrania,
+        };
+        var program = TranslatedProgram.Compile(
+            """
+                  SUBROUTINE PLACE ( OUT, N, A, B )
+                  CHARACTER*(*) OUT, A, B
+                  INTEGER N
+                  OUT = A
+                  OUT ( N + 1: ) = B
+                  N = LEN ( A ) * 100 + LEN ( B ) * 10 + LEN ( OUT )
+                  END
+                  SUBROUTINE JOIN ( A, N, B, OUT )
+                  CHARACTER*(*) A, B, OUT
+                  INTEGER N
+                  CALL PLACE ( OUT, N, A, B )
+                  END
+            """,
+            $$"""
+                public static string Run()
+                {
+                    var library = new Library();
+                    byte* first = stackalloc byte[2] { (byte)'a', (byte)'b' };
+                    byte* second = stackalloc byte[3] { (byte)'X', (byte)'Y', (byte)'Z' };
+                    byte* result = stackalloc byte[6];
+                    int count = 2;
+                    {{call}}
+                    return System.Text.Encoding.ASCII.GetString(result, 6) + count;
+                }
+            """,
+            options);
+
+        // Act & Assert
+        program.Run<string>("Run").ShouldBe("abXYZ 236");
+    }
+
+    [Fact]
     public void Emit_WhenConventionIsOnesOwn_ShouldFollowIt()
     {
         // Arrange

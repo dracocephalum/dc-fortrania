@@ -6,14 +6,17 @@ namespace Dracocephalum.Fortrania.Emit;
 /// <content>Writes calls of subroutines and references to functions, the language's own included.</content>
 internal sealed partial class UnitEmitter
 {
-    // A call of a procedure of the program. Each argument is an address;
-    // where the procedure declares another type than the caller passes,
-    // the pointer is cast, which is what passing by address amounts to.
+    // A reference to a function of the program, as a value.
     private Code Call(string name, IReadOnlyList<Expression> arguments)
     {
         // The type is the one the calling unit gives the function; the two
         // agree, or the call would not have passed the check across units.
         var type = _table.Find(name)!.Type!.Type;
+        if (type == DataType.Character)
+        {
+            throw Unsupported("a CHARACTER function");
+        }
+
         var invocation = Invocation(name, arguments);
 
         return type == DataType.Logical && _options.Convention.ReturnsLogicalAsInteger
@@ -21,10 +24,17 @@ internal sealed partial class UnitEmitter
             : new Code(invocation, type, Level.Primary);
     }
 
+    // A call of a procedure of the program. Each argument is an address;
+    // where the procedure declares another type than the caller passes,
+    // the pointer is cast, which is what passing by address amounts to. A
+    // character argument is an address and a length, and the convention
+    // says where the length goes.
     private string Invocation(string name, IReadOnlyList<Expression> arguments)
     {
         var procedure = _findProcedure(name);
-        var passed = new List<string>(arguments.Count);
+        var addresses = new List<string>(arguments.Count);
+        var lengths = new List<string>();
+        var lengthsComeLast = _options.Convention.TextLengthsComeLast;
 
         for (var index = 0; index < arguments.Count; index++)
         {
@@ -34,34 +44,48 @@ internal sealed partial class UnitEmitter
                 throw Unsupported("a procedure as an argument");
             }
 
-            passed.Add(Argument(arguments[index], dummy?.Type));
+            var (address, length) = Argument(arguments[index], dummy?.Type);
+            addresses.Add(address);
+            if (length is not null)
+            {
+                (lengthsComeLast ? lengths : addresses).Add(length);
+            }
         }
 
-        return $"{_options.Convention.ProcedureName(name)}({string.Join(", ", passed)})";
+        return $"{_options.Convention.ProcedureName(name)}({string.Join(", ", addresses.Concat(lengths))})";
     }
 
-    private string Argument(Expression argument, DataType? expected)
+    private (string Address, string? Length) Argument(Expression argument, DataType? expected)
     {
         switch (argument)
         {
+            // A character variable or a whole character array is its own
+            // address already, with the length of one element.
+            case Expression.Name name when _table.Find(name.Identifier) is { Kind: SymbolKind.Variable, Type.Type: DataType.Character } text:
+                return (CSharpText.Local(text.Name), LengthOf(text));
+
             case Expression.Name name when _table.Find(name.Identifier) is { Kind: SymbolKind.Variable } variable:
                 var local = CSharpText.Local(variable.Name);
                 var address = variable.IsArray || variable.IsDummyArgument ? local : $"&{local}";
-                return Cast(address, variable.Type!.Type, expected);
+                return (Cast(address, variable.Type!.Type, expected), null);
 
             case Expression.Name name when _table.Find(name.Identifier)!.Kind != SymbolKind.Constant:
                 throw Unsupported("a procedure as an argument");
 
             case Expression.Reference reference when _table.Find(reference.Identifier) is { Kind: SymbolKind.Variable } array:
-                return Cast($"&{Element(array, reference.Arguments).Text}", array.Type!.Type, expected);
+                var element = Element(array, reference.Arguments);
+                return element.Type == DataType.Character
+                    ? (element.Text, element.Length)
+                    : (Cast($"&{element.Text}", element.Type, expected), null);
 
             default:
-                return Passed(Value(argument), expected);
+                var value = Value(argument);
+                return value.Type == DataType.Character ? (value.Text, value.Length) : (Passed(value, expected), null);
         }
     }
 
     private static string Cast(string address, DataType actual, DataType? expected) =>
-        expected is { } type && CSharpText.Storage(type) != CSharpText.Storage(actual)
+        expected is { } type && type != DataType.Character && CSharpText.Storage(type) != CSharpText.Storage(actual)
             ? $"({CSharpText.Storage(type)}*){address}"
             : address;
 
@@ -76,7 +100,7 @@ internal sealed partial class UnitEmitter
         var slot = TakeSlot(CSharpText.Size(declared) > CSharpText.Size(actual) ? declared : actual);
 
         var address = Cast($"&{slot}", CSharpText.Size(declared) > CSharpText.Size(actual) ? declared : actual, actual);
-        var stored = $"Fortran.Arg({address}, {Stored(value, actual)})";
+        var stored = $"Fortran.Arg({address}, {Stored(value, value.Type)})";
         return Cast(stored, actual, declared);
     }
 
@@ -85,6 +109,15 @@ internal sealed partial class UnitEmitter
     // argument, as the generic name does.
     private Code Intrinsic(Expression.Reference reference)
     {
+        // LEN alone takes a whole array, and asks nothing of its value.
+        if (reference.Identifier == "LEN")
+        {
+            var length = reference.Arguments[0] is Expression.Name name && _table.Find(name.Identifier) is { Kind: SymbolKind.Variable } measured
+                ? LengthOf(measured)
+                : Value(reference.Arguments[0]).Length!;
+            return new Code(Grouped(length), DataType.Integer, Level.Primary);
+        }
+
         var arguments = reference.Arguments.Select(Value).ToList();
         var first = arguments[0];
         var library = first.Type == DataType.Real ? "MathF" : "Math";
@@ -179,6 +212,30 @@ internal sealed partial class UnitEmitter
                 return new Code($"({first.At(Level.Unary)} ^ {arguments[1].At(Level.Unary)})", DataType.Integer, Level.Primary);
             case "NOT":
                 return new Code($"~{first.At(Level.Unary)}", DataType.Integer, Level.Unary);
+
+            // The code of a character is its byte, and the character of a
+            // code is one byte put where it has an address.
+            case "ICHAR":
+                return new Code($"{first.At(Level.Primary)}[0]", DataType.Integer, Level.Primary);
+            case "CHAR":
+                return new Code($"Fortran.Arg(&{TakeSlot(DataType.Character)}, {first.Text})", DataType.Character, Level.Primary, "1");
+
+            case "INDEX":
+                return new Code(
+                    $"Fortran.Index({first.Text}, {first.Length}, {arguments[1].Text}, {arguments[1].Length})",
+                    DataType.Integer,
+                    Level.Primary);
+
+            // The collating sequence these four ask for is ASCII, which is
+            // the order of the bytes.
+            case "LGE":
+                return new Code($"{Compared(first, arguments[1])} >= 0", DataType.Logical, Level.Relational);
+            case "LGT":
+                return new Code($"{Compared(first, arguments[1])} > 0", DataType.Logical, Level.Relational);
+            case "LLE":
+                return new Code($"{Compared(first, arguments[1])} <= 0", DataType.Logical, Level.Relational);
+            case "LLT":
+                return new Code($"{Compared(first, arguments[1])} < 0", DataType.Logical, Level.Relational);
 
             default:
                 throw Unsupported($"the intrinsic function {reference.Identifier}");

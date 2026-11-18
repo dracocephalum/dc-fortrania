@@ -183,12 +183,26 @@ for the same source, so the tests say what the code does and not how it
 reads. One test compares text, to keep the shape above from drifting
 unnoticed.
 
+**A character value is an address and a length.** There is no string
+object and no terminator: a variable is so many bytes, an array of them is
+those end to end, a substring is an address further in with a shorter
+length, and a constant is the address of a `u8` literal, which the compiler
+keeps in the assembly where nothing moves it. So taking a substring or an
+element costs an addition and passing one costs two arguments, and nothing
+is copied or allocated until an assignment copies. Assignment and comparison
+are calls to the runtime, which pads the shorter with blanks as the language
+defines. A dummy argument takes its length from the caller even when its
+declaration fixes it, because the caller cannot know which it is.
+
 **What a procedure looks like from outside is a convention, and can be
-replaced.** Its name and the type of a logical result are asked of an
-`EmitConvention`, not decided in the emitter. Fortrania's own keeps the
-FORTRAN name and returns a `bool`; the one for `f2c` gives the lower-case
-name with its underscore and returns an integer, so that code written
-against that translator's output finds what it expects. The translation
+replaced.** Its name, the type of a logical result and the place of a
+character argument's length are asked of an `EmitConvention`, not decided
+in the emitter. Fortrania's own keeps the FORTRAN name, returns a `bool`
+and puts each length directly after its address, where the two read as the
+pair they are; the one for `f2c` gives the lower-case name with its
+underscore, returns an integer and puts all lengths after all other
+arguments, so that code written against that translator's output finds what
+it expects. The translation
 inside a procedure does not change with the convention.
 
 **Every emitted file switches off the diagnostics it is known to raise.** A
