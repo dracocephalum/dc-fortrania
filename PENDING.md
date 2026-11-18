@@ -146,6 +146,165 @@ in a checked build the translator emits a test of each index against them
 that fails at the faulty statement. The regression tests run against the
 checked build; the published package is the unchecked one.
 
+## A library is one class, and a program unit one file of it
+
+The code translated from one set of sources is a single partial class, and
+each program unit adds its methods to it in a file of its own. An instance of
+the class is one independent copy of the library: every routine is an
+instance method, and everything the FORTRAN keeps between calls belongs to
+the instance. Being partial, the class also takes hand-written files, which
+is how a routine the translator is told to leave out is supplied.
+
+A library that calls another, as the toolkit's support library calls its
+main one, is a class of its own that is given the instance it calls into,
+so that the two share that instance's state. The summaries of the first are
+written to a file beside its code, and the translation of the second reads
+them.
+
+A main program is a method like any other. When an executable is asked for,
+a `Main` is emitted that hands the command line to the runtime, calls that
+method and returns the exit code. A library has none.
+
+`STOP` throws an exception of the runtime's, from any depth, and so does the
+`EXIT` the runtime supplies. The emitted `Main` catches it and returns its
+code; a program that hosts the library catches it like any other, and is not
+ended by a routine it called. The reference sources do end the program from
+library code: their default action on an error calls `EXIT`, and two files
+of the main library have a `STOP`.
+
+## Saved state is placed at translation and loaded at run time
+
+Measured from the declarations of the main library: 327 of its 1,415 program
+units keep state between calls, 100.9 MB in all. The 50 units that keep more
+than 4 KB hold all but about 0.1 MB of it, the kernel pool alone 26 MB, and
+only 0.7 MB belongs to variables a `DATA` statement initializes. A program
+that converts times and nothing else should not pay for the rest, so state
+is not all allocated with the instance.
+
+Two decisions are kept apart, because the second cannot undo the first.
+
+**Placement, by the translator.** A unit's state is either part of one block
+shared by all such units, which exists as long as the instance does and is
+reached at a fixed offset with no test, or a block of its own behind a
+pointer, which the unit's routines test on entry. An option of the
+translator chooses:
+
+- *Auto*, the default: shared below a size, 4 KB unless told otherwise, and
+  separate from there up.
+- *Eager*: all shared. No routine tests anything, and all the memory comes
+  with the instance.
+- *Lazy*: all separate.
+
+The translator's project file can also name single units to place one way
+or the other, whatever the mode.
+
+**Loading, at run time.** A separate block is allocated on the first call
+that needs it, or with the instance; the translated library carries its
+default and the program that creates an instance may override it, for all
+such blocks or for named ones. This reaches only what the translator placed
+separately: a unit in the shared block cannot be deferred afterwards, which
+is why placement is the translator's to decide and not the runtime's.
+
+The values of `DATA` statements are written when the block they belong to
+is created.
+
+**Memory is zeroed unless asked otherwise.** FORTRAN leaves a saved variable
+undefined until it is given a value, so a conforming program never reads
+what the allocation left there, and memory that is not zeroed is faster to
+get when blocks are reused, as they are when instances come and go. But the
+reference build keeps saved variables in storage the system zeroes, so
+nothing has ever shown that the sources do not lean on it. Unzeroed memory
+is therefore an option and not the default, and it is to be offered only
+after the regression tests give the same results with the memory filled
+with zeros and with each of two other patterns; filling with a pattern stays
+available as a third choice for that purpose. Local variables differ: the
+reference build already leaves them unset on every call, so local arrays are
+not zeroed.
+
+Where the memory comes from is a third choice of the creating program:
+
+- Native memory, freed when the instance is disposed.
+- Pinned arrays of the garbage collector, which need no disposal and are
+  zeroed and committed at once.
+- A pool of pinned blocks, from which an instance takes its blocks and to
+  which it gives them back when disposed. Creating an instance then asks
+  the system for nothing, which suits instances that come and go, and with
+  unzeroed memory nothing is cleared either. The blocks are allocated
+  pinned and kept by the pool; an array of the framework's ordinary pool may
+  be moved by the collector unless it is pinned for as long as it is lent.
+
+To be measured before the defaults are fixed: what an allocated and
+untouched block costs in physical memory on each platform, and what the
+test on entry costs in a routine of the 50.
+
+## One caller at a time
+
+An instance is not safe for two callers at once, since its routines share
+state. `ISpiceCore` detects it: each call marks the instance as in use with
+an interlocked exchange and fails if it already was, at a cost of a few
+nanoseconds, with an option to turn the check off. It is not tied to a
+thread, because code that awaits may resume on another thread and still be
+one caller. The translated layer below has no such check.
+
+An instance also holds the kernels loaded into it, so creating one for each
+request of a server means loading them again each time. The fitting pattern
+there is a factory that keeps a pool of instances with their kernels loaded
+and lends one to a caller at a time.
+
+The factory is told once which kernels an instance is to hold. What it
+hands out is a lease: the caller uses the instance through it and disposes
+it, which gives the instance back, so a lease can be registered with a
+dependency-injection container as a transient or a per-request service and
+ends with the request. Before an instance is lent again its error state is
+reset. Open questions for when it is built: what happens to an instance
+whose borrower loaded or unloaded kernels or changed the kernel pool,
+discarded or restored; how many instances the pool keeps and whether a
+caller waits or gets a new one when all are lent; and whether an instance
+with its kernels loaded can be copied, block for block, more cheaply than a
+new one can load them.
+
+The factory belongs to the managed layer and depends on no container. A
+small package of its own may later register it with the usual one.
+
+## What the translator is told
+
+Required: the source files, where their include files are, and where to
+write.
+
+With defaults: the namespace and the class name; whether the class and its
+methods are public or internal; whether method names keep the FORTRAN
+spelling; library or executable; the runtime as a reference or as source;
+an interface to emit over the public routines; whether the comments of the
+source are carried over; and the placement of saved state, above.
+
+For a real project: the summaries of libraries the sources call into; the
+units to leave out because they are written by hand; and the settings for
+what differs by platform.
+
+These are too many for a command line, so they are read from a project file,
+with flags for the common ones.
+
+**With nothing but the required three, the result builds and runs.** The
+aim for any FORTRAN 77 program is that translating it and then running
+`dotnet run` in the output folder is all there is to do. So beside the code
+the translator writes a .NET project file, unless one is there already,
+which it never overwrites. The defaults that make this work:
+
+- Executable when the sources hold a main program, library when they hold
+  none. More than one main program is an error that asks which is meant.
+- The namespace and class name are taken from the main program's name, or
+  from the output folder's when there is none.
+- An include file is looked for beside the source that names it.
+- The project targets the framework of the SDK the translator runs on,
+  allows unsafe code, and references the runtime package of the
+  translator's own version, so that the two always agree.
+- At run time the standard units are the console, a file name is relative
+  to the current folder, and the command line reaches the program through
+  the procedures the runtime supplies for it.
+
+This is also the path the conformance tests take: translate, run, and set
+the output against the reference compiler's.
+
 ## Files are opened through a provider, and a stream is a file
 
 FORTRAN names a file by a string and refers to it afterwards by a unit
