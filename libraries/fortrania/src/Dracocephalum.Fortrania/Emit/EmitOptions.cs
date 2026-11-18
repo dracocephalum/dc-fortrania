@@ -12,6 +12,18 @@ public sealed record EmitOptions(string Namespace, string ClassName)
     public EmitConvention Convention { get; init; } = EmitConvention.Fortrania;
 
     /// <summary>
+    /// Gets a short name for every emitted file to call the runtime's
+    /// class by, such as <c>F</c>, which gives <c>F.Assign(...)</c>. It is
+    /// <see langword="null"/> unless set, and the runtime's methods are
+    /// then called with no name before them, <c>Assign(...)</c>, so that
+    /// what the translation adds stays small beside what was translated.
+    /// Either way, where the program has a procedure emitted under the name
+    /// that would be written, the runtime's method is written with the full
+    /// name of its class, since the procedure would be found first.
+    /// </summary>
+    public string? RuntimeAlias { get; init; }
+
+    /// <summary>
     /// Gets the diagnostics every emitted file switches off for itself, by
     /// their identifiers, such as <c>CA1707</c>; none unless set. They are
     /// added to the ones the emitter always switches off because a faithful

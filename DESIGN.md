@@ -145,7 +145,7 @@ an expression given as an argument has to be stored somewhere its address can
 be taken. A statement before the call would do that, but a call can stand in
 the condition of an `ELSE IF` or a `DO WHILE`, where there is no place for a
 statement that runs each time the condition does. So the store is itself an
-expression: `Fortran.Arg(&_i1, n + 1)` stores into a local set aside for it
+expression: `Arg(&_i1, n + 1)` stores into a local set aside for it
 and returns its address, and the just-in-time compiler inlines it to the
 store. The locals are reused from statement to statement.
 
@@ -212,3 +212,17 @@ two in a `#pragma` at the top of each file and adds whatever the options
 list, so that a project with warnings as errors can take the files as they
 are. A convention with lower-case method names is the usual reason to list
 more.
+
+**The runtime's methods are called with no name before them.** Every
+emitted file has `using static` for the runtime's class, so what the
+translation adds reads as `Assign(key, 8, name, name_len)` and stays small
+beside what was translated. The options can ask for a short name instead,
+`F.Assign(...)`. Inheriting the methods from a base class would read the
+same, but when the runtime is compiled in as source its types are internal,
+and a public class cannot derive from an internal one; nor would the
+emitted class then be free to take a base of the user's. Extension methods
+are not open to it either, since a pointer cannot be the value one extends.
+Inside the emitted class a method of the class is found before anything a
+`using` brings in, so where the program has a procedure emitted under the
+very name that would be written, the runtime's method is written with the
+full name of its class.

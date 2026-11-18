@@ -67,7 +67,7 @@ internal sealed partial class UnitEmitter
                 if (target.Type == DataType.Character)
                 {
                     var text = Value(assignment.Value);
-                    _body.Line($"Fortran.Assign({target.Text}, {target.Length}, {text.Text}, {text.Length});");
+                    _body.Line($"{Runtime("Assign")}({target.Text}, {target.Length}, {text.Text}, {text.Length});");
                     break;
                 }
 

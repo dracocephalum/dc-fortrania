@@ -32,7 +32,7 @@ static unsafe partial class Fortran
     /// </param>
     /// <returns>The address of the first byte.</returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static byte* Text(ReadOnlySpan<byte> constant) =>
+    public static byte* AddrOf(ReadOnlySpan<byte> constant) =>
         (byte*)Unsafe.AsPointer(ref MemoryMarshal.GetReference(constant));
 
     /// <summary>Stores one character where a procedure can be given its address, as <c>CHAR</c> needs.</summary>

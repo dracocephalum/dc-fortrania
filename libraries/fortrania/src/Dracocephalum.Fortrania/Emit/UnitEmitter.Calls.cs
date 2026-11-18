@@ -100,7 +100,7 @@ internal sealed partial class UnitEmitter
         var slot = TakeSlot(declared.GetStorageSize() > actual.GetStorageSize() ? declared : actual);
 
         var address = Cast($"&{slot}", declared.GetStorageSize() > actual.GetStorageSize() ? declared : actual, actual);
-        var stored = $"Fortran.Arg({address}, {Stored(value, value.Type)})";
+        var stored = $"{Runtime("Arg")}({address}, {Stored(value, value.Type)})";
         return Cast(stored, actual, declared);
     }
 
@@ -162,7 +162,7 @@ internal sealed partial class UnitEmitter
                 return new Code($"{library}.Round({first.Text}, MidpointRounding.AwayFromZero)", first.Type, Level.Primary);
 
             case "NINT" or "IDNINT":
-                return new Code($"Fortran.Nint({first.Text})", DataType.Integer, Level.Primary);
+                return new Code($"{Runtime("Nint")}({first.Text})", DataType.Integer, Level.Primary);
 
             case "MAX" or "MAX0" or "AMAX1" or "DMAX1":
                 return Extreme("Max", first.Type);
@@ -185,11 +185,11 @@ internal sealed partial class UnitEmitter
 
             case "SIGN" or "ISIGN" or "DSIGN":
                 return first.Type == DataType.Integer
-                    ? new Code($"Fortran.Sign({list})", first.Type, Level.Primary)
+                    ? new Code($"{Runtime("Sign")}({list})", first.Type, Level.Primary)
                     : new Code($"{library}.CopySign({list})", first.Type, Level.Primary);
 
             case "DIM" or "IDIM" or "DDIM":
-                return new Code($"Fortran.Dim({list})", first.Type, Level.Primary);
+                return new Code($"{Runtime("Dim")}({list})", first.Type, Level.Primary);
 
             case "DPROD":
                 return new Code(
@@ -218,11 +218,11 @@ internal sealed partial class UnitEmitter
             case "ICHAR":
                 return new Code($"{first.At(Level.Primary)}[0]", DataType.Integer, Level.Primary);
             case "CHAR":
-                return new Code($"Fortran.Arg(&{TakeSlot(DataType.Character)}, {first.Text})", DataType.Character, Level.Primary, "1");
+                return new Code($"{Runtime("Arg")}(&{TakeSlot(DataType.Character)}, {first.Text})", DataType.Character, Level.Primary, "1");
 
             case "INDEX":
                 return new Code(
-                    $"Fortran.Index({first.Text}, {first.Length}, {arguments[1].Text}, {arguments[1].Length})",
+                    $"{Runtime("Index")}({first.Text}, {first.Length}, {arguments[1].Text}, {arguments[1].Length})",
                     DataType.Integer,
                     Level.Primary);
 

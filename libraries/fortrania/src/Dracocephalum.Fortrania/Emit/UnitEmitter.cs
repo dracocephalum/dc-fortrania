@@ -16,6 +16,8 @@ internal sealed partial class UnitEmitter
     // A local array up to this many bytes is taken from the stack.
     private const int StackLimit = 4096;
 
+    private const string RuntimeClass = "Dracocephalum.Fortrania.Runtime.Fortran";
+
     // What a faithful translation raises: a statement that cannot be
     // reached, and a variable that is set and never read.
     private static readonly string[] OwnSuppressions = ["CS0162", "CS0219"];
@@ -25,6 +27,13 @@ internal sealed partial class UnitEmitter
     private readonly Func<string, ProcedureInterface?> _findProcedure;
     private readonly ConstantEvaluator _evaluator;
     private readonly CodeWriter _body = new();
+
+    // Whether the short name the options give the runtime's class can be
+    // used: inside the emitted class a method is found before a name the
+    // file declares, so the short name gives way where the program has a
+    // procedure emitted under it. The answer is the same for every unit of
+    // the program, since it is asked of the whole.
+    private readonly bool _usesAlias;
 
     // The named constants the statements use, in the order met; only these
     // are declared, since an include file may bring hundreds no statement
@@ -44,6 +53,7 @@ internal sealed partial class UnitEmitter
         _options = options;
         _findProcedure = findProcedure;
         _evaluator = new ConstantEvaluator(table);
+        _usesAlias = options.RuntimeAlias is { } alias && !IsEmittedProcedure(alias);
         _line = (table.Unit.Header ?? table.Unit.End).Source.Line;
     }
 
@@ -102,6 +112,9 @@ internal sealed partial class UnitEmitter
         file.Blank();
         file.Line("using System;");
         file.Line("using Dracocephalum.Fortrania.Runtime;");
+        file.Line(_usesAlias
+            ? $"using {_options.RuntimeAlias} = {RuntimeClass};"
+            : $"using static {RuntimeClass};");
         file.Blank();
         file.Line($"namespace {_options.Namespace};");
         file.Blank();
@@ -139,6 +152,27 @@ internal sealed partial class UnitEmitter
 
         return addresses.Concat(lengths);
     }
+
+    // Writes the name of one of the runtime's methods as a call needs it:
+    // behind the short name where the options give one, and bare otherwise,
+    // which the file's own using directive allows. Either gives way to the
+    // full name where the program has a procedure emitted under the name
+    // that would be written, since that procedure would be the one found.
+    private string Runtime(string method)
+    {
+        if (_options.RuntimeAlias is { } alias)
+        {
+            return _usesAlias ? $"{alias}.{method}" : $"{RuntimeClass}.{method}";
+        }
+
+        return IsEmittedProcedure(method) ? $"{RuntimeClass}.{method}" : method;
+    }
+
+    // A FORTRAN name is in upper case, and the convention may keep it or
+    // change it, so both spellings are tried.
+    private bool IsEmittedProcedure(string name) =>
+        new[] { name, name.ToUpperInvariant() }.Any(procedure =>
+            _findProcedure(procedure) is not null && _options.Convention.ProcedureName(procedure) == name);
 
     // The type of a value in an expression: a logical one is a C# bool
     // there, whatever it is stored as.

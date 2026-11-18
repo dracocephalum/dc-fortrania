@@ -37,6 +37,7 @@ public class CSharpEmitterTests
 
             using System;
             using Dracocephalum.Fortrania.Runtime;
+            using static Dracocephalum.Fortrania.Runtime.Fortran;
 
             namespace Translated;
 
@@ -87,17 +88,17 @@ public class CSharpEmitterTests
                     int same = 0;
                     int i = 0;
                     byte* key = stackalloc byte[8];
-                    Fortran.Assign(key, 8, name + 1, name_len - 1);
+                    Assign(key, 8, name + 1, name_len - 1);
                     same = 0;
                     int _last1 = *n;
                     for (i = 1; i <= _last1; i += 1)
                     {
-                        if (Fortran.Compare(list + (i - 1) * list_len, list_len, key, 8) == 0)
+                        if (Compare(list + (i - 1) * list_len, list_len, key, 8) == 0)
                         {
                             same = 1;
                         }
                     }
-                    CHKIN(Fortran.Text("SAME"u8), 4);
+                    CHKIN(AddrOf("SAME"u8), 4);
                     return same != 0;
                 }
             """.ReplaceLineEndings("\n"),

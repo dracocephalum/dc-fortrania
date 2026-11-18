@@ -178,6 +178,100 @@ public class EmitConventionTests
         files.ShouldAllBe(file => file.Contains("\n#pragma warning disable CS0162, CS0219, CA1707, SA1300\n"));
     }
 
+    // A function of one unit, referenced from another, with a call into
+    // the runtime in each: a power that is not a square.
+    private const string Powers =
+        """
+              INTEGER FUNCTION F ( N )
+              INTEGER N
+              F = N ** 3
+              END
+              INTEGER FUNCTION POW ( N )
+              INTEGER N, F
+              POW = F ( N ) + N ** 4
+              END
+        """;
+
+    private const string PowersDriver =
+        """
+            public static int Run()
+            {
+                int three = 3;
+                return new Library().{0}(&three);
+            }
+        """;
+
+    private static EmitOptions Options(string? alias = null, EmitConvention? convention = null) =>
+        new(TranslatedProgram.Namespace, TranslatedProgram.ClassName)
+        {
+            RuntimeAlias = alias,
+            Convention = convention ?? EmitConvention.Fortrania,
+        };
+
+    [Fact]
+    public void Emit_WhenNoShortNameIsGiven_ShouldCallTheRuntimeBare()
+    {
+        // Act
+        var files = TranslatedProgram.Translate(Powers);
+
+        // Assert
+        files[0].ShouldContain("\nusing static Dracocephalum.Fortrania.Runtime.Fortran;\n");
+        files[0].ShouldContain("f = Pow(*n, 3);", Case.Sensitive);
+        files[1].ShouldContain("pow = F(n) + Pow(*n, 4);", Case.Sensitive);
+        TranslatedProgram.Compile(Powers, PowersDriver.Replace("{0}", "POW")).Run<int>("Run").ShouldBe(108);
+    }
+
+    [Fact]
+    public void Emit_WhenAShortNameIsGiven_ShouldCallTheRuntimeByIt()
+    {
+        // Act
+        var files = TranslatedProgram.Translate(Powers, Options("Rt"));
+
+        // Assert
+        files[0].ShouldContain("\nusing Rt = Dracocephalum.Fortrania.Runtime.Fortran;\n");
+        files[0].ShouldContain("f = Rt.Pow(*n, 3);", Case.Sensitive);
+        TranslatedProgram.Compile(Powers, PowersDriver.Replace("{0}", "POW"), Options("Rt")).Run<int>("Run").ShouldBe(108);
+    }
+
+    [Fact]
+    public void Emit_WhenAProcedureIsEmittedUnderTheShortName_ShouldWriteTheRuntimesFullNameInEveryUnit()
+    {
+        // Act: the short name asked for is that of the function F.
+        var files = TranslatedProgram.Translate(Powers, Options("F"));
+
+        // Assert
+        files.ShouldAllBe(file => !file.Contains("using F ="));
+        files[0].ShouldContain("f = Dracocephalum.Fortrania.Runtime.Fortran.Pow(*n, 3);", Case.Sensitive);
+        files[1].ShouldContain("Dracocephalum.Fortrania.Runtime.Fortran.Pow(*n, 4)", Case.Sensitive);
+        TranslatedProgram.Compile(Powers, PowersDriver.Replace("{0}", "POW"), Options("F")).Run<int>("Run").ShouldBe(108);
+    }
+
+    [Fact]
+    public void Emit_WhenAProcedureIsEmittedUnderTheNameOfARuntimeMethod_ShouldWriteThatMethodsFullName()
+    {
+        // Arrange: under this convention the function POW is the method Pow,
+        // which is what the runtime calls its own.
+        var options = Options(convention: new Capitalized());
+
+        // Act
+        var files = TranslatedProgram.Translate(Powers, options);
+
+        // Assert
+        files[0].ShouldContain("f = Dracocephalum.Fortrania.Runtime.Fortran.Pow(*n, 3);", Case.Sensitive);
+        files[1].ShouldContain("pow = F(n) + Dracocephalum.Fortrania.Runtime.Fortran.Pow(*n, 4);", Case.Sensitive);
+        TranslatedProgram.Compile(Powers, PowersDriver.Replace("{0}", "Pow"), options).Run<int>("Run").ShouldBe(108);
+    }
+
+    [Fact]
+    public void Emit_WhenTheConventionKeepsTheProcedureClearOfTheShortName_ShouldUseTheShortName()
+    {
+        // Act: under this convention the function F is the method f_.
+        var files = TranslatedProgram.Translate(Powers, Options("F", EmitConvention.F2c));
+
+        // Assert
+        files[0].ShouldContain("f = F.Pow(*n, 3);", Case.Sensitive);
+    }
+
     [Fact]
     public void Emit_WhenNoWarningsAreNamed_ShouldSwitchOffTheEmittersOwnAlone() =>
         TranslatedProgram.Translate(Source)[0].ShouldContain("\n#pragma warning disable CS0162, CS0219\n");
@@ -191,6 +285,11 @@ public class EmitConventionTests
         // Assert
         files[0].Split("return ispos != 0;").Length.ShouldBe(2);
         files[1].Split("return count;").Length.ShouldBe(2);
+    }
+
+    private sealed class Capitalized : EmitConvention
+    {
+        public override string ProcedureName(string name) => name[..1] + name[1..].ToLowerInvariant();
     }
 
     private sealed class Prefixed : EmitConvention

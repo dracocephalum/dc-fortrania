@@ -6,20 +6,20 @@ namespace Dracocephalum.Fortrania.Runtime.Tests;
 public unsafe class FortranTextTests
 {
     [Fact]
-    public void Text_WhenGivenALiteral_ShouldGiveAnAddressThatReadsBackAsItsBytes()
+    public void AddrOf_WhenGivenALiteral_ShouldGiveAnAddressThatReadsBackAsItsBytes()
     {
         // Act
-        var address = Fortran.Text("SPKEZ"u8);
+        var address = Fortran.AddrOf("SPKEZ"u8);
 
         // Assert
         Encoding.ASCII.GetString(address, 5).ShouldBe("SPKEZ");
     }
 
     [Fact]
-    public void Text_WhenGivenTheSameLiteralAgainAfterACollection_ShouldGiveAnAddressThatStillReads()
+    public void AddrOf_WhenGivenTheSameLiteralAgainAfterACollection_ShouldGiveAnAddressThatStillReads()
     {
         // Arrange
-        var address = Fortran.Text("UNMOVED"u8);
+        var address = Fortran.AddrOf("UNMOVED"u8);
 
         // Act
         GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, blocking: true, compacting: true);
@@ -72,8 +72,8 @@ public unsafe class FortranTextTests
         // Act
         fixed (byte* to = target)
         {
-            Fortran.Assign(to, 0, Fortran.Text("AB"u8), 2);
-            Fortran.Assign(to, -3, Fortran.Text("AB"u8), 2);
+            Fortran.Assign(to, 0, Fortran.AddrOf("AB"u8), 2);
+            Fortran.Assign(to, -3, Fortran.AddrOf("AB"u8), 2);
         }
 
         // Assert
@@ -89,7 +89,7 @@ public unsafe class FortranTextTests
         // Act
         fixed (byte* to = target)
         {
-            Fortran.Assign(to, 3, Fortran.Text("AB"u8), -1);
+            Fortran.Assign(to, 3, Fortran.AddrOf("AB"u8), -1);
         }
 
         // Assert
@@ -145,7 +145,7 @@ public unsafe class FortranTextTests
 
     [Fact]
     public void Compare_WhenALengthIsNegative_ShouldTakeTheValueAsEmpty() =>
-        Fortran.Compare(Fortran.Text("A"u8), -2, Fortran.Text("  "u8), 2).ShouldBe(0);
+        Fortran.Compare(Fortran.AddrOf("A"u8), -2, Fortran.AddrOf("  "u8), 2).ShouldBe(0);
 
     [Theory]
     [InlineData("HELLO WORLD", "LO", 4)]
@@ -173,5 +173,5 @@ public unsafe class FortranTextTests
 
     [Fact]
     public void Index_WhenWhatIsSoughtHasNoLength_ShouldGiveZero() =>
-        Fortran.Index(Fortran.Text("AB"u8), 2, Fortran.Text("A"u8), 0).ShouldBe(0);
+        Fortran.Index(Fortran.AddrOf("AB"u8), 2, Fortran.AddrOf("A"u8), 0).ShouldBe(0);
 }

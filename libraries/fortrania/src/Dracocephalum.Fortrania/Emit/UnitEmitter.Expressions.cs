@@ -107,7 +107,7 @@ internal sealed partial class UnitEmitter
         }
 
         return new Code(
-            $"Fortran.Text({value.ToUtf8Literal()})",
+            $"{Runtime("AddrOf")}({value.ToUtf8Literal()})",
             DataType.Character,
             Level.Primary,
             value.Length.ToString(CultureInfo.InvariantCulture));
@@ -434,8 +434,8 @@ internal sealed partial class UnitEmitter
         return new Code(text, isLogical ? DataType.Logical : Wider(left.Type, right.Type), level);
     }
 
-    private static string Compared(Code left, Code right) =>
-        $"Fortran.Compare({left.Text}, {left.Length}, {right.Text}, {right.Length})";
+    private string Compared(Code left, Code right) =>
+        $"{Runtime("Compare")}({left.Text}, {left.Length}, {right.Text}, {right.Length})";
 
     // An integer exponent multiplies; any other is a call to the library.
     private Code Power(Expression.Binary power)
@@ -458,6 +458,6 @@ internal sealed partial class UnitEmitter
             return new Code($"{value.At(Level.Unary)} * {value.At(Level.Unary)}", value.Type, Level.Multiplicative);
         }
 
-        return new Code($"Fortran.Pow({value.Text}, {exponent.Text})", value.Type, Level.Primary);
+        return new Code($"{Runtime("Pow")}({value.Text}, {exponent.Text})", value.Type, Level.Primary);
     }
 }
