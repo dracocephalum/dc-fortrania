@@ -950,18 +950,61 @@ What a method needs for itself, a local array, a character variable, a
 place where a value is joined, lies on the stack when it is small and in
 the instance's block otherwise, as `DESIGN.md` has it under *What a unit
 keeps between calls*. The limit is the emitter's own, 4,096 bytes, fixed;
-a place for joining that would be longer is refused. It is to be a setting
-of the translation, `stackLimit`, with that default, and 0 for nothing on
-the stack: a platform with a shallow stack, or a program that recurses
-through a deep chain of calls, then sets it lower. A place for joining
-that is over the limit goes to the block like a local, and is no longer
-refused.
+a place for joining that would be longer is refused. Two settings of the
+translation are to take its place:
 
-The limit is applied when translating, because every size is known then
-and the choice costs nothing when the code runs. Choosing when it runs
-would mean writing each such method twice, once on the stack and once in
-the block, which is not worth it until one binary has to serve platforms
-with different stacks.
+- **`stackLimit`**, in bytes, 4,096 by default: what is no larger is on
+  the stack, always, with nothing tested when the code runs.
+- **`stackAtRunTime`**, off by default: whether what is larger is placed
+  when the code runs, on the stack if it is within a threshold the
+  runtime is given and in the block otherwise, rather than in the block
+  always, as now.
+
+A place for joining that is over the limit is then placed like a local,
+and is no longer refused.
+
+**One limit is enough.** A second, above which nothing is ever on the
+stack, would do what the run-time threshold already does, and whoever
+sets that owns the choice; it would save no memory either, since the
+block holds room for everything over the limit in both cases.
+
+**The test costs one branch.** A local's size is a constant in FORTRAN
+77, so what is tested is a constant against the threshold, and it is
+tested only for what is over the limit: buffers large enough that the
+routine's work on them outweighs a branch. Neither side allocates when
+the code runs, since the block is reserved once; a memory manager, if
+there is one later, takes the block's place behind the same test.
+
+**Three translations of one library, of these settings alone:**
+
+| Translation | `stackLimit` | `stackAtRunTime` | What it is for |
+|---|---|---|---|
+| Hpc | 4,096 | off | the fastest; nothing a run-time setting changes, the translation as it is now |
+| Balanced | small, for short character values and temporaries | on | the default package: what is small on the stack, what is large up to whoever runs it |
+| Compact | 0 | on | a shallow stack, or one not known when building: everything placed when the code runs |
+
+Where a library is placed changes none of its results, so the toolkit's
+tests are to agree across the three bit for bit. Balanced is the package
+to publish first; three packages are three builds, three runs of the
+tests and three to publish, so the others wait until someone needs them.
+
+**Where the threshold lives** is chosen by measuring with the benchmark
+project: on the settings each context is given, beside *Settings for
+what differs by platform*, so that threads with different stacks can
+differ, or one value for the process in a static read-only field, which
+the just-in-time compiler can fold into the code. Whether the block
+reserves room for all of it at once, or each unit's part when it is
+first used, is the question about an untouched block under *Measurements
+waiting for a benchmark project*.
+
+**The defaults come from a report, made first.** FORTRAN 77 has no
+recursion, so a library's calls form a graph without cycles, and the
+translator can add up, for each routine, the stack the deepest chain of
+calls beneath it uses: exactly within a library, and as an estimate
+where a call goes through an argument or into another library. The
+report of that, per routine, says whether 4,096 is right, what Compact
+saves and how small Balanced's limit should be, and gives a library's
+users the most stack any of its routines needs.
 
 ## Measurements waiting for a benchmark project
 
