@@ -546,7 +546,11 @@ one of these names is the program's own and is called as any other.
 
 One settings file names everything a translation produces, and
 `Translator.Run` does the whole of it. The file lies in the project that
-hosts it, and the paths in it are taken from where it lies.
+hosts it, and the paths in it are taken from where it lies. It is JSON
+that may hold `//` and `/* */` comments and trailing commas, as .NET's own
+`appsettings.json` may, because a file a person edits needs the reason
+beside the setting; standard JSON has neither, and a strict reader
+elsewhere refuses such a file.
 
     {
       "output": "src",

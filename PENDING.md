@@ -737,13 +737,114 @@ The second needs the reference compiler and so is run by hand or in a job
 of its own, like the regeneration of expected outputs under *Conformance
 tests against a reference compiler*.
 
-The first was done by hand once the whole suite translated: 2,211 program
-units in two projects, built with no error and no warning, run beside the
-reference compiler's build of the same sources. Their logs agree line for
-line but for what reads memory nobody set, and *The reference library
-checks line endings itself* has what both ran into. What is left is to make
-it a job that can be run again, and to compare against a build of the
-reference on the platform its variant is for, where it runs to its end.
+The first is done, by hand: 2,211 program units in two projects, built
+with no error and no warning, and run on Windows beside the reference
+compiler's build of the same sources with the same line ending. All 400
+families run in both, and every family and every case that fails is the
+same in both; `DESIGN.md`, *The SPICE Toolkit's translation is a tool of
+its own*, has why two fail. What is left of it is to make it a job that
+can be run again.
+
+The second is done by hand as well. A program of ours, not the toolkit's,
+makes the test utilities' kernels and calls some 25 of the main library's
+routines over 40 epochs: time conversion, states with each aberration
+correction, frame transformations, rotations and their conversions,
+coordinate conversions, conic elements and propagation, and a sub-point.
+It prints each double to 17 significant digits, which tells any two
+doubles apart. Built by the reference compiler, against its build of the
+toolkit, and translated with the toolkit, it gives 8,604 lines, and the
+two outputs are the same byte for byte.
+
+That includes what the mathematical library computes, which was expected
+to differ in the last digit. On Windows, .NET's `Math` and this build of
+the reference compiler call the same C runtime library, so they agree; on
+another platform both call that platform's library, and the two builds
+there are to agree with each other, not with the builds on Windows.
+
+What is left is to make the program and its comparison a job that runs
+again, over more of the library. It is the toolkit's and not the
+translator's, so it goes to dc-spice when that repository exists, as a
+tool of its own or as its integration tests, and is not committed here
+before the move; see *Fortrania becomes a repository of its own*.
+
+## Fortrania becomes a repository of its own
+
+The translator, its runtime and its command move to a repository of their
+own, dc-fortrania, and are published as packages; what is SPICE's stays
+here, to become dc-spice. Fortrania is the larger product and the one with
+other users, and it holds nothing of the toolkit's, so nothing stops it
+being published but its readiness.
+
+**Not before it has been tested on the toolkit, and made fast and clean.**
+In this order, because each step changes what the next one looks at:
+
+1. **The toolkit's tests agree with the reference compiler's build.** Done
+   for the outcome of every family and case; see *Validating the
+   translated library*.
+2. **Agreement to the last digit**, the second check there, over the main
+   library's core routines. Done by hand for some 25 of them; to become a
+   job, and to reach further.
+3. **An optimization round**, for speed: the runtime's hot paths and the
+   code the translator emits, measured with a benchmark project as
+   `docs/rules/performance.md` asks, and the rewrites listed under *More
+   that the translator can write more simply*, which make the translator
+   an optimizer for what keeps the behaviour exactly. Each change is held
+   to the same tests, so the first two steps say whether it changed a
+   result.
+4. **A cleanup round**, against the C# rules, after the optimization round
+   so that what it tidies is the code that stays. A published type is a
+   promise, so what is `public` is decided type by type here, the
+   translation settings above all.
+5. **The command**, `fortrania cs`, published as a .NET tool; see *The
+   command is `fortrania`, and the target language its first word*.
+6. **Which runtime a translation runs on.** Emitted code calls the
+   runtime's API, so a package's user has to know which runtime goes with
+   which translator. The rule already decided for a scaffolded library,
+   the runtime of the translator's own version, is to be the rule for the
+   packages: one version number for the two.
+
+**The move keeps the history.** `libraries/fortrania` is moved with its
+history, by rewriting a copy of this repository down to that folder, and
+not as a fresh copy of the files. The new repository is initialized with
+the agentics toolkit, takes the root build configuration, and divides the
+documents by subject: what is the translator's and the runtime's in
+`DESIGN.md`, this file, `GLOSSARY.md` and `VARIANCES.md` goes, and what
+is the toolkit's stays; `docs/rules/performance.md` and `portability.md`
+hold in both, and `translated-code.md` stays. Here the translator and the
+runtime are then packages, which closes the cross-component project
+reference `TODO.md` lists.
+
+**It is the first repository with pipelines.** Nothing here builds on a
+server yet, and dc-fortrania is where that starts:
+
+- **A development pipeline on GitHub.** Every pull request and every push
+  to the default branch is built and tested; a push to the default branch
+  also packs a development version of each package.
+- **A publishing pipeline, started on purpose.** It builds what a release
+  names, and publishes to nuget.org with trusted publishing, which trades
+  a short-lived token for the pipeline's own identity, so that no API key
+  is stored anywhere. nuget.org offers it to GitHub Actions; a publishing
+  pipeline elsewhere, Azure DevOps say, would need a key, and that weighs
+  in the choice `TODO.md` lists.
+- **Its tests need nothing of NAIF's.** Fortrania's samples are its own,
+  checked against the reference compiler by hand, so the pipelines need
+  neither the toolkit's sources nor the compiler. dc-spice's pipeline,
+  later, downloads the sources by their hash and must never upload them,
+  as an artifact or a cache anyone else can read, since that would be
+  publishing them.
+- **The reference compiler comes from the machine, not from a package.**
+  No package of the .NET ecosystem carries gfortran, and one would weigh
+  some hundreds of megabytes for each platform. Where a pipeline needs
+  it, for dc-spice's comparison with the reference build or to check
+  Fortrania's samples again, the pipeline installs it as a step of its
+  own, as the Fortran community's setup action does on Linux, macOS and
+  Windows runners. A test that needs it looks for it on the path and,
+  where it is missing, says that it was skipped and why, and never
+  passes in silence.
+
+What is learnt setting these up, the steps, what failed and the rules
+that came of it, is written down as it happens, to become rules and
+templates of the agentics toolkit for every repository after this one.
 
 ## More that the translator can write more simply
 

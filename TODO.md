@@ -36,6 +36,27 @@ undecided adds it here rather than mentioning it once in a conversation.
       then giving the translation a component of its own under
       `libraries/`, with its `LICENSE.md`, and committing it in a commit of
       its own.
+- [ ] **How packages are versioned.** For dc-fortrania's pipelines; see
+      `PENDING.md`, *Fortrania becomes a repository of its own*. The
+      options: the version read from the latest tag, with a development
+      build counted on from it as a pre-release (`1.2.0-dev.14`), which
+      MinVer does with nothing to keep in a file; or a version kept in a
+      file and a height counted from where it last changed, which
+      Nerdbank.GitVersioning does. Either keeps the commit hash the build
+      already stamps. Close by: choosing one, before the first pipeline.
+- [ ] **What starts a release.** A pushed tag (`v1.2.0`) is the usual
+      start, and fits a version read from tags; a release made on GitHub,
+      or starting the pipeline by hand, are the others. Who may start one
+      is part of it. Close by: choosing, with the versioning above.
+- [ ] **Where development packages go.** GitHub Packages keeps them
+      beside the repository, but asks for a token to read a package even
+      from a public repository; a pipeline's own artifacts need nothing,
+      and are read by hand. Close by: choosing, with the development
+      pipeline.
+- [ ] **Where the publishing pipeline runs.** GitHub Actions has nuget.org's
+      trusted publishing and so needs no stored key; Azure DevOps would
+      need one. The development pipeline is on GitHub either way. Close
+      by: choosing, before the first release.
 - [ ] **No component holds translated code yet, so the licence split exists
       only on paper.** `NOTICE`, `DESIGN.md` and
       `docs/rules/translated-code.md` describe it. Close by: the first such
