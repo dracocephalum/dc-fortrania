@@ -28,19 +28,19 @@ Translate, from the repository root:
 
     dotnet run --project tools/spice-translation/src/Dracocephalum.Spice.Translation -- translate
 
-`--force` writes every file again. The translation goes to `nasa/translated/`;
+`--force` writes every file again. The translation goes to `cache/translated/`;
 build `Dracocephalum.Spice.TSpice` there and run it to run the toolkit's own
 test suite.
 
 ## Configuration
 
-The sources are read from `nasa/N0067/` at the repository root, which git
+The sources are read from `cache/N0067/` at the repository root, which git
 ignores. When the folder is not there, the translation downloads NAIF's test
 package of N0067 into it, checked against the hash in the settings. To use a
 copy already on the machine, link the folder to it before the first run; on
 Windows a junction needs no administrator:
 
-    mklink /J nasa\N0067 <folder of the expanded tspice package>
+    mklink /J cache\N0067 <folder of the expanded tspice package>
 
 ## Notes
 

@@ -526,6 +526,6 @@ docs/reviews/
 # several. Written by a one-line command in AGENTS.md; never built from.
 .lsp/
 
-# The NAIF sources and their translation, which are never committed: filled
-# from NAIF, or a local link to a copy of them.
-/nasa/
+# What can be made again and is never committed: the SPICE Toolkit's sources,
+# filled from NAIF or a local link to a copy of them, and their translation.
+/cache/

@@ -671,7 +671,7 @@ What the translator is told about the toolkit, and what is done to the
 translation afterwards, is in `tools/spice-translation` and not in
 Fortrania: the translator knows FORTRAN, and the tool knows SPICE. Its
 settings name the toolkit's libraries as two projects, the libraries
-themselves and their test program, and read the sources from `nasa/` at
+themselves and their test program, and read the sources from `cache/` at
 the repository root, which git ignores and the settings fill from the
 NAIF's server, checked by hash, when it is not there.
 

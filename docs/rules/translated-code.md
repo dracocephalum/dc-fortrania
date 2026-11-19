@@ -10,7 +10,7 @@ NAIF, which maintains and publishes the toolkit for NASA, does not permit
 redistribution of the unmodified toolkit.
 Its FORTRAN sources, its C sources, its documentation and its test kernels are
 never committed here, in whole or in part, and neither is a patch that
-reproduces them. The translator reads them from `nasa/` at the repository
+reproduces them. The translator reads them from `cache/` at the repository
 root, which git ignores: filled from NAIF's own server, checked against
 a hash, when it is not there, or linked to a copy on the machine. No path to
 a copy on any machine appears in a tracked file; NAIF's address does.
