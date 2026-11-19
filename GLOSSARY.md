@@ -29,6 +29,9 @@ where the code leans on it. Why something is as it is belongs in
 |---|---|
 | Translator | The library that reads FORTRAN and writes C#: source form, lexer, parser, analysis and emitter. |
 | Emitter | The last stage of the translator, which writes C# source text. |
+| Program tree | Planned: the program after lowering, with nothing of FORTRAN's left in it, between the analysis and a writer. |
+| Pass | Planned: a step that takes a program tree and gives one, an optimization or a lowering for a writer. |
+| Writer | Planned: what walks a program tree and writes one language's source, choosing only spelling and layout. |
 | Summary | What one program unit shows to the others: how it is called, and what it calls. Units are checked against each other by summaries, never by syntax trees. |
 | Convention | The shape translated procedures present to their callers: how names are spelled, how a logical result comes back, where the length of a character argument goes. |
 | Runtime | The small hand-written library translated code calls for what FORTRAN has built in: character values, input and output, integer powers. |

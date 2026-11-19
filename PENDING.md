@@ -782,7 +782,9 @@ In this order, because each step changes what the next one looks at:
    code the translator emits, measured with a benchmark project as
    `docs/rules/performance.md` asks, and the rewrites listed under *More
    that the translator can write more simply*, which make the translator
-   an optimizer for what keeps the behaviour exactly. Each change is held
+   an optimizer for what keeps the behaviour exactly. It is built on the
+   tree of *A tree between the analysis and the writers*, which comes
+   first, and each rewrite is a pass over it. Each change is held
    to the same tests, so the first two steps say whether it changed a
    result.
 4. **A cleanup round**, against the C# rules, after the optimization round
@@ -839,6 +841,83 @@ server yet, and dc-fortrania is where that starts:
 What is learnt setting these up, the steps, what failed and the rules
 that came of it, is written down as it happens, to become rules and
 templates of the agentics toolkit for every repository after this one.
+
+## A tree between the analysis and the writers
+
+The emitter turns the analysed program into C# text in one step, so what
+it decides and what it writes are mixed: the joining of constants under
+*Constants are joined when translating* in `DESIGN.md` is done on the
+strings as they are written, and the SPICE tool's platform rewrite reads
+the output back with the C# compiler, changes that tree and writes it
+again. The optimization round, step 3 of *Fortrania becomes a repository
+of its own*, puts a tree in between, and is built on it:
+
+    parse → analyse → lower to the program tree → passes → a writer
+
+**The program tree is the program after lowering, with nothing of
+FORTRAN's left in it.** Blocks, assignments, calls, loops and
+conditionals; storage, as locals, saved state and common blocks; typed
+memory, as addresses and offsets; calls into the runtime, for text and
+for input and output; and comments, as nodes of their own, so that they
+pass through every stage. It is the translator's own, and so its shape is
+ours, which is why the emitter writes text and not the C# compiler's
+tree; see *Back ends beyond C# source*.
+
+**A pass takes a tree and gives one.** What the translator now does in
+the emitter, or after it, becomes a pass, and so does what is planned:
+
+- joining constants, and the rewrites under *More that the translator can
+  write more simply*;
+- the stack limit of *How much goes on the stack is a setting*;
+- the SPICE tool's platform rewrite, which becomes a pass the tool gives
+  the translator rather than a second reading of its output; *Settings
+  for what differs by platform* is the runtime's side of the same.
+
+**A writer only writes.** Each is a walk over the tree, choosing no more
+than spelling and layout, and the C# writer is the first.
+
+**It is not the framework's CodeDOM, though it is the same idea.** CodeDOM
+was one tree with a writer for each .NET language, and it has nothing for
+what the translation is made of: no pointers, no `fixed`, no `stackalloc`
+and no UTF-8 literals, each of which would be a snippet of C# text in the
+tree. Nor does it change any more. Its neutrality was also only as wide as
+what its languages shared, and so is this tree's: a writer for another
+language needs a runtime in that language too.
+
+**F# and Visual Basic are tried while the nodes are designed.** Not as
+writers yet, but as a check that the tree is a common core with small
+variations rather than C# in disguise. A few of the samples are written
+by hand in each, to find what the core must not take for granted:
+
+- **F#** has pointers, but a read or a write through one is a call of
+  its native pointer functions rather than an operator. Its functions are expressions,
+  with no `return`, `break` or `goto`, so an early exit is a flag or a
+  restructured loop.
+- **Visual Basic** has `GoTo`, `Exit` and `Return`, and no pointers at
+  all; there, the managed-array shape under *Back ends beyond C# source*
+  is the answer.
+
+Each writer says which of these it has, pointers, jumps and early exits
+among them, and a pass lowers what it lacks into what it has before the
+writer sees the tree. Which differences the core holds and which a pass
+removes is what the hand-written samples are to settle.
+
+**Built a piece at a time, each piece checked against the output it
+replaces.** Expressions first, where most of the string handling is, with
+the present writing kept for statements in the meantime; then statements.
+The C# writer is to give the same files, byte for byte, as the emitter
+before it, over the toolkit's whole translation, so each step is checked
+by comparing two folders before any test is run, and the translation's
+time is measured before and after.
+
+**Opened to others last.** Once the tree has settled under the C# writer,
+it is the published interface for tools of others: its types public in
+the translator's package, so that a .NET tool takes and gives trees in
+memory, and a JSON form over them for tools in other languages, with a
+schema and a version in each file. Each published node is a promise, and
+the reason this waits for the move to dc-fortrania and the cleanup round.
+After that, a translation's settings may name passes of a user's own, to
+run before or after a stage.
 
 ## More that the translator can write more simply
 
@@ -925,7 +1004,10 @@ The emitter writes C# source text directly from the analysed program, with
 no tree of C# objects in between: the output's shape is fully ours, the
 original comments have to pass through, and there are over a million lines
 to write. That is the back end the translated library is built with, and the
-only one that runs everywhere, since it needs nothing at run time.
+only one that runs everywhere, since it needs nothing at run time. The tree
+that is to come between, under *A tree between the analysis and the
+writers*, is the translator's own and keeps all three; each back end below
+then starts from it.
 
 Analysis is to leave nothing in its result that only a C# emitter could use,
 so that other back ends remain additions. Three are wanted, none before the
