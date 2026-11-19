@@ -239,6 +239,35 @@ program, and see the same unit under the same number. Two contexts are two
 programs that know nothing of each other, on as many threads. The class's
 one file that belongs to no unit holds that constructor.
 
+**A call into another library is a call on that library's instance.** The
+emitter is told which other libraries the one it writes may call, and a
+name the library does not define itself is looked for in them. Such a call
+is written on a member of the class that gives the other library, and that
+member asks the context for it the first time it is used and keeps it. It
+is asked then and not when the class is made, so the libraries of a program
+need no order, and two may call each other, as two libraries linked into
+one FORTRAN program may.
+
+**A context makes a library the first time it is asked for it.** Every
+emitted class says how it is made over a context, through a static member
+its interface requires, so `Get` needs no reflection and nothing registered
+beforehand: it is to the context what resolving a singleton is to a
+container. A program is then one object to its host, the context, and
+whatever it calls pulls in what it needs. A library made by hand first is
+the one `Get` gives, which leaves room for a class derived from a library's.
+
+**A context can be named by a number, and a process has one by default.**
+Code that is not .NET cannot hold an object, so a context gives a handle
+that stands for it and is turned back into it: a place in a table and the
+turn that place is on, so that the handle of a context that is gone is
+refused and not taken for its successor's. `FortranContext.Default` is one
+context for the whole process, made when first asked for and never
+disposed, with the console for its screen and keyboard. It is for an entry
+point that has nowhere to keep a context, a function exported under the
+reference toolkit's own name and arguments; it is one program, so one
+caller at a time. A call inside a library is unchanged,
+and one across libraries costs a load of that member more.
+
 **Variables that share storage are pointers into one run of bytes.**
 `EQUIVALENCE` says that two variables, or elements of them, begin at the
 same byte. The emitter gathers the variables that share, directly or

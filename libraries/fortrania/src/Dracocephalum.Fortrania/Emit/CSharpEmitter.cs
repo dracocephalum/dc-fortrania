@@ -14,8 +14,9 @@ public sealed class CSharpEmitter
     /// <summary>Initializes a new instance of the <see cref="CSharpEmitter"/> class.</summary>
     /// <param name="options">What the emitted code is to be called.</param>
     /// <param name="findProcedure">
-    /// Gives the procedure a name is called by, or <see langword="null"/>
-    /// when the program does not define it. A call is written to suit the
+    /// Gives the procedure of this library a name is called by, or
+    /// <see langword="null"/> when it defines none of that name; the
+    /// libraries the options refer to are asked after it. A call is written to suit the
     /// procedure it reaches where that is known, and by its own arguments
     /// alone where it is not.
     /// </param>
@@ -55,11 +56,27 @@ public sealed class CSharpEmitter
         file.Line("/// what the FORTRAN keeps between calls is kept per instance, in the memory of the");
         file.Line("/// program's context, and its files and units are the context's.");
         file.Line("/// </summary>");
-        file.Open($"public unsafe partial class {name}");
+        file.Open($"public unsafe partial class {name} : IFortranLibrary<{name}>");
         file.Line("private readonly FortranContext _context;");
         file.Line("private readonly StateMemory _memory;");
         file.Line("private readonly FortranIO _io;");
+
+        // Another library of the program is asked of the context when it
+        // is first called, which makes it if nothing has, and not when
+        // this one is made, so that the libraries of a program need no
+        // order and may call each other both ways.
+        foreach (var reference in _options.References)
+        {
+            file.Line($"private {reference.QualifiedName}? _library{reference.Accessor};");
+        }
+
         file.Blank();
+        foreach (var reference in _options.References)
+        {
+            file.Line($"private {reference.QualifiedName} {reference.Accessor} => _library{reference.Accessor} ??= _context.Get<{reference.QualifiedName}>();");
+            file.Blank();
+        }
+
         file.Line($"/// <summary>Initializes a new instance of the <see cref=\"{name}\"/> class as part of a program.</summary>");
         file.Line("/// <param name=\"context\">What the libraries of the program share. It is disposed by whoever made it, and the instance is not to be used after that.</param>");
         file.Open($"public {name}(FortranContext context)");
@@ -69,6 +86,12 @@ public sealed class CSharpEmitter
         file.Line("_io = context.IO;");
         file.Line("context.Add(this);");
         file.Close();
+        file.Blank();
+        file.Line("/// <summary>Gets the context of the program this library is part of.</summary>");
+        file.Line("public FortranContext Context => _context;");
+        file.Blank();
+        file.Line("/// <inheritdoc/>");
+        file.Line($"static {name} IFortranLibrary<{name}>.Create(FortranContext context) => new(context);");
         file.Close();
         return file.ToString();
     }

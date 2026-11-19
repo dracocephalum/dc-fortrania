@@ -37,7 +37,7 @@ internal sealed partial class UnitEmitter
         // of the program that happens to have its name.
         var called = _table.Find(name);
         var through = called is { IsDummyArgument: true };
-        var procedure = through ? null : _findProcedure(name);
+        var procedure = through ? null : FindAnywhere(name);
         var addresses = new List<string>(leading ?? []);
         var lengths = new List<string>();
         var lengthsComeLast = _options.Convention.TextLengthsComeLast;
@@ -69,7 +69,10 @@ internal sealed partial class UnitEmitter
             return CallThrough(called!, arguments, addresses.Concat(lengths));
         }
 
-        return $"{_options.Convention.ProcedureName(name)}({string.Join(", ", addresses.Concat(lengths))})";
+        // A procedure of another library is called on that library's
+        // instance, which this one finds in the context they share.
+        var owner = OwnerOf(name) is { } other ? other.Accessor + "." : string.Empty;
+        return $"{owner}{_options.Convention.ProcedureName(name)}({string.Join(", ", addresses.Concat(lengths))})";
     }
 
     private (string Address, string? Length) Argument(Expression argument, DataType? expected)

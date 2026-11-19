@@ -201,7 +201,7 @@ public class CSharpEmitterTests
         // Assert
         file.ShouldContain(
             """
-            public unsafe partial class C
+            public unsafe partial class C : IFortranLibrary<C>
             {
                 private readonly FortranContext _context;
                 private readonly StateMemory _memory;
@@ -219,6 +219,12 @@ public class CSharpEmitterTests
                     _io = context.IO;
                     context.Add(this);
                 }
+
+                /// <summary>Gets the context of the program this library is part of.</summary>
+                public FortranContext Context => _context;
+
+                /// <inheritdoc/>
+                static C IFortranLibrary<C>.Create(FortranContext context) => new(context);
             }
             """.ReplaceLineEndings("\n"),
             Case.Sensitive);

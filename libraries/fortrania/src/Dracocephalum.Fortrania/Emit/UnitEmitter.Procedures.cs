@@ -107,7 +107,7 @@ internal sealed partial class UnitEmitter
             throw Unsupported("a function of the language as an argument");
         }
 
-        var target = _findProcedure(procedure.Name)
+        var target = FindAnywhere(procedure.Name)
             ?? throw Unsupported("a procedure as an argument that the program does not define");
 
         var forwarder = Forwarder(target);
@@ -158,7 +158,7 @@ internal sealed partial class UnitEmitter
         var returns = target.ResultType is { } result ? ResultType(result) : "void";
         _forwarderText.Line(
             $"private static {returns} {forwarder.Name}({string.Join(", ", parameters.Concat(parameterLengths))}) => "
-            + $"context.Get<{_options.ClassName}>().{_options.Convention.ProcedureName(target.Name)}({string.Join(", ", passed.Concat(passedLengths))});");
+            + $"context.Get<{OwnerOf(target.Name)?.QualifiedName ?? _options.ClassName}>().{_options.Convention.ProcedureName(target.Name)}({string.Join(", ", passed.Concat(passedLengths))});");
         _forwarderText.Blank();
 
         _forwarders[target.Name] = forwarder;

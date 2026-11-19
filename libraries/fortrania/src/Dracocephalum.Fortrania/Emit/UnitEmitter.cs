@@ -269,6 +269,16 @@ internal sealed partial class UnitEmitter
         return IsEmittedProcedure(method) ? $"{RuntimeClass}.{method}" : method;
     }
 
+    // The library of the program that defines a procedure, when it is not
+    // this one. This library's own are found first, and then the others
+    // in the order the options give them.
+    private LibraryReference? OwnerOf(string name) => _findProcedure(name) is not null
+        ? null
+        : _options.References.FirstOrDefault(reference => reference.FindProcedure(name) is not null);
+
+    private ProcedureInterface? FindAnywhere(string name) =>
+        _findProcedure(name) ?? OwnerOf(name)?.FindProcedure(name);
+
     // A FORTRAN name is in upper case, and the convention may keep it or
     // change it, so both spellings are tried.
     private bool IsEmittedProcedure(string name) =>

@@ -32,4 +32,12 @@ public sealed record EmitOptions(string Namespace, string ClassName)
     /// itself, all of which the source has.
     /// </summary>
     public IReadOnlyList<string> SuppressedWarnings { get; init; } = [];
+
+    /// <summary>
+    /// Gets the other libraries whose procedures this one may call; none
+    /// unless set. A name this library does not define is looked for in
+    /// them, in order, and a call that reaches one of them is written as a
+    /// call of that library's instance in the same context.
+    /// </summary>
+    public IReadOnlyList<LibraryReference> References { get; init; } = [];
 }

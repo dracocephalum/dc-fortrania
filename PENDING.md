@@ -157,9 +157,10 @@ is how a routine the translator is told to leave out is supplied.
 
 A library that calls another, as the toolkit's support library calls its
 main one, is a class of its own. Both are made over the one context of
-their program, as `DESIGN.md` has it, and the second is given the first to
-call into. The summaries of the first are written to a file beside its
-code, and the translation of the second reads them. *What is translated is
+their program, and the second finds the first there, as `DESIGN.md` has it.
+What is not built is translating them apart: the summaries of the first
+written to a file beside its code, and the translation of the second
+reading them, where today both are translated in one run. *What is translated is
 set out as projects and their sources* says how several are named.
 
 A main program is a method like any other. When an executable is asked for,
@@ -621,6 +622,12 @@ Two shapes are wanted, in this order:
   `ISpiceCore` needs, and both are generated from the routine's argument
   list and its documented inputs and outputs, with a short list of routines
   written by hand. The reference C wrappers are not translated.
+
+The handle is the context's own, `FortranContext.Handle`, and an export
+turns it back with `FromHandle` and asks the context for the library; no
+library is made by the caller. The exports with the reference toolkit's
+names take no handle and use `FortranContext.Default`. Both exist in the
+runtime; the exports do not yet.
 
 A routine that takes a procedure takes it, in this interface, as a C
 function pointer whose first argument is the handle:

@@ -41,7 +41,9 @@ where the code leans on it. Why something is as it is belongs in
 
 | Word | Meaning |
 |---|---|
-| Context | One running FORTRAN program: its units and files, its screen and keyboard, the memory its libraries keep variables in, and one instance of each of its libraries. It serves one caller at a time. Two contexts share nothing. |
+| Context | One running FORTRAN program: its units and files, its screen and keyboard, the memory its libraries keep variables in, and one instance of each of its libraries, made when first asked for. It serves one caller at a time. Two contexts share nothing. |
+| Default context | The one context a process has without making any, with the console for its screen and keyboard; for entry points that have nowhere to keep a context. |
+| Handle | A number that stands for a context where an object cannot be passed, in code that is not .NET above all. |
 | Library | A translated class, and an instance of it: one FORTRAN library as one context has it. It computes, and is handed everything else by its context. |
 | State block | The run of bytes in a context's memory where one program unit's kept variables lie. |
 | Unit | A number by which a FORTRAN program refers to an open file. Units belong to the context, so every library of a program sees the same file under the same number. |

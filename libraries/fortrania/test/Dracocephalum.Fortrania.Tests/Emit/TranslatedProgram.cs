@@ -95,6 +95,89 @@ internal sealed class TranslatedProgram
             }
             """).ToList();
 
+        return Load(sources);
+    }
+
+    /// <summary>
+    /// Translates several libraries that may call each other, each to a
+    /// class of its name in one namespace, one C# file per program unit and
+    /// one per class.
+    /// </summary>
+    public static IReadOnlyList<string> TranslateLibraries(params (string ClassName, string Fortran)[] libraries)
+    {
+        var parsed = libraries.Select(library =>
+        {
+            using var reader = new StringReader(library.Fortran);
+            var tables = SourceParser.Parse(FixedFormReader.Read(reader)).Units
+                .Select(unit => SymbolTableBuilder.Build(unit, _ => null))
+                .ToList();
+
+            var catalogue = new ProcedureCatalogue();
+            var summaries = new List<UnitSummary>();
+            foreach (var table in tables)
+            {
+                TypeChecker.Check(table);
+                summaries.Add(UnitSummarizer.Summarize(table));
+                catalogue.Add(summaries[^1]);
+            }
+
+            return (library.ClassName, Tables: tables, Summaries: summaries, Catalogue: catalogue);
+        }).ToList();
+
+        // A call is checked against whichever library defines what it calls.
+        ProcedureInterface? FindAnywhere(string name) =>
+            parsed.Select(library => library.Catalogue.Find(name)).FirstOrDefault(found => found is not null);
+
+        var files = new List<string>();
+        foreach (var library in parsed)
+        {
+            foreach (var summary in library.Summaries)
+            {
+                CallChecker.Check(summary, FindAnywhere);
+            }
+
+            var options = new EmitOptions(Namespace, library.ClassName)
+            {
+                References =
+                [
+                    .. parsed
+                        .Where(other => other.ClassName != library.ClassName)
+                        .Select(other => new LibraryReference(Namespace, other.ClassName, other.Catalogue.Find)),
+                ],
+            };
+
+            var emitter = new CSharpEmitter(options, library.Catalogue.Find);
+            files.AddRange(library.Tables.Select(emitter.Emit));
+            files.Add(emitter.EmitClass());
+        }
+
+        return files;
+    }
+
+    /// <summary>
+    /// Translates several libraries that may call each other and compiles
+    /// them with <paramref name="driver"/>, the members of a static class
+    /// named <c>Driver</c> in their namespace.
+    /// </summary>
+    public static TranslatedProgram CompileLibraries(string driver, params (string ClassName, string Fortran)[] libraries) =>
+        Load(
+        [
+            .. TranslateLibraries(libraries),
+            $$"""
+            using System;
+            using Dracocephalum.Fortrania.Runtime;
+
+            namespace {{Namespace}};
+
+            public static unsafe class Driver
+            {
+            {{driver}}
+            }
+            """,
+        ]);
+
+    private static TranslatedProgram Load(IReadOnlyList<string> sources)
+    {
         var compilation = CSharpCompilation.Create(
             "Translated" + Guid.NewGuid().ToString("N"),
             sources.Select(source => CSharpSyntaxTree.ParseText(source)),
