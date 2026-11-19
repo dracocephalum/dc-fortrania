@@ -147,6 +147,22 @@ static unsafe partial class Fortran
         return sign < 0 ? -absolute : absolute;
     }
 
+    /// <summary>
+    /// Shifts the bits of an integer, as <c>ISHFT</c> does: to the left for
+    /// a positive count, to the right for a negative one, with zeros coming
+    /// in at either end. A count of 32 or more either way leaves nothing.
+    /// </summary>
+    /// <param name="value">The integer.</param>
+    /// <param name="count">How many places to shift.</param>
+    /// <returns>The shifted bits.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static int Ishft(int value, int count) => count switch
+    {
+        >= 32 or <= -32 => 0,
+        >= 0 => value << count,
+        _ => (int)((uint)value >> -count),
+    };
+
     /// <summary>Gives the positive difference, as <c>DIM</c> does.</summary>
     /// <param name="left">The value subtracted from.</param>
     /// <param name="right">The value subtracted.</param>

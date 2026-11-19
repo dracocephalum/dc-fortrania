@@ -480,6 +480,15 @@ it is cut off when the unit is next rewound or closed. Nothing is decoded
 or encoded on the way, so text that is not ASCII passes through as the
 bytes it is.
 
+**A character variable read or written as text is an internal file.** The
+statement gives the variable's address, the length of a record, and the
+number of records: one for a variable, an element or a substring, and one
+for each element of a whole array. Everything else is formatted or
+list-directed transfer as it is for a file, so a format behaves the same
+whatever its records are written to. A record is written to the variable
+when it is whole, blanks after what was written, and one that does not fit
+is not written at all.
+
 **The screen and the keyboard are units 6, 0 and 5 until a file is opened
 on them.** An asterisk for the unit is 6 to write and 5 to read. They go to
 whatever writers and reader the host sets, and nowhere until it sets them:

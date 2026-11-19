@@ -283,6 +283,27 @@ public static partial class Translator
             .Where(source => source != from)
             .OrderBy(source => source.Project == from.Project ? 0 : 1);
 
+        // The names a source calls, or passes as procedures, that it does
+        // not define itself.
+        private static IEnumerable<string> ForeignNames(Source source) => source.Units
+            .SelectMany(unit => unit.Summary.Calls.SelectMany(call => call.Arguments
+                .Where(argument => argument.Kind == ActualArgumentKind.Procedure && argument.Name is not null)
+                .Select(argument => argument.Name!)
+                .Prepend(call.Name)))
+            .Where(name => source.Catalogue.Find(name) is null)
+            .Distinct(StringComparer.Ordinal);
+
+        // The other sources a source reaches: for each name it does not
+        // define, the first that does, in the order it looks.
+        private List<Source> Used(Source source)
+        {
+            var owners = ForeignNames(source)
+                .Select(name => Visible(source).FirstOrDefault(other => other.Catalogue.Find(name) is not null))
+                .Where(owner => owner is not null)
+                .ToHashSet();
+            return [.. Visible(source).Where(owners.Contains)];
+        }
+
         private void CheckCalls()
         {
             foreach (var source in _sources)
@@ -313,11 +334,9 @@ public static partial class Translator
             {
                 var used = _sources
                     .Where(source => source.Project == project)
-                    .SelectMany(source => source.Units.SelectMany(unit => unit.Summary.Calls)
-                        .Where(call => source.Catalogue.Find(call.Name) is null)
-                        .Select(call => Visible(source).FirstOrDefault(other => other.Catalogue.Find(call.Name) is not null)))
-                    .Where(owner => owner is not null && owner.Project != project)
-                    .Select(owner => owner!.Project)
+                    .SelectMany(Used)
+                    .Where(owner => owner.Project != project)
+                    .Select(owner => owner.Project)
                     .Distinct()
                     .ToList();
 
@@ -401,7 +420,7 @@ public static partial class Translator
             {
                 var options = new EmitOptions(source.Namespace, source.ClassName)
                 {
-                    References = [.. Visible(source).Select(other => new LibraryReference(other.Namespace, other.ClassName, other.Catalogue.Find))],
+                    References = [.. Used(source).Select(other => new LibraryReference(other.Namespace, other.ClassName, other.Catalogue.Find))],
                 };
 
                 var emitter = new CSharpEmitter(options, source.Catalogue.Find);

@@ -524,6 +524,7 @@ sealed unsafe partial class FortranIO
         _status = 0;
         _transfer = transfer;
         _isList = false;
+        _internal = null;
         _screen = null;
         _keyboard = null;
         _current = Find(unit);
@@ -710,6 +711,12 @@ sealed unsafe partial class FortranIO
         }
 
         _column = 0;
+        if (IsInternal)
+        {
+            NextInternalRecord();
+            return;
+        }
+
         if (_keyboard is not null)
         {
             var line = _keyboard.ReadLine();
@@ -766,11 +773,18 @@ sealed unsafe partial class FortranIO
 
         _transfer = Transfer.None;
         _current = null;
+        _internal = null;
         return _status;
     }
 
     private void WriteLine(bool endsLine)
     {
+        if (IsInternal)
+        {
+            WriteInternalRecord();
+            return;
+        }
+
         try
         {
             if (_screen is not null)

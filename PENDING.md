@@ -424,10 +424,9 @@ between builds. Nothing is downloaded unless the project asks.
 reference sources uses: 256 statements in 69 program units. Left for the
 rest of the reference sources and for other programs:
 
-- Reading from and writing to a character variable, of which the rest of
-  the reference sources have 14.
-- `BACKSPACE`, of which they have 6, and `ENDFILE`.
-- Unformatted sequential access, and formatted direct access.
+- `ENDFILE`, which no source of the reference sources uses.
+- Unformatted sequential access, and formatted direct access; `BACKSPACE`
+  is translated for formatted sequential access only.
 - The other answers `INQUIRE` can give, and `BLANK` in `OPEN`.
 - In formats: `G`, `T`, `TL` and `TR`, `H`, `BZ`, `SP`, and a scale factor
   with `F`. The runtime gives a format error for each.
@@ -488,7 +487,30 @@ the platform the library says it was built for. Translated faithfully, the
 check is still there, and reading any ending in the runtime does not get a
 file past it.
 
-The check is left as it is for now. How to change what one translated
+Running the reference sources' test suite showed what it costs. The
+sources translated are the toolkit's Unix variant, which expects a line
+feed alone. On Windows the runtime ends a line written with a carriage
+return and a line feed, as the reference compiler does there, so every
+text kernel the tests write for themselves is refused, and what depends on
+it fails: 14 of the first 165 test families, after which the suite stops.
+The reference compiler's build of the same sources on the same machine
+fails in exactly the same places. With the context told to end lines with
+a line feed alone, the translated suite runs to its end: 400 families,
+399 passed, and the one that failed measured a run time and not a value.
+
+So two things are to be decided, the second only if the first is not
+enough:
+
+- **Which ending a program writes.** The ending of the variant translated,
+  and not the platform's, makes the files it writes for itself readable by
+  it on every platform. A program written for the toolkit and a file made
+  by the original toolkit on the same machine would then disagree on
+  Windows.
+- **Whether the check is kept.** With any ending read by the runtime, the
+  check refuses a file the translated library could read. The two ways to
+  change one routine follow.
+
+The check itself is left as it is for now. How to change what one translated
 routine does, without editing translated code, is open, and there are two
 ways to weigh:
 
@@ -743,6 +765,14 @@ and neither replaces the other.
 The second needs the reference compiler and so is run by hand or in a job
 of its own, like the regeneration of expected outputs under *Conformance
 tests against a reference compiler*.
+
+The first was done by hand once the whole suite translated: 2,211 program
+units in two projects, built with no error and no warning, run beside the
+reference compiler's build of the same sources. Their logs agree line for
+line but for what reads memory nobody set, and *The reference library
+checks line endings itself* has what both ran into. What is left is to make
+it a job that can be run again, and to compare against a build of the
+reference on the platform its variant is for, where it runs to its end.
 
 ## Measurements waiting for a benchmark project
 

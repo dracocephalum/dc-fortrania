@@ -52,8 +52,10 @@ internal sealed partial class UnitEmitter
                 WriteText("6", print.Format, print.Items, isRead: false, []);
                 break;
 
-            case Statement.Backspace:
-                throw Unsupported("BACKSPACE");
+            case Statement.Backspace backspace:
+                var backing = Controls("BACKSPACE", backspace.Controls, "UNIT", "IOSTAT");
+                Finish($"{IO}.Backspace({Unit(backing)})", backing);
+                break;
 
             default:
                 throw Unsupported("ENDFILE");
@@ -178,7 +180,9 @@ internal sealed partial class UnitEmitter
     }
 
     // The unit of a statement that transfers text. An asterisk is the unit
-    // a program starts with for that direction: 5 to read, 6 to write.
+    // a program starts with for that direction: 5 to read, 6 to write. A
+    // character value is an internal file, and is given as its address,
+    // the length of a record and the number of records.
     private string TextUnit(Dictionary<string, Expression?> controls, bool isRead)
     {
         if (controls.GetValueOrDefault("UNIT") is not { } unit)
@@ -186,10 +190,24 @@ internal sealed partial class UnitEmitter
             return isRead ? "5" : "6";
         }
 
-        var number = Value(unit);
-        return number.Type == DataType.Integer
-            ? number.Text
-            : throw Unsupported("input or output on a character variable");
+        _typer ??= new ExpressionTyper(_table);
+        if (_typer.TypeOfArgument(unit, new SourceLocation(_line, null)) != DataType.Character)
+        {
+            var number = Value(unit);
+            return number.Type == DataType.Integer
+                ? number.Text
+                : throw Unsupported("input or output on a unit that is not an integer");
+        }
+
+        // A character variable is an internal file: a record for each
+        // element, of the element's length.
+        if (unit is Expression.Name name && _table.Find(name.Identifier) is { Kind: SymbolKind.Variable, IsArray: true } array)
+        {
+            return $"{Local(array)}, {LengthOf(array)}, {WholeSize(array, asBytes: false)}";
+        }
+
+        var (address, length) = Argument(unit, null);
+        return $"{address}, {length}, 1";
     }
 
     // A statement that transfers text: a call that begins it with the

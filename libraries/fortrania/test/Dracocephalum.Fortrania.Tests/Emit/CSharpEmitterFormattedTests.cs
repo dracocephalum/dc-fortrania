@@ -117,7 +117,6 @@ public class CSharpEmitterFormattedTests
     }
 
     [Theory]
-    [InlineData("      SUBROUTINE S ( C )|      CHARACTER*8 C|      WRITE ( C, '(A)' ) 'X'|      END", "Line 3: input or output on a character variable cannot be translated yet.")]
     [InlineData("      SUBROUTINE S ( C )|      CHARACTER*8 C|      WRITE ( 9, '(A)', REC=2 ) C|      END", "Line 3: formatted input or output by record number cannot be translated yet.")]
     public void Emit_WhenAStatementIsOfAKindNotTranslatedYet_ShouldSayWhatAndWhere(string source, string message)
     {

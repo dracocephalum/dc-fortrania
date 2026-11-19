@@ -132,7 +132,6 @@ public class CSharpEmitterInputOutputTests
 
     [Theory]
     [InlineData("      SUBROUTINE S ( X )|      READ ( 9 ) X|      END", "Line 2: unformatted input or output without a record number cannot be translated yet.")]
-    [InlineData("      SUBROUTINE S ( X )|      BACKSPACE ( 9 )|      END", "Line 2: BACKSPACE cannot be translated yet.")]
     [InlineData("      SUBROUTINE S ( X )|      ENDFILE ( 9 )|      END", "Line 2: ENDFILE cannot be translated yet.")]
     [InlineData("      SUBROUTINE S ( X )|      OPEN ( 9, BLANK='ZERO' )|      END", "Line 2: OPEN with BLANK cannot be translated yet.")]
     [InlineData("      SUBROUTINE S ( X )|      INTEGER N|      INQUIRE ( 9, RECL=N )|      END", "Line 3: INQUIRE with RECL cannot be translated yet.")]

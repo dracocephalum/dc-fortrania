@@ -69,6 +69,8 @@ public sealed class TranslatorTests : IDisposable
         library.ShouldContain("<PackageReference Include=\"Dracocephalum.Fortrania.Runtime\" Version=\"1.2.3\" />");
         library.ShouldNotContain("OutputType");
         library.ShouldNotContain("ProjectReference");
+        Text("out/Example.Toolkit/Generated/Core/Core.g.cs").ShouldNotContain("ToolMain");
+        Text("out/Example.Tool/Generated/ToolMain/ToolMain.g.cs").ShouldContain("_library_Core");
 
         var program = Text("out/Example.Tool/Example.Tool.csproj");
         program.ShouldContain("<OutputType>Exe</OutputType>");
@@ -299,7 +301,7 @@ public sealed class TranslatorTests : IDisposable
     {
         // Arrange
         Put("core/core.f", Core);
-        Put("core/later.f", "      SUBROUTINE LATER ( N )\n      INTEGER N\n      BACKSPACE ( N )\n      END\n");
+        Put("core/later.f", "      SUBROUTINE LATER ( N )\n      INTEGER N\n      ENDFILE ( N )\n      END\n");
         var settings = Settings(Project("Example.Toolkit", Source("Core", "core/*.f")));
 
         // Act
@@ -309,7 +311,7 @@ public sealed class TranslatorTests : IDisposable
         result.Succeeded.ShouldBeFalse();
         var message = result.Messages.ShouldHaveSingleItem();
         message.File.ShouldNotBeNull().ShouldEndWith("later.f");
-        message.Text.ShouldBe("Line 3: BACKSPACE cannot be translated yet.");
+        message.Text.ShouldBe("Line 3: ENDFILE cannot be translated yet.");
         Directory.Exists(Path.Combine(_root, "out")).ShouldBeFalse();
     }
 

@@ -252,6 +252,8 @@ internal sealed partial class UnitEmitter
                 return new Code($"({first.At(Level.Unary)} | {arguments[1].At(Level.Unary)})", DataType.Integer, Level.Primary);
             case "IEOR":
                 return new Code($"({first.At(Level.Unary)} ^ {arguments[1].At(Level.Unary)})", DataType.Integer, Level.Primary);
+            case "ISHFT":
+                return new Code($"{Runtime("Ishft")}({first.Text}, {arguments[1].Text})", DataType.Integer, Level.Primary);
             case "NOT":
                 return new Code($"~{first.At(Level.Unary)}", DataType.Integer, Level.Unary);
 
