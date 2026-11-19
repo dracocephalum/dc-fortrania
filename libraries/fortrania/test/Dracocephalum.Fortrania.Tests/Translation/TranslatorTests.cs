@@ -54,10 +54,12 @@ public sealed class TranslatorTests : IDisposable
         Files("out").ShouldBe(
         [
             "out/Example.Tool/Example.Tool.csproj",
+            "out/Example.Tool/Generated/ToolMain/.fortrania.json",
             "out/Example.Tool/Generated/ToolMain/TOOL.g.cs",
             "out/Example.Tool/Generated/ToolMain/ToolMain.g.cs",
             "out/Example.Tool/Program.cs",
             "out/Example.Toolkit/Example.Toolkit.csproj",
+            "out/Example.Toolkit/Generated/Core/.fortrania.json",
             "out/Example.Toolkit/Generated/Core/CPUT.g.cs",
             "out/Example.Toolkit/Generated/Core/Core.g.cs",
         ]);
@@ -120,6 +122,7 @@ public sealed class TranslatorTests : IDisposable
         result.Removed.Select(Path.GetFileName).ShouldBe(["EXTRA.g.cs"]);
         Files("out/Example.Toolkit/Generated").ShouldBe(
         [
+            "out/Example.Toolkit/Generated/Core/.fortrania.json",
             "out/Example.Toolkit/Generated/Core/CPUT.g.cs",
             "out/Example.Toolkit/Generated/Core/Core.g.cs",
             "out/Example.Toolkit/Generated/Core/Mine.g.cs",
@@ -415,6 +418,189 @@ public sealed class TranslatorTests : IDisposable
         result.Succeeded.ShouldBeTrue();
         Text("elsewhere/kit/Example.Toolkit.csproj").ShouldContain("<ProjectReference Include=\"../../runtime/Runtime.csproj\" />");
     }
+
+    [Fact]
+    public void Run_WhenAStepAfterwardsChangedATranslatedFile_ShouldKeepItUntilTheTranslationOfItChanges()
+    {
+        // Arrange
+        Put("core/core.f", Core);
+        var settings = Settings(Project("Example.Toolkit", Source("Core", "core/*.f")));
+        Translator.Run(settings, _root).Succeeded.ShouldBeTrue();
+        var path = "out/Example.Toolkit/Generated/Core/CPUT.g.cs";
+        Put(path, Text(path).Replace("TOTAL = TOTAL + N", "changed afterwards", StringComparison.Ordinal) + "// changed afterwards\n");
+        var changed = Text(path);
+
+        // Act
+        var unchanged = Translator.Run(settings, _root);
+        Put("core/core.f", Core.Replace("TOTAL = TOTAL + N", "TOTAL = TOTAL + 2 * N", StringComparison.Ordinal));
+        var different = Translator.Run(settings, _root);
+
+        // Assert
+        unchanged.Written.ShouldBeEmpty();
+        different.Written.Select(Path.GetFileName).ShouldBe(["CPUT.g.cs"]);
+        Text(path).ShouldNotBe(changed);
+        Text(path).ShouldContain("*total = *total + 2 * *n;");
+    }
+
+    [Fact]
+    public void Run_WhenATranslatedFileIsDeleted_ShouldWriteItAgain()
+    {
+        // Arrange
+        Put("core/core.f", Core);
+        var settings = Settings(Project("Example.Toolkit", Source("Core", "core/*.f")));
+        Translator.Run(settings, _root).Succeeded.ShouldBeTrue();
+        File.Delete(Path.Combine(_root, "out/Example.Toolkit/Generated/Core/CPUT.g.cs"));
+        Put("out/Example.Toolkit/Generated/Core/.fortrania.json", "not a manifest");
+
+        // Act
+        var result = Translator.Run(settings, _root);
+
+        // Assert
+        result.Succeeded.ShouldBeTrue();
+        result.Written.Select(Path.GetFileName).Order(StringComparer.Ordinal).ShouldBe(["CPUT.g.cs", "Core.g.cs"]);
+    }
+
+    [Fact]
+    public void Run_WhenCommandsAreToRunOnSuccess_ShouldRunEachInTheSettingsFolderAndTellItWhatWasWritten()
+    {
+        // Arrange
+        Put("core/core.f", Core);
+        var settings = Settings(Project("Example.Toolkit", Source("Core", "core/*.f")));
+        settings.OnSuccess = [Shell("echo %FORTRANIA_OUTPUT%> output.txt & type %FORTRANIA_WRITTEN% > written.txt", "echo \"$FORTRANIA_OUTPUT\" > output.txt; cat \"$FORTRANIA_WRITTEN\" > written.txt")];
+
+        // Act
+        var result = Translator.Run(settings, _root);
+
+        // Assert
+        result.Messages.ShouldBeEmpty();
+        Text("output.txt").Trim().ShouldBe(Path.Combine(_root, "out"));
+        File.ReadAllLines(Path.Combine(_root, "written.txt")).Select(Path.GetFileName).Order(StringComparer.Ordinal)
+            .ShouldBe(["CPUT.g.cs", "Core.g.cs", "Example.Toolkit.csproj"]);
+    }
+
+    [Fact]
+    public void Run_WhenACommandFails_ShouldSaySoWithWhatItSaidAndRunNoneAfterIt()
+    {
+        // Arrange
+        Put("core/core.f", Core);
+        var settings = Settings(Project("Example.Toolkit", Source("Core", "core/*.f")));
+        settings.OnSuccess =
+        [
+            Shell("echo it went wrong & exit 3", "echo it went wrong; exit 3"),
+            Shell("echo ran > after.txt", "echo ran > after.txt"),
+        ];
+
+        // Act
+        var result = Translator.Run(settings, _root);
+
+        // Assert
+        result.Succeeded.ShouldBeFalse();
+        var message = result.Messages.ShouldHaveSingleItem();
+        message.Text.ShouldContain("ended with status 3");
+        message.Text.ShouldContain("it went wrong");
+        File.Exists(Path.Combine(_root, "after.txt")).ShouldBeFalse();
+        File.Exists(Path.Combine(_root, "out/Example.Toolkit/Generated/Core/CPUT.g.cs")).ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Run_WhenACommandCannotBeStartedOrNamesNoProgram_ShouldSaySo()
+    {
+        // Arrange
+        Put("core/core.f", Core);
+        var missing = Settings(Project("Example.Toolkit", Source("Core", "core/*.f")));
+        missing.OnSuccess = [new CommandSettings { Run = ["no-such-program-" + Guid.NewGuid().ToString("N")] }];
+        var empty = Settings(Project("Example.Toolkit", Source("Core", "core/*.f")));
+        empty.OnSuccess = [new CommandSettings()];
+
+        // Act
+        var notStarted = Translator.Run(missing, _root);
+        var refused = Translator.Run(empty, _root);
+
+        // Assert
+        notStarted.Messages.ShouldHaveSingleItem().Text.ShouldContain("could not be started");
+        refused.Messages.ShouldHaveSingleItem().Text.ShouldBe("Command 1 of onSuccess names no program to run.");
+        refused.Written.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void Run_WhenTheTranslationFails_ShouldRunNoCommand()
+    {
+        // Arrange
+        var settings = Settings(Project("Example.Toolkit", Source("Core", "missing/*.f")));
+        settings.OnSuccess = [Shell("echo ran > ran.txt", "echo ran > ran.txt")];
+
+        // Act
+        var result = Translator.Run(settings, _root);
+
+        // Assert
+        result.Succeeded.ShouldBeFalse();
+        File.Exists(Path.Combine(_root, "ran.txt")).ShouldBeFalse();
+    }
+
+    [Fact]
+    public void Run_WhenPathsNameVariables_ShouldTakeTheLocalFileFirstThenTheEnvironmentThenTheSettings()
+    {
+        // Arrange
+        Put("first/core.f", Core);
+        Put("second/core.f", Core);
+        Put("third/core.f", Core);
+        var name = "FORTRANIA_TEST_" + Guid.NewGuid().ToString("N");
+        var settings = Settings(Project("Example.Toolkit", Source("Core", $"$({name})/*.f")));
+        settings.Variables[name] = "third";
+
+        // Act
+        var fromSettings = Translator.Run(settings, _root);
+        Environment.SetEnvironmentVariable(name, "second");
+        var fromEnvironment = Translator.Run(settings, _root);
+        settings.LocalVariables[name] = "first";
+        var fromLocal = Translator.Run(settings, _root);
+        Environment.SetEnvironmentVariable(name, null);
+
+        // Assert
+        fromSettings.Succeeded.ShouldBeTrue();
+        fromEnvironment.Succeeded.ShouldBeTrue();
+        fromLocal.Succeeded.ShouldBeTrue();
+        Text("out/Example.Toolkit/Generated/Core/CPUT.g.cs").ShouldContain("// Translated from FORTRAN 77 by Fortrania: CPUT, from core.f.\n");
+    }
+
+    [Fact]
+    public void Run_WhenAVariableHasNoValue_ShouldSayWhereToGiveItOneAndWriteNothing()
+    {
+        // Arrange
+        var settings = Settings(Project("Example.Toolkit", Source("Core", "$(SourcesNowhere)/*.f", "$(SourcesNowhere)/*.for")));
+
+        // Act
+        var result = Translator.Run(settings, _root);
+
+        // Assert
+        result.Succeeded.ShouldBeFalse();
+        result.Messages.ShouldHaveSingleItem().Text.ShouldBe(
+            "The variable SourcesNowhere has no value. Give it one in the local settings file, in the environment, or under variables in the settings.");
+        Directory.Exists(Path.Combine(_root, "out")).ShouldBeFalse();
+    }
+
+    [Fact]
+    public void Run_WhenWritten_ShouldNameTheUnitAndItsFileButNoFolderAndRecordTheTranslatorInTheManifest()
+    {
+        // Arrange
+        Put("core/core.f", Core);
+
+        // Act
+        Translator.Run(Settings(Project("Example.Toolkit", Source("Core", "core/*.f"))), _root).Succeeded.ShouldBeTrue();
+
+        // Assert
+        var file = Text("out/Example.Toolkit/Generated/Core/CPUT.g.cs");
+        file.ShouldStartWith("// <auto-generated>\n// Translated from FORTRAN 77 by Fortrania: CPUT, from core.f.\n");
+        file.ShouldNotContain(_root);
+        Text("out/Example.Toolkit/Generated/Core/.fortrania.json").ShouldContain("\"translator\": \"Fortrania ");
+    }
+
+    // A command for the system's own shell: the test needs one that is
+    // on every machine the tests run on.
+    private static CommandSettings Shell(string windows, string other) => new()
+    {
+        Run = OperatingSystem.IsWindows() ? ["cmd", "/c", windows] : ["/bin/sh", "-c", other],
+    };
 
     private static TranslationSettings Settings(params ProjectSettings[] projects) => new()
     {

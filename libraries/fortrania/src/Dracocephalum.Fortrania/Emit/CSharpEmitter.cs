@@ -110,13 +110,17 @@ public sealed class CSharpEmitter
 
     /// <summary>Writes the program unit <paramref name="table"/> describes.</summary>
     /// <param name="table">The names of a program unit that has passed the type check.</param>
+    /// <param name="sourceFile">
+    /// The file the unit was read from, which the header names without its
+    /// folder; <see langword="null"/> when there is none.
+    /// </param>
     /// <returns>The text of a C# source file.</returns>
     /// <exception cref="UnsupportedConstructException">The unit uses something the emitter cannot translate yet.</exception>
     /// <exception cref="Analysis.FortranAnalysisException">The unit lays variables out in a way the language forbids, which shows only when their places are worked out.</exception>
-    public string Emit(SymbolTable table)
+    public string Emit(SymbolTable table, string? sourceFile = null)
     {
         ArgumentNullException.ThrowIfNull(table);
 
-        return new UnitEmitter(table, _options, _findProcedure).Emit();
+        return new UnitEmitter(table, _options, _findProcedure, sourceFile).Emit();
     }
 }

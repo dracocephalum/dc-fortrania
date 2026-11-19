@@ -593,5 +593,44 @@ hosts it, and the paths in it are taken from where it lies.
   already what it should be is not written again, and a build that looks
   at dates sees no change.
 
+**Commands run after a translation, and change what they like.** What a
+translation should do beyond translating, mending one routine for the
+platform it runs on above all, is not the translator's to know. So the
+settings list commands, `onSuccess`, that are run once the whole
+translation is written: each a program and its arguments, no shell
+between, in the settings file's folder, and told in its environment where
+the settings and the output are and which files were written. Such a
+command can bring whatever it needs, a C# syntax tree and its rewriters
+among them, and the translator depends on none of it. One that fails fails
+the translation, with what it said; the files are written by then, so the
+translation's own all or nothing does not reach the commands after it.
+
+**A path may name a variable, so that a shared settings file names no
+machine.** Wherever the settings give a path, `$(Name)` stands for a value
+looked for first in a local settings file beside them, of the same name
+with `.local` before the extension and meant to stay out of version
+control, then in the environment, then under `variables` in the settings.
+Where a translation's sources are on one machine is said there, and never
+in the file that is shared. A variable with no value anywhere is reported
+before anything is read.
+
+**A translated file says what it was translated from, and no more.** Its
+header names the program unit and the file it came from, without a folder,
+so that nothing of the machine it was translated on is in it, and no date,
+so that the same sources give the same bytes. The translator's version is
+kept in the manifest and not in every file, so that a new translator
+changes only the files whose translation it changes. What a particular
+library has to say in its files, a licence notice say, is added by a
+command after the translation.
+
+**What the translator wrote is recorded, so that what a command changed is
+kept.** Each folder of translated sources has a manifest with a hash of
+the text the translator gave each file. A file is written again when that
+text changes or the file is gone, and not because it differs from what is
+on disk; a file a command changed stays changed until the FORTRAN behind
+it does, and is then listed among the files written for the command to
+change again. A command that changes a file keeps its first line, which is
+how a file the translator no longer makes is told from one somebody wrote.
+
 The settings file, the command line and the build step all read into the
 same description, kept in the translator's library and not in any of them.

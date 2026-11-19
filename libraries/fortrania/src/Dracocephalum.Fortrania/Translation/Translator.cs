@@ -1,4 +1,8 @@
+using System.Diagnostics;
 using System.Reflection;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using Dracocephalum.Fortrania.Analysis;
 using Dracocephalum.Fortrania.Emit;
@@ -20,6 +24,13 @@ public static partial class Translator
     /// <summary>What the name of a translated file ends in.</summary>
     public const string GeneratedExtension = ".g.cs";
 
+    /// <summary>
+    /// The file in each folder of translated sources that records what the
+    /// translator wrote there, so that a file a later step has changed is
+    /// left alone until what the translator would write is different.
+    /// </summary>
+    public const string ManifestName = ".fortrania.json";
+
     /// <summary>Does the translation.</summary>
     /// <param name="settings">What to translate, and to what.</param>
     /// <param name="baseDirectory">The folder the paths in the settings are taken from: where the settings file lies.</param>
@@ -34,6 +45,15 @@ public static partial class Translator
 
     [GeneratedRegex(@"^[A-Za-z_][A-Za-z0-9_]*$")]
     private static partial Regex Identifier();
+
+    [GeneratedRegex(@"\$\(([A-Za-z_][A-Za-z0-9_.]*)\)")]
+    private static partial Regex VariableReference();
+
+    // What the translator wrote to one folder of translated sources: which
+    // translator it was, and the hash of each file's text, by the file's
+    // name. The version is here and not in every file, so that a new
+    // translator changes no file whose translation it does not change.
+    private sealed record Manifest(string Translator, IReadOnlyDictionary<string, string> Files);
 
     // One program unit as it was read.
     private sealed record Unit(string File, SymbolTable Table, UnitSummary Summary)
@@ -75,6 +95,8 @@ public static partial class Translator
         public TranslationResult Run()
         {
             CheckSettings();
+            CheckVariables();
+            CheckCommands();
             if (!HasErrors)
             {
                 Read();
@@ -97,6 +119,11 @@ public static partial class Translator
                 Write();
             }
 
+            if (!HasErrors)
+            {
+                RunCommands();
+            }
+
             return new TranslationResult(_messages, _written, _removed, HasErrors ? 0 : _sources.Sum(source => source.Units.Count));
         }
 
@@ -105,7 +132,7 @@ public static partial class Translator
         private void Warning(string text, string? file = null, int line = 0) => _messages.Add(new TranslationMessage(false, file, line, text));
 
         private string FolderOf(ProjectSettings project) =>
-            Path.GetFullPath(Path.Combine(baseDirectory, project.Output ?? Path.Combine(settings.Output, project.Name)));
+            Path.GetFullPath(Path.Combine(baseDirectory, Expand(project.Output) ?? Path.Combine(Expand(settings.Output)!, project.Name)));
 
         private static string ProjectFileOf(ProjectSettings project, string folder) => Path.Combine(folder, project.Name + ".csproj");
 
@@ -187,6 +214,54 @@ public static partial class Translator
             }
         }
 
+        // Puts in the value of each variable a path names as $(Name): from
+        // the local settings file, then the environment, then the settings.
+        // A name with no value is left as it stands; CheckVariables says so.
+        [return: System.Diagnostics.CodeAnalysis.NotNullIfNotNull(nameof(path))]
+        private string? Expand(string? path) => path is null ? null : VariableReference().Replace(path, match => ValueOf(match.Groups[1].Value) ?? match.Value);
+
+        private string? ValueOf(string name)
+        {
+            if (settings.LocalVariables.TryGetValue(name, out var local))
+            {
+                return local;
+            }
+
+            return Environment.GetEnvironmentVariable(name) ?? (settings.Variables.TryGetValue(name, out var given) ? given : null);
+        }
+
+        // Every path the settings give, so that a variable with no value is
+        // reported once and before anything is read.
+        private IEnumerable<string?> Paths() =>
+            new[] { settings.Output, settings.Runtime.Project }
+                .Concat(settings.Projects.Select(project => project.Output))
+                .Concat(settings.Projects.SelectMany(project => project.Sources).SelectMany(source => source.Files.Concat(source.Includes)));
+
+        private void CheckVariables()
+        {
+            var missing = Paths()
+                .Where(path => path is not null)
+                .SelectMany(path => VariableReference().Matches(path!).Select(match => match.Groups[1].Value))
+                .Where(name => ValueOf(name) is null)
+                .Distinct(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var name in missing)
+            {
+                Error($"The variable {name} has no value. Give it one in the local settings file, in the environment, or under variables in the settings.");
+            }
+        }
+
+        private void CheckCommands()
+        {
+            for (var index = 0; index < settings.OnSuccess.Count; index++)
+            {
+                if (settings.OnSuccess[index].Run.Count == 0 || string.IsNullOrWhiteSpace(settings.OnSuccess[index].Run[0]))
+                {
+                    Error(string.Create(System.Globalization.CultureInfo.InvariantCulture, $"Command {index + 1} of onSuccess names no program to run."));
+                }
+            }
+        }
+
         private void Read()
         {
             foreach (var project in settings.Projects)
@@ -209,7 +284,7 @@ public static partial class Translator
             var files = new List<string>();
             foreach (var entry in source.Files)
             {
-                var path = Path.GetFullPath(Path.Combine(baseDirectory, entry));
+                var path = Path.GetFullPath(Path.Combine(baseDirectory, Expand(entry)!));
                 var folder = Path.GetDirectoryName(path)!;
                 var found = Directory.Exists(folder)
                     ? Directory.GetFiles(folder, Path.GetFileName(path)).Order(StringComparer.Ordinal).ToList()
@@ -250,7 +325,7 @@ public static partial class Translator
         private IncludeFile? Include(Source source, string file, string name)
         {
             var folders = source.Settings.Includes
-                .Select(folder => Path.GetFullPath(Path.Combine(baseDirectory, folder)))
+                .Select(folder => Path.GetFullPath(Path.Combine(baseDirectory, Expand(folder)!)))
                 .Prepend(Path.GetDirectoryName(file)!);
 
             foreach (var folder in folders)
@@ -434,7 +509,7 @@ public static partial class Translator
                             name = FileName(string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{unit.Name}_{number}"));
                         }
 
-                        source.Files[name] = emitter.Emit(unit.Table);
+                        source.Files[name] = emitter.Emit(unit.Table, unit.File);
                     }
                     catch (Exception exception) when (IsOfTheSource(exception))
                     {
@@ -470,9 +545,28 @@ public static partial class Translator
                     var generated = Path.Combine(folder, GeneratedFolder, source.Settings.Name);
                     Directory.CreateDirectory(generated);
 
+                    // A file is written when what the translator makes of it
+                    // differs from what it made last time, or the file is
+                    // gone; a file a later step changed is otherwise kept.
+                    var manifestPath = Path.Combine(generated, ManifestName);
+                    var before = ReadManifest(manifestPath);
+                    var after = new SortedDictionary<string, string>(StringComparer.Ordinal);
                     foreach (var (name, text) in source.Files)
                     {
-                        WriteIfChanged(Path.Combine(generated, name), text);
+                        var path = Path.Combine(generated, name);
+                        var hash = Hash(text);
+                        after[name] = hash;
+                        if (!File.Exists(path) || before.GetValueOrDefault(name) != hash)
+                        {
+                            File.WriteAllText(path, text);
+                            _written.Add(path);
+                        }
+                    }
+
+                    var manifest = JsonSerializer.Serialize(new Manifest("Fortrania " + OwnVersion(), after), TranslationJson.Default).ReplaceLineEndings("\n") + "\n";
+                    if (!File.Exists(manifestPath) || File.ReadAllText(manifestPath) != manifest)
+                    {
+                        File.WriteAllText(manifestPath, manifest);
                     }
 
                     // What an earlier translation wrote and this one does
@@ -503,6 +597,93 @@ public static partial class Translator
             }
         }
 
+        private static Dictionary<string, string> ReadManifest(string path)
+        {
+            try
+            {
+                return File.Exists(path)
+                    ? new Dictionary<string, string>(JsonSerializer.Deserialize<Manifest>(File.ReadAllText(path), TranslationJson.Default)?.Files ?? new Dictionary<string, string>(), StringComparer.Ordinal)
+                    : [];
+            }
+            catch (JsonException)
+            {
+                // A manifest that cannot be read only makes every file be
+                // written again.
+                return [];
+            }
+        }
+
+        private static string Hash(string text) => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(text)));
+
+        private void RunCommands()
+        {
+            if (settings.OnSuccess.Count == 0)
+            {
+                return;
+            }
+
+            var list = Path.Combine(Path.GetTempPath(), "fortrania-written-" + Guid.NewGuid().ToString("N") + ".txt");
+            File.WriteAllLines(list, _written);
+            try
+            {
+                foreach (var command in settings.OnSuccess)
+                {
+                    if (!Run(command, list))
+                    {
+                        return;
+                    }
+                }
+            }
+            finally
+            {
+                File.Delete(list);
+            }
+        }
+
+        private bool Run(CommandSettings command, string list)
+        {
+            var start = new ProcessStartInfo(command.Run[0])
+            {
+                WorkingDirectory = baseDirectory,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+            };
+
+            foreach (var argument in command.Run.Skip(1))
+            {
+                start.ArgumentList.Add(argument);
+            }
+
+            start.Environment["FORTRANIA_SETTINGS"] = baseDirectory;
+            start.Environment["FORTRANIA_OUTPUT"] = Path.GetFullPath(Path.Combine(baseDirectory, Expand(settings.Output)!));
+            start.Environment["FORTRANIA_WRITTEN"] = list;
+            var shown = string.Join(' ', command.Run);
+
+            try
+            {
+                using var process = Process.Start(start)!;
+                var output = process.StandardOutput.ReadToEndAsync();
+                var errors = process.StandardError.ReadToEndAsync();
+                process.WaitForExit();
+                if (process.ExitCode == 0)
+                {
+                    return true;
+                }
+
+                var said = (errors.Result + output.Result).Trim();
+                Error(string.Create(
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    $"The command '{shown}' ended with status {process.ExitCode}.{(said.Length == 0 ? string.Empty : " It said: " + said)}"));
+            }
+            catch (Exception exception) when (exception is System.ComponentModel.Win32Exception or InvalidOperationException)
+            {
+                Error($"The command '{shown}' could not be started: {exception.Message}");
+            }
+
+            return false;
+        }
+
         private void WriteIfChanged(string path, string text)
         {
             if (!File.Exists(path) || File.ReadAllText(path) != text)
@@ -531,7 +712,7 @@ public static partial class Translator
         {
             string Relative(string path) => Path.GetRelativePath(folder, path).Replace('\\', '/');
 
-            var runtime = settings.Runtime.Project is { } runtimeProject
+            var runtime = Expand(settings.Runtime.Project) is { } runtimeProject
                 ? $"    <ProjectReference Include=\"{Relative(Path.GetFullPath(Path.Combine(baseDirectory, runtimeProject)))}\" />"
                 : $"    <PackageReference Include=\"Dracocephalum.Fortrania.Runtime\" Version=\"{settings.Runtime.Package ?? OwnVersion()}\" />";
 

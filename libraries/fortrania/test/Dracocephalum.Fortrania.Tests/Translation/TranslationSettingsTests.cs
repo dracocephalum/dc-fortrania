@@ -91,6 +91,32 @@ public class TranslationSettingsTests
     }
 
     [Fact]
+    public void Load_WhenALocalSettingsFileIsBesideIt_ShouldReadItsVariables()
+    {
+        // Arrange
+        var folder = Path.Combine(AppContext.BaseDirectory, Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(folder);
+        var path = Path.Combine(folder, "example.fortrania.json");
+        File.WriteAllText(path, """{ "variables": { "Sources": "shared" }, "projects": [] }""");
+        File.WriteAllText(Path.Combine(folder, "example.fortrania.local.json"), """{ "variables": { "sources": "mine" } }""");
+
+        try
+        {
+            // Act
+            var settings = TranslationSettings.Load(path);
+
+            // Assert
+            settings.Variables["SOURCES"].ShouldBe("shared");
+            settings.LocalVariables["Sources"].ShouldBe("mine");
+            TranslationSettings.LocalFileOf(path).ShouldBe(Path.Combine(folder, "example.fortrania.local.json"));
+        }
+        finally
+        {
+            Directory.Delete(folder, recursive: true);
+        }
+    }
+
+    [Fact]
     public void Load_WhenGivenAFile_ShouldReadIt()
     {
         // Arrange

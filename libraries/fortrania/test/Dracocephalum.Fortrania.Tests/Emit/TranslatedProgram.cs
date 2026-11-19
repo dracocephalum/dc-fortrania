@@ -54,7 +54,7 @@ internal sealed class TranslatedProgram
         }
 
         var emitter = new CSharpEmitter(options ?? new EmitOptions(Namespace, ClassName), catalogue.Find);
-        return tables.Select(emitter.Emit).ToList();
+        return tables.Select(table => emitter.Emit(table)).ToList();
     }
 
     /// <summary>
@@ -147,7 +147,7 @@ internal sealed class TranslatedProgram
             };
 
             var emitter = new CSharpEmitter(options, library.Catalogue.Find);
-            files.AddRange(library.Tables.Select(emitter.Emit));
+            files.AddRange(library.Tables.Select(table => emitter.Emit(table)));
             files.Add(emitter.EmitClass());
         }
 
