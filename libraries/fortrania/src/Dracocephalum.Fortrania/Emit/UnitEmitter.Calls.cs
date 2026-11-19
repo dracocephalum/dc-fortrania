@@ -37,10 +37,14 @@ internal sealed partial class UnitEmitter
         // of the program that happens to have its name.
         var called = _table.Find(name);
         var through = called is { IsDummyArgument: true };
-        var procedure = through ? null : FindAnywhere(name);
+
+        // A procedure of the compiler's library is the context's, and takes
+        // each length straight after its address whatever the convention.
+        var system = through ? null : SystemMethod(name);
+        var procedure = through ? null : system is null ? FindAnywhere(name) : SystemProcedures[name].Interface;
         var addresses = new List<string>(leading ?? []);
         var lengths = new List<string>();
-        var lengthsComeLast = _options.Convention.TextLengthsComeLast;
+        var lengthsComeLast = system is null && _options.Convention.TextLengthsComeLast;
 
         for (var index = 0; index < arguments.Count; index++)
         {
@@ -67,6 +71,11 @@ internal sealed partial class UnitEmitter
         if (through)
         {
             return CallThrough(called!, arguments, addresses.Concat(lengths));
+        }
+
+        if (system is not null)
+        {
+            return $"_context.{system}({string.Join(", ", addresses)})";
         }
 
         // A procedure of another library is called on that library's

@@ -147,17 +147,59 @@ public class FortranContextTests
     }
 
     [Fact]
-    public void Default_WhenAskedFor_ShouldBeOneContextThatDisposingDoesNotEnd()
+    public void Constructor_WhenGivenWhatAProgramRunOnItsOwnHas_ShouldGiveItTheConsoleItsCommandLineAndLeaveToRunCommands()
     {
         // Act
-        var first = FortranContext.Default;
-        first.Dispose();
-        var second = FortranContext.Default;
+        using var context = new FortranContext(FortranContextOptions.Standalone);
 
         // Assert
-        second.ShouldBeSameAs(first);
-        second.IO.Output.ShouldBeSameAs(Console.Out);
-        FortranContext.FromHandle(second.Handle).ShouldBeSameAs(second);
+        context.IO.Output.ShouldBeSameAs(Console.Out);
+        context.IO.Error.ShouldBeSameAs(Console.Error);
+        context.IO.Input.ShouldBeSameAs(Console.In);
+        context.CommandLine.ShouldBe(Environment.GetCommandLineArgs());
+        context.AllowsCommands.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Constructor_WhenGivenOptions_ShouldGiveTheProgramWhatTheySay()
+    {
+        // Arrange
+        var clock = new FakeClock();
+        var options = new FortranContextOptions
+        {
+            CommandLine = ["tool", "argument"],
+            AllowsCommands = true,
+            Clock = clock,
+            RecordLengthUnit = 4,
+            NewLine = "\n",
+        };
+
+        // Act
+        using var context = new FortranContext(options);
+
+        // Assert
+        context.CommandLine.ShouldBe(["tool", "argument"]);
+        context.AllowsCommands.ShouldBeTrue();
+        context.Clock.ShouldBeSameAs(clock);
+        context.IO.RecordLengthUnit.ShouldBe(4);
+        context.IO.NewLine.ShouldBe("\n");
+        context.IO.Output.ShouldBeNull();
+    }
+
+    [Fact]
+    public void Constructor_WhenTheOptionsAreLeftAsMade_ShouldGiveTheProgramNothingButFilesOnDisk()
+    {
+        // Act
+        using var context = new FortranContext(new FortranContextOptions());
+
+        // Assert
+        context.CommandLine.ShouldBeEmpty();
+        context.AllowsCommands.ShouldBeFalse();
+        context.Clock.ShouldBeSameAs(TimeProvider.System);
+        context.IO.RecordLengthUnit.ShouldBe(1);
+        context.IO.NewLine.ShouldBe(Environment.NewLine);
+        context.IO.Output.ShouldBeNull();
+        context.IO.Input.ShouldBeNull();
     }
 
     [Fact]
@@ -178,6 +220,8 @@ public class FortranContextTests
         Should.Throw<ObjectDisposedException>(() => context.Get<SecondLibrary>());
         Should.Throw<ObjectDisposedException>(() => context.Handle);
     }
+
+    private sealed class FakeClock : TimeProvider;
 
     private sealed class FirstLibrary : IFortranLibrary<FirstLibrary>
     {

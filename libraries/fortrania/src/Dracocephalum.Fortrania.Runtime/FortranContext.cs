@@ -15,7 +15,8 @@ namespace Dracocephalum.Fortrania.Runtime;
 /// screen and keyboard, and the memory their variables are kept in between
 /// calls. A translated library is given a context when it is made and uses
 /// what it finds there; it decides nothing about it. Two contexts are two
-/// programs that know nothing of each other.
+/// programs that know nothing of each other, and there is no context that
+/// nobody made: whoever wants one makes it and keeps it.
 /// </summary>
 /// <remarks>
 /// A context serves one caller at a time, and with it every library made
@@ -26,7 +27,7 @@ internal
 #else
 public
 #endif
-sealed class FortranContext : IDisposable
+sealed partial class FortranContext : IDisposable
 {
     // A handle is a place in the table of contexts and the turn that place
     // is on, so that the handle of a context that is gone is told from the
@@ -42,11 +43,9 @@ sealed class FortranContext : IDisposable
 
     private static FortranContext?[] _contexts = new FortranContext?[8];
     private static int[] _turns = new int[8];
-    private static FortranContext? _default;
 
     private object?[] _libraries = new object?[4];
     private nint _handle;
-    private bool _isDefault;
     private bool _isDisposed;
 
     /// <summary>Initializes a new instance of the <see cref="FortranContext"/> class, for files on disk.</summary>
@@ -63,40 +62,25 @@ sealed class FortranContext : IDisposable
         Memory = new StateMemory();
     }
 
-    /// <summary>
-    /// Gets the one context a process has without making any: the program
-    /// as the FORTRAN would run on its own, with the console for its screen
-    /// and keyboard. It is made when first asked for and lives as long as
-    /// the process; disposing it does nothing.
-    /// </summary>
-    /// <remarks>
-    /// It is for callers that have nowhere to keep a context, a function
-    /// exported under the reference toolkit's own name and argument list
-    /// above all. It is one program, so it serves one caller at a time
-    /// however many threads the process has. Code that can keep a context
-    /// makes its own.
-    /// </remarks>
-    public static FortranContext Default
+    /// <summary>Initializes a new instance of the <see cref="FortranContext"/> class as a host has decided it.</summary>
+    /// <param name="options">What the program is given.</param>
+    public FortranContext(FortranContextOptions options)
+        : this((options ?? throw new ArgumentNullException(nameof(options))).FileProvider ?? new DiskFileProvider())
     {
-        get
+        IO.RecordLengthUnit = options.RecordLengthUnit;
+        if (options.NewLine is { } ending)
         {
-            return Volatile.Read(ref _default) ?? Make();
-
-            static FortranContext Make()
-            {
-                lock (Registry)
-                {
-                    if (_default is null)
-                    {
-                        var context = new FortranContext { _isDefault = true };
-                        context.IO.UseConsole();
-                        Volatile.Write(ref _default, context);
-                    }
-
-                    return _default;
-                }
-            }
+            IO.NewLine = ending;
         }
+
+        if (options.UsesConsole)
+        {
+            IO.UseConsole();
+        }
+
+        CommandLine = options.CommandLine;
+        AllowsCommands = options.AllowsCommands;
+        Clock = options.Clock ?? TimeProvider.System;
     }
 
     /// <summary>Gets the program's input and output: its units, files, screen and keyboard.</summary>
@@ -231,7 +215,7 @@ sealed class FortranContext : IDisposable
     /// <summary>Closes the program's files and frees the memory its libraries keep. None of them may be used afterwards.</summary>
     public void Dispose()
     {
-        if (_isDisposed || _isDefault)
+        if (_isDisposed)
         {
             return;
         }

@@ -11,6 +11,13 @@ from the reference compiler*, has what is to become of the rows below: each
 is to get a setting that turns the reference's behaviour back on, when a
 program is met that needs it.
 
+## The compiler's library
+
+| Where | The reference compiler | Here | Why |
+|---|---|---|---|
+| `CALL SYSTEM` | has the operating system run the command | runs nothing and gives status -1, unless the context's `AllowsCommands` is set | a library is not to start programs on its host's behalf unasked |
+| `IARGC` and `GETARG` | give the command line of the process | give the command line the context was told, none unless it was told one | the process's command line is its host's, not the library's |
+
 ## Input and output
 
 | Where | The reference compiler | Here | Why |

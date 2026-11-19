@@ -163,10 +163,10 @@ written to a file beside its code, and the translation of the second
 reading them, where today both are translated in one run. *What is translated is
 set out as projects and their sources* says how several are named.
 
-A main program is a method like any other. When an executable is asked for,
-a `Main` is emitted that makes the context, gives it the console, hands the
-command line to the runtime, calls that method and returns the exit code. A
-library has none.
+A main program is a method like any other, which is built. Not built: when
+an executable is asked for, a `Main` is emitted that makes the context,
+gives it the console and the command line, lets it run commands, calls
+that method and returns the exit code. A library has none.
 
 `STOP` throws an exception of the runtime's, from any depth, and so does the
 `EXIT` the runtime supplies. The emitted `Main` catches it and returns its
@@ -493,9 +493,10 @@ Five things about files are decided and not built:
 - `ISpiceCore` is to offer a stream directly, as an overload that takes
   one, over the context's `Register`.
 - A program's contexts are to be configurable from the host's settings, the
-  usual application settings among them: which memory its libraries keep
-  their variables in, where files come from, what `RECL` counts, where the
-  screen goes. Several named contexts are wanted, each its own program.
+  usual application settings among them. `FortranContextOptions` is what
+  they are read into; which memory a program's libraries keep their
+  variables in is to join it. Several named contexts are wanted, each its
+  own program.
 - A registered stream belongs to one context while it is registered. A
   stream has a single position, so it is not shared between contexts or
   read by the caller in the meantime.
@@ -608,26 +609,46 @@ needs no .NET installation on the machine that uses it. The pointer-based
 signatures of the translated layer exist partly so that this facade is
 mechanical; the translator generates it from the same routine list.
 
-Exports cannot be instance members, so the facade is a static class in a
-project of its own, the one published as a native library.
+Exports cannot be instance members, so they are static methods, and a
+method becomes a C export only where a project is published ahead of time
+as a native library. What that gives is one file with everything compiled
+into it, the translated code, the runtime and a copy of .NET's own. Two
+such files in one process are two of everything, each with its own table
+of handles, so a program loads one native library of ours and never two.
 
-Two shapes are wanted, in this order:
+Two libraries are wanted, the second made from the first:
 
-- Instance-based exports, with the handle. This is the one that keeps what
-  the port adds: several independent instances in one process.
-- Exports with the reference C toolkit's own names and argument lists, bound
-  to one default instance for the process, so that an existing program can
-  change libraries without changing source. The conversions those functions
-  do, C strings, row-major matrices, zero-based indices, are the same ones
-  `ISpiceCore` needs, and both are generated from the routine's argument
-  list and its documented inputs and outputs, with a short list of routines
-  written by hand. The reference C wrappers are not translated.
+- **The toolkit's own exports all take a handle first.** That is this
+  port's native interface, and it keeps what the port adds: several
+  independent programs in one process. They come in two styles, the
+  FORTRAN routines as they are, and the reference C toolkit's names and
+  argument lists with the handle in front. The conversions the second
+  style does, C strings, row-major matrices, zero-based indices, are the
+  same ones `ISpiceCore` needs, and both are generated from the routine's
+  argument list and its documented inputs and outputs, with a short list
+  of routines written by hand. The reference C wrappers are not
+  translated. A program made for this interface makes a context first,
+  through an export that takes the settings, and passes its handle on.
+- **A second library stands in for the reference C toolkit as it is.** Its
+  project refers to the toolkit and adds the same functions without the
+  handle, each a forward to the one with it, so that an existing program
+  changes libraries without changing source. It keeps one context of its
+  own for the process and makes it the first time one is needed, with what
+  a program run on its own has. Published, it is the one file, the
+  toolkit's exports and its own.
+
+The default context is that second library's and not the runtime's, as
+`DESIGN.md` has it. The other way round was weighed and set aside: with
+the functions that take no handle in the toolkit and the second library a
+bare stub that only makes the default, the stub has no function of its own
+to make it from and would depend on code running by itself when the file
+is loaded, and the toolkit would carry functions that fail until something
+else has been run.
 
 The handle is the context's own, `FortranContext.Handle`, and an export
 turns it back with `FromHandle` and asks the context for the library; no
-library is made by the caller. The exports with the reference toolkit's
-names take no handle and use `FortranContext.Default`. Both exist in the
-runtime; the exports do not yet.
+library is made by the caller. Those two exist in the runtime; the exports
+do not yet.
 
 A routine that takes a procedure takes it, in this interface, as a C
 function pointer whose first argument is the handle:
@@ -921,21 +942,6 @@ each of these is reported as unsupported and never translated by guess:
   which comes with `GO TO`. A method per entry point cannot hold it; such a
   unit needs the form `f2c` writes, one body with every entry's arguments
   and a selector that says where to start, and a thin method per entry.
-
-## Procedures taken from the compiler's library
-
-These are the last calls of the reference sources' main library that reach
-nothing: with every one of its 1,415 program units translated, the
-translation compiles but for `EXIT`, called in two places, and
-`DATE_AND_TIME`, called in one.
-
-The reference sources call six procedures that no FORTRAN 77 standard defines
-and no file of theirs supplies: `IARGC` and `GETARG` for the command line,
-`GETENV`, `SYSTEM`, `EXIT`, and `DATE_AND_TIME`. Each is used in one or two
-routines written for exactly that purpose. The runtime is to supply them
-under those names, so that the translator treats them as it treats any other
-external procedure and knows nothing about them. `SYSTEM` starts another
-program, which not every platform allows; there it reports failure.
 
 ## Settings for what differs by platform
 

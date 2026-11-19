@@ -89,10 +89,9 @@ internal sealed partial class UnitEmitter
     {
         var isFunction = _table.Unit.Header?.Statement switch
         {
-            Statement.Subroutine => false,
             Statement.Function => true,
             Statement.BlockData => throw Unsupported("a block data subprogram"),
-            _ => throw Unsupported("a main program"),
+            _ => false,
         };
 
         RefuseWhatIsNotTranslatedYet();
@@ -112,7 +111,11 @@ internal sealed partial class UnitEmitter
         }
         else
         {
-            var heading = _table.Unit.Header!.Statement.ProcedureHeading();
+            // A main program is a method that takes nothing, under its own
+            // name or the one every unnamed main program is given.
+            var heading = _table.Unit.Header?.Statement is Statement.Subroutine or Statement.Function
+                ? _table.Unit.Header.Statement.ProcedureHeading()
+                : (Name: UnitName, Parameters: []);
             WriteMethod(methods, heading.Name, heading.Parameters, _table.Unit.Body, isFunction);
         }
 

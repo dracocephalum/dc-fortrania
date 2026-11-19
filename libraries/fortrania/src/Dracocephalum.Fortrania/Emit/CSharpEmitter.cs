@@ -8,6 +8,9 @@ namespace Dracocephalum.Fortrania.Emit;
 /// </summary>
 public sealed class CSharpEmitter
 {
+    /// <summary>The name of the method a main program becomes when the source gives it none.</summary>
+    public const string MainProgramName = "MAIN";
+
     private readonly EmitOptions _options;
     private readonly Func<string, ProcedureInterface?> _findProcedure;
 

@@ -25,7 +25,12 @@ internal sealed partial class UnitEmitter
 
     private string StateLoader => "_load_" + UnitName;
 
-    private string UnitName => _table.Unit.Header!.Statement.ProcedureHeading().Name;
+    private string UnitName => _table.Unit.Header?.Statement switch
+    {
+        null => CSharpEmitter.MainProgramName,
+        Statement.Program program => program.Name,
+        var heading => heading.ProcedureHeading().Name,
+    };
 
     // Places the kept variables one after another, each at a multiple of
     // the size of its elements.

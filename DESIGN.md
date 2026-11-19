@@ -256,16 +256,24 @@ container. A program is then one object to its host, the context, and
 whatever it calls pulls in what it needs. A library made by hand first is
 the one `Get` gives, which leaves room for a class derived from a library's.
 
-**A context can be named by a number, and a process has one by default.**
+**A context can be named by a number, and none is there by default.**
 Code that is not .NET cannot hold an object, so a context gives a handle
 that stands for it and is turned back into it: a place in a table and the
 turn that place is on, so that the handle of a context that is gone is
-refused and not taken for its successor's. `FortranContext.Default` is one
-context for the whole process, made when first asked for and never
-disposed, with the console for its screen and keyboard. It is for an entry
-point that has nowhere to keep a context, a function exported under the
-reference toolkit's own name and arguments; it is one program, so one
-caller at a time. A call inside a library is unchanged,
+refused and not taken for its successor's. The runtime has no context of
+its own beside those: none is made unasked and none is the process's by
+default, since new code has no reason to prefer a call that names no
+context, and a default that made itself would hand a library the console
+and leave to run commands that nobody granted. The one thing that needs a
+default, a library that stands in for the reference toolkit under its own
+function names, keeps one for itself.
+
+**What a host decides for a program is one object.** `FortranContextOptions`
+holds it: where files come from, whether the console is the program's, its
+command line, whether it may run commands, its clock, what `RECL` counts
+and how a line ends. Left as made it gives nothing but files on disk, and
+`Standalone` is what a FORTRAN program run on its own has. A context is
+made from one. A call inside a library is unchanged,
 and one across libraries costs a load of that member more.
 
 **Variables that share storage are pointers into one run of bytes.**
@@ -495,3 +503,20 @@ record, a count and an asterisk before a value given several times, two
 commas for an item that keeps its value, and a slash that ends the list.
 The item's own type says how its value is read, as with a format, and the
 item's call is the same call.
+
+**A main program is a method that takes nothing.** It is emitted like a
+subroutine, under the program's name, or `MAIN` where the source gives it
+none. What starts it is not the translated code's business: a host calls
+the method, and a program translated to run on its own is to get a `Main`
+that does.
+
+**What a program takes from its compiler's library, the context supplies.**
+Six procedures that no standard of the language defines are called by the
+reference sources and by most programs of their time: `EXIT`, `IARGC`,
+`GETARG`, `GETENV`, `DATE_AND_TIME` and `SYSTEM`. A call of one is written
+on the program's context, which has a method for each. They are the
+context's because they are about the program and not the library: its
+command line, its clock, which the host can replace, and whether it may
+have the operating system run a command, which it may not unless the host
+says so. `EXIT` throws as `STOP` does. A procedure of the program that has
+one of these names is the program's own and is called as any other.
