@@ -39,8 +39,10 @@ naming the construct and the line, and never writes a partial translation.
 
 Everything up to the emitter is independent of the output language, and the
 emitter sits behind a seam of its own, so another back end is an addition
-and not a rewrite. The command-line front end, `fortrania`, will be a thin
-program over this library and hold no logic of its own.
+and not a rewrite. A whole translation, several projects made of several FORTRAN libraries
+each, is described by one settings file and done by `Translator.Run`. The
+command-line front end, `fortrania`, will be a thin program over that and
+hold no logic of its own.
 
 ## Run it
 

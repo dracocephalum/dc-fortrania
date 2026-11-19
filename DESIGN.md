@@ -520,3 +520,69 @@ command line, its clock, which the host can replace, and whether it may
 have the operating system run a command, which it may not unless the host
 says so. `EXIT` throws as `STOP` does. A procedure of the program that has
 one of these names is the program's own and is called as any other.
+
+## What is translated is set out as projects and their sources
+
+One settings file names everything a translation produces, and
+`Translator.Run` does the whole of it. The file lies in the project that
+hosts it, and the paths in it are taken from where it lies.
+
+    {
+      "output": "src",
+      "projects": [
+        {
+          "name": "Dracocephalum.Spice.Toolkit",
+          "sources": [
+            { "name": "SpiceLib", "files": [ "spicelib/*.f" ] },
+            { "name": "Support",  "files": [ "support/*.f" ] }
+          ]
+        },
+        {
+          "name": "Dracocephalum.Spice.TSpice",
+          "entry": "MAIN",
+          "sources": [
+            { "name": "TestUtil", "files": [ "testutil/*.f" ] },
+            { "name": "TSpice", "class": "TSpiceMain", "files": [ "tspice/*.f", "tspice/*.pgm" ] }
+          ]
+        }
+      ]
+    }
+
+- **A project is an assembly, and each of its sources a class.** A source
+  is one FORTRAN library: its files, always given as a list, and a name
+  that is its class. Two libraries in one assembly stay two classes, so
+  that a library's class is the same however it is packaged and two
+  libraries may each have a routine of one name. The namespace is the
+  project's name unless it is given.
+- **A class may not have the name of a part of its namespace**, which C#
+  allows and every use of the name then trips over. The translator refuses
+  it and asks for a class name; it does not rename by itself, since the
+  class would then not have the name that was written.
+- **What a project is follows from what is in it.** With a main program
+  among its sources it is an executable, and a library otherwise; either
+  can be said outright. An executable has one entry: with several main
+  programs the project names the one, and until it does the translation is
+  refused.
+- **A project file is written once.** Where the project has none, the
+  translator writes one, with a `Main` for an executable, and that is a
+  whole project from nothing. Where it has one, the translator writes
+  sources and nothing else, so a project made or changed by hand stays as
+  it is; the checks on an executable's entry are not made then, since no
+  `Main` is written. Translated sources go to a folder of their own in the
+  project, a folder per source, and a new translation removes there only
+  files that say they were generated. The classes are partial, so
+  hand-written files beside them add to the same classes.
+- **References between projects follow from the calls**, since the
+  translator knows which source defines every routine called. Left out,
+  they are worked out, and written into a project file being made or
+  reported as missing from one that exists. Given, they are used and
+  checked. Projects that need each other in a circle are refused; sources
+  of one project may call each other freely.
+- **All of it or none.** The settings are checked, every source read and
+  checked, and every unit emitted before the first file is written, so an
+  error anywhere leaves what is on disk as it was. A file whose text is
+  already what it should be is not written again, and a build that looks
+  at dates sees no change.
+
+The settings file, the command line and the build step all read into the
+same description, kept in the translator's library and not in any of them.

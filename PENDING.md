@@ -357,66 +357,24 @@ either finds it.
 Still to be found out when the tool is built: whether one tool package can
 give more than one command. Nothing above depends on the answer.
 
-## What is translated is set out as projects and their sources
+## What a translation's settings do not do yet
 
-One settings file names everything a translation produces. It lies in the
-project that hosts it, for the reference sources the one that holds the
-managed layer, and the paths in it are taken from where it lies.
+`DESIGN.md`, *What is translated is set out as projects and their sources*,
+has what is built: the settings, their rules, and the translator that does
+a whole translation from them. Left to do:
 
-    {
-      "output": "src",
-      "projects": [
-        {
-          "name": "Dracocephalum.Spice.Toolkit",
-          "sources": [
-            { "name": "SpiceLib", "files": [ "spicelib/*.f" ] },
-            { "name": "Support",  "files": [ "support/*.f" ] }
-          ]
-        },
-        {
-          "name": "Dracocephalum.Spice.TSpice",
-          "sources": [
-            { "name": "TestUtil", "files": [ "testutil/*.f" ] },
-            { "name": "TSpice",   "files": [ "tspice/*.f", "tspice/*.pgm" ] }
-          ]
-        }
-      ]
-    }
-
-- **A project is an assembly, and each of its sources a class.** A source
-  is one FORTRAN library: its files, always given as a list, and a name
-  that is its class. Two libraries in one assembly stay two classes, so
-  that a library's class is the same however it is packaged and two
-  libraries may each have a routine of one name. The namespace is the
-  project's name unless it is given.
-- **A class may not have the name of a part of its namespace**, which C#
-  allows and every use of the name then trips over. The translator refuses
-  it and asks for a class name; it does not rename by itself.
-- **What a project is follows from what is in it.** With a main program
-  among its sources it is an executable, and a library otherwise; either
-  can be said outright. An executable has one entry: with several main
-  programs the project names the one, and until it does the translation is
-  refused.
-- **A project file is written once.** Where the project has none, the
-  translator writes one, with a `Main` for an executable, and that is a
-  whole project from nothing. Where it has one, the translator writes
-  sources and nothing else, so a project made or changed by hand stays as
-  it is; the checks on an executable's entry are not made then, since no
-  `Main` is written. Translated sources go to a folder of their own in the
-  project, and a new translation removes there only files that say they
-  were generated. The classes are partial, so hand-written files beside
-  them add to the same classes.
-- **Where the output goes** is the settings file's `output`, a folder per
-  project under it by the project's name, unless the project names its own.
-- **References between projects follow from the calls**, since the
-  translator knows which source defines every routine called. Left out,
-  they are worked out, and written into a project file being made or
-  reported as missing from one that exists. Given, they are used and
-  checked. Projects that need each other in a circle are refused; sources
-  of one project may call each other freely.
-
-The settings file, the command line and the build step all read into the
-same description, kept in the translator's library and not in any of them.
+- **A command to run it.** `fortrania cs` is to read a settings file and do
+  the translation, as *The command is `fortrania`, and the target language
+  its first word* has it.
+- **Translating libraries apart.** Today every source of the settings is
+  read in one run. A library translated by itself is to write its
+  summaries to a file beside its code, for a later translation that calls
+  into it to read.
+- **Paths that go deeper than one folder.** The last part of a path may
+  have `*` and `?`; `**` for folders at any depth is not read.
+- **The rest of what a translation is told**, under *What the translator
+  is told*: the convention, the diagnostics switched off, the runtime as
+  source, the placement of saved state.
 
 ## Translating as a step of the build
 

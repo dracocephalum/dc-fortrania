@@ -33,6 +33,15 @@ public sealed class CSharpEmitter
     }
 
     /// <summary>
+    /// Tells whether a name is one of the procedures a program takes from
+    /// its compiler's library, which the program's context supplies where
+    /// the program defines none of that name.
+    /// </summary>
+    /// <param name="name">A procedure's name, in upper case.</param>
+    /// <returns>Whether the context supplies it.</returns>
+    public static bool IsSuppliedByContext(string name) => UnitEmitter.SystemProcedures.ContainsKey(name);
+
+    /// <summary>
     /// Writes the part of the class that belongs to no program unit: how
     /// an instance is made over the context of its program, which holds
     /// what the program's libraries share. The class is complete with this

@@ -176,6 +176,16 @@ internal sealed class TranslatedProgram
             """,
         ]);
 
+    /// <summary>Compiles C# sources written elsewhere, a whole translation's among them.</summary>
+    public static TranslatedProgram FromSources(IEnumerable<string> sources) => Load([.. sources]);
+
+    /// <summary>Calls the <c>Main</c> of a class that takes nothing and gives the program's exit code.</summary>
+    public int RunMain(string typeName)
+    {
+        var main = _assembly.GetType(typeName)!.GetMethod("Main", BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public)!;
+        return (int)main.Invoke(null, null)!;
+    }
+
     private static TranslatedProgram Load(IReadOnlyList<string> sources)
     {
         var compilation = CSharpCompilation.Create(

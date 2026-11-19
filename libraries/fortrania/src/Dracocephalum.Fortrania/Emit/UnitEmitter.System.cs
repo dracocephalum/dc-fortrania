@@ -14,7 +14,7 @@ internal sealed partial class UnitEmitter
 {
     // Each by the name the FORTRAN calls it by: the context's method, and
     // what it takes, as far as a caller's arguments are to be fitted to it.
-    private static readonly Dictionary<string, (string Method, ProcedureInterface Interface)> SystemProcedures = new(StringComparer.Ordinal)
+    internal static readonly Dictionary<string, (string Method, ProcedureInterface Interface)> SystemProcedures = new(StringComparer.Ordinal)
     {
         ["EXIT"] = ("Exit", Takes("EXIT", null, DataType.Integer)),
         ["IARGC"] = ("ArgumentCount", Takes("IARGC", DataType.Integer)),
