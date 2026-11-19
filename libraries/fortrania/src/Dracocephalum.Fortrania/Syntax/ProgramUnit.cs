@@ -13,4 +13,12 @@ namespace Dracocephalum.Fortrania.Syntax;
 /// what has been declared.
 /// </param>
 /// <param name="End">The <c>END</c>.</param>
-public sealed record ProgramUnit(ParsedStatement? Header, IReadOnlyList<Construct> Body, ParsedStatement End);
+public sealed record ProgramUnit(ParsedStatement? Header, IReadOnlyList<Construct> Body, ParsedStatement End)
+{
+    /// <summary>
+    /// Gets the comment and blank lines after the <c>END</c>, as written:
+    /// those of the file after its last unit, given to that unit, and none
+    /// for any other unit, since what comes before a unit is that unit's.
+    /// </summary>
+    public IReadOnlyList<string> TrailingComments { get; init; } = [];
+}

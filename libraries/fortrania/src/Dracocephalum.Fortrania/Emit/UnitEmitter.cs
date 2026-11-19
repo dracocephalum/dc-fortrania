@@ -109,9 +109,10 @@ internal sealed partial class UnitEmitter
             // control passes through from there. Where control runs on from
             // one entry point into the next, both methods hold the statements
             // after the second, which is what running on does.
-            foreach (var entry in EntryLayout.Of(_table).Bodies)
+            var bodies = EntryLayout.Of(_table).Bodies;
+            foreach (var entry in bodies)
             {
-                WriteMethod(methods, entry.Name, entry.Parameters, entry.Statements, isFunction);
+                WriteMethod(methods, entry.Entry, entry.Name, entry.Parameters, entry.Statements, isFunction, isLast: entry == bodies[^1]);
             }
         }
         else
@@ -121,7 +122,7 @@ internal sealed partial class UnitEmitter
             var heading = _table.Unit.Header?.Statement is Statement.Subroutine or Statement.Function
                 ? _table.Unit.Header.Statement.ProcedureHeading()
                 : (Name: UnitName, Parameters: []);
-            WriteMethod(methods, heading.Name, heading.Parameters, _table.Unit.Body, isFunction);
+            WriteMethod(methods, _table.Unit.Header, heading.Name, heading.Parameters, _table.Unit.Body, isFunction, isLast: true);
         }
 
         var file = new CodeWriter();
@@ -146,6 +147,16 @@ internal sealed partial class UnitEmitter
         file.Blank();
         file.Open($"public unsafe partial class {_options.ClassName}");
 
+        // What a file says after its last unit, an appendix say, follows
+        // the unit's last method.
+        if (_table.Unit.TrailingComments.Any(line => !IsBlankComment(line)))
+        {
+            methods.Blank();
+            var trailing = new CodeWriter();
+            WriteComments(trailing, WithoutTrailingBlanks(_table.Unit.TrailingComments));
+            methods.Append(trailing);
+        }
+
         WriteState(file);
         file.Append(_forwarderText);
         file.Append(methods);
@@ -154,9 +165,21 @@ internal sealed partial class UnitEmitter
         return file.ToString();
     }
 
-    private void WriteMethod(CodeWriter methods, string name, IReadOnlyList<string> parameters, IReadOnlyList<Construct> statements, bool isFunction)
+    // The statement that names the method, where there is one, gives the
+    // comments before it; the last method of the unit is given those before
+    // its END.
+    private void WriteMethod(
+        CodeWriter methods,
+        ParsedStatement? heading,
+        string name,
+        IReadOnlyList<string> parameters,
+        IReadOnlyList<Construct> statements,
+        bool isFunction,
+        bool isLast)
     {
         _body = new CodeWriter();
+        _preamble = new CodeWriter();
+        _isInPreamble = true;
         _constantsUsed.Clear();
         _named.Clear();
         _slots.Clear();
@@ -168,6 +191,10 @@ internal sealed partial class UnitEmitter
         _result = isFunction ? _table.Find(name)! : null;
 
         Write(statements, _result);
+        if (isLast)
+        {
+            WriteComments(_body, WithoutTrailingBlanks(CommentsOf(_table.Unit.End)));
+        }
 
         // A function gives its result where control runs off its end; one that
         // ends on a RETURN has already done so.
@@ -181,10 +208,32 @@ internal sealed partial class UnitEmitter
             methods.Blank();
         }
 
+        // Methods are a blank line apart already, and a comment before one
+        // is about it, so blank lines around such comments are left out.
+        if (heading is not null)
+        {
+            var comments = new CodeWriter();
+            WriteComments(comments, WithoutTrailingBlanks(CommentsOf(heading)));
+            methods.Append(comments);
+        }
+
         var returns = _result is null ? "void" : ResultType(_result.Type!.Type);
         methods.Open($"public {returns} {_options.Convention.ProcedureName(name)}({string.Join(", ", Parameters(parameters, _result))})");
+        if (!_preamble.IsEmpty)
+        {
+            methods.Append(_preamble);
+            methods.Blank();
+        }
+
+        // Comments that open the code are a block of their own after what is
+        // declared, as anywhere else after code.
         WriteDeclarations(methods);
-        methods.Lines(_body);
+        if (methods.LastLine is not ("" or "{") && _body.FirstLine.StartsWith("//", StringComparison.Ordinal))
+        {
+            methods.Blank();
+        }
+
+        methods.Append(_body);
         methods.Close();
     }
 

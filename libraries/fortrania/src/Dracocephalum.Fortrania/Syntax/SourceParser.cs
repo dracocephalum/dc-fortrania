@@ -24,7 +24,13 @@ public static class SourceParser
             assembler.Add(statement);
         }
 
-        return new SourceFile(assembler.FinishFile(), source.TrailingComments);
+        var units = assembler.FinishFile();
+        if (units.Count > 0)
+        {
+            units[^1] = units[^1] with { TrailingComments = source.TrailingComments };
+        }
+
+        return new SourceFile(units, source.TrailingComments);
     }
 
     /// <summary>Parses a file that other files draw in with <c>INCLUDE</c>.</summary>

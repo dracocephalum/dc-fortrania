@@ -45,7 +45,7 @@ Windows a junction needs no administrator:
 ## Notes
 
 - The sources are never committed, and neither is the translation yet: it
-  is to carry the routines' own comments first, as
+  is to have a component of its own, under the toolkit's terms, as
   [`docs/rules/translated-code.md`](../../docs/rules/translated-code.md) asks.
 - `rewrite` is run by a translation, which names the files it wrote in
   `FORTRANIA_WRITTEN`; it changes only those.

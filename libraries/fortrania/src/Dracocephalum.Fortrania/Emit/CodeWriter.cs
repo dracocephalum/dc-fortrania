@@ -8,9 +8,28 @@ internal sealed class CodeWriter
     private readonly StringBuilder _text = new();
     private int _depth;
 
-    public void Line(string line) => _text.Append(' ', _depth * 4).Append(line).Append('\n');
+    /// <summary>Gets the last line written, without its indentation; empty when it was blank or there is none.</summary>
+    public string LastLine { get; private set; } = string.Empty;
 
-    public void Blank() => _text.Append('\n');
+    /// <summary>Gets the first line written, without its indentation; empty when it was blank or there is none.</summary>
+    public string FirstLine { get; private set; } = string.Empty;
+
+    public void Line(string line)
+    {
+        if (IsEmpty)
+        {
+            FirstLine = line.TrimStart();
+        }
+
+        _text.Append(' ', _depth * 4).Append(line).Append('\n');
+        LastLine = line.TrimStart();
+    }
+
+    public void Blank()
+    {
+        _text.Append('\n');
+        LastLine = string.Empty;
+    }
 
     public void Open(string header)
     {

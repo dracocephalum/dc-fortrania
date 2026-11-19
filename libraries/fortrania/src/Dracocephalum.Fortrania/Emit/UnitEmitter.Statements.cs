@@ -21,21 +21,41 @@ internal sealed partial class UnitEmitter
         {
             case Construct.Simple simple:
                 _line = simple.Statement.Source.Line;
+                WriteCommentsOf(simple.Statement, IsExecutable(simple.Statement.Statement));
                 Write(simple.Statement.Statement, result);
                 break;
 
+            // The comments before an ELSE or ELSE IF are about the arm it
+            // opens, and go inside it; those before the END IF or END DO
+            // close the block they are in.
             case Construct.If block:
-                foreach (var branch in block.Branches)
+                for (var index = 0; index < block.Branches.Count; index++)
                 {
+                    var branch = block.Branches[index];
                     _line = branch.Header.Source.Line;
                     ReleaseSlots();
+                    if (index == 0)
+                    {
+                        WriteCommentsOf(branch.Header, isExecutable: true);
+                    }
+
                     _body.Open(branch.Header.Statement switch
                     {
                         Statement.BlockIf first => $"if ({Condition(first.Condition)})",
                         Statement.ElseIf next => $"else if ({Condition(next.Condition)})",
                         _ => "else",
                     });
+                    if (index > 0)
+                    {
+                        WriteComments(_body, CommentsOf(branch.Header));
+                    }
+
                     Write(branch.Body, result);
+                    if (index == block.Branches.Count - 1)
+                    {
+                        WriteComments(_body, WithoutTrailingBlanks(CommentsOf(block.End)));
+                    }
+
                     _body.Close();
                 }
 
@@ -44,6 +64,7 @@ internal sealed partial class UnitEmitter
             case Construct.Loop loop:
                 _line = loop.Header.Source.Line;
                 ReleaseSlots();
+                WriteCommentsOf(loop.Header, isExecutable: true);
                 _body.Open(loop.Header.Statement switch
                 {
                     Statement.Do counted => CountedLoop(counted),
@@ -51,6 +72,7 @@ internal sealed partial class UnitEmitter
                     _ => throw new ArgumentOutOfRangeException(nameof(construct)),
                 });
                 Write(loop.Body, result);
+                WriteComments(_body, WithoutTrailingBlanks(CommentsOf(loop.End)));
                 _body.Close();
                 break;
         }

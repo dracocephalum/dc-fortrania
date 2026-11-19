@@ -13,8 +13,8 @@
     }
   },
 
-  // Not yet a component of the repository: a translated file is to carry
-  // the routine's own comments before translated code is committed.
+  // Not yet a component of the repository: the translation is to have one
+  // of its own, under the toolkit's terms, before it is committed.
   "output": "../../../../cache/translated",
   "runtime": { "project": "../../../../libraries/fortrania/src/Dracocephalum.Fortrania.Runtime/Dracocephalum.Fortrania.Runtime.csproj" },
 

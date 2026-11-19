@@ -85,6 +85,7 @@ public class CSharpEmitterInputOutputTests
                     }
                     _io.Put(Arg(&_d1, d[0] + d[1]), 8);
                     _io.Require(_io.EndWrite());
+
                     _io.ReadDirect(unit, 2);
                     _io.Get(word, 8);
                     _io.Get(vals, 16);

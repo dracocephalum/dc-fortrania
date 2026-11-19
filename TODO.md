@@ -30,11 +30,12 @@ undecided adds it here rather than mentioning it once in a conversation.
       exists, with the comment `agentics/rules/layout.md` asks for. Close by:
       a `PackageReference` to the translator's package once there is a feed.
 - [ ] **The translated toolkit is written to `cache/translated/`, which git
-      ignores.** `docs/rules/translated-code.md` asks that a translated file
-      carry the routine's own comments, the original disclaimer among them,
-      and the translator does not carry them yet. Close by: carrying them,
-      then giving the translation a component of its own under
-      `libraries/`, with its `LICENSE.md`, and committing it in a commit of
+      ignores.** It now carries the routines' own comments, the original
+      disclaimer among them, as `docs/rules/translated-code.md` asks. What
+      is left is where it goes: whether the move to dc-spice comes first,
+      and whether the translation of the toolkit's tests is committed as
+      well as the toolkit's. Close by: giving the translation a component
+      of its own, with its `LICENSE.md`, and committing it in a commit of
       its own.
 - [ ] **How packages are versioned.** For dc-fortrania's pipelines; see
       `PENDING.md`, *Fortrania becomes a repository of its own*. The

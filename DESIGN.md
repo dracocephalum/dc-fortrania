@@ -657,6 +657,31 @@ changes only the files whose translation it changes. What a particular
 library has to say in its files, a licence notice say, is added by a
 command after the translation.
 
+**The source's comments are carried, where they stand.** A comment says
+what the code beside it is for, and a routine of the reference sources
+opens with its documentation, the disclaimer the toolkit's rules require
+among it; a translation without them is harder to read and is not
+allowed to be published. Each comment line becomes a `// ` line at the
+indentation of the code it comes before, with the text after the comment
+character less the indentation the lines of its block share: in fixed
+form that indentation stood for the code's, which the C# has its own of,
+and what is lined up within the block stays lined up. Line comments with
+a space are C#'s own, StyleCop's SA1005; `f2c` writes `/* */` since C had
+no other, and a block comment would need its text kept from holding `*/`.
+A blank line stays one, and a run of them is one; a block of comments that
+follows code has one before it, as SA1515 asks, and one that comes before
+a closing brace has none after it. Where the code does not stand where
+the source has it, the comments go where it does: those before the statement that names a
+procedure go before its method, those up to the first executable
+statement go at the top of the method before what it declares, since
+declarations are gathered there; those before an `ELSE` go inside the arm
+it opens, and those after the last `END` of a file follow the last
+method. An entry point's method has the comments that follow its `ENTRY`.
+Comments of an include file are the include file's, and are not carried
+into each unit that includes it. Of the toolkit and its tests, 811,320
+comment lines, each is carried once; the main and support libraries'
+translation grows from 12 to 37 MB.
+
 **What the translator wrote is recorded, so that what a command changed is
 kept.** Each folder of translated sources has a manifest with a hash of
 the text the translator gave each file. A file is written again when that
