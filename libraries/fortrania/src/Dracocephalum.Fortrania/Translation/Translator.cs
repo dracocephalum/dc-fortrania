@@ -35,12 +35,20 @@ public static partial class Translator
     /// <param name="settings">What to translate, and to what.</param>
     /// <param name="baseDirectory">The folder the paths in the settings are taken from: where the settings file lies.</param>
     /// <returns>What was done, and what there is to say about it.</returns>
-    public static TranslationResult Run(TranslationSettings settings, string baseDirectory)
+    public static TranslationResult Run(TranslationSettings settings, string baseDirectory) => Run(settings, baseDirectory, new TranslationOptions());
+
+    /// <summary>Does the translation, in the way the options say.</summary>
+    /// <param name="settings">What to translate, and to what.</param>
+    /// <param name="baseDirectory">The folder the paths in the settings are taken from: where the settings file lies.</param>
+    /// <param name="options">How this run is to go.</param>
+    /// <returns>What was done, and what there is to say about it.</returns>
+    public static TranslationResult Run(TranslationSettings settings, string baseDirectory, TranslationOptions options)
     {
+        ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentException.ThrowIfNullOrEmpty(baseDirectory);
 
-        return new Translation(settings, Path.GetFullPath(baseDirectory)).Run();
+        return new Translation(settings, Path.GetFullPath(baseDirectory), options).Run();
     }
 
     [GeneratedRegex(@"^[A-Za-z_][A-Za-z0-9_]*$")]
@@ -80,7 +88,7 @@ public static partial class Translator
         public Dictionary<string, string> Files { get; } = new(StringComparer.OrdinalIgnoreCase);
     }
 
-    private sealed class Translation(TranslationSettings settings, string baseDirectory)
+    private sealed class Translation(TranslationSettings settings, string baseDirectory, TranslationOptions options)
     {
         private readonly List<TranslationMessage> _messages = [];
         private readonly List<Source> _sources = [];
@@ -97,6 +105,11 @@ public static partial class Translator
             CheckSettings();
             CheckVariables();
             CheckCommands();
+            if (!HasErrors)
+            {
+                FetchSources();
+            }
+
             if (!HasErrors)
             {
                 Read();
@@ -218,16 +231,16 @@ public static partial class Translator
         // the local settings file, then the environment, then the settings.
         // A name with no value is left as it stands; CheckVariables says so.
         [return: System.Diagnostics.CodeAnalysis.NotNullIfNotNull(nameof(path))]
-        private string? Expand(string? path) => path is null ? null : VariableReference().Replace(path, match => ValueOf(match.Groups[1].Value) ?? match.Value);
+        private string? Expand(string? path) => path is null ? null : VariableReference().Replace(path, match => ResolveVariable(match.Groups[1].Value) ?? match.Value);
 
-        private string? ValueOf(string name)
+        private string? ResolveVariable(string name)
         {
             if (settings.LocalVariables.TryGetValue(name, out var local))
             {
                 return local;
             }
 
-            return Environment.GetEnvironmentVariable(name) ?? (settings.Variables.TryGetValue(name, out var given) ? given : null);
+            return Environment.GetEnvironmentVariable(name) ?? (settings.Variables.TryGetValue(name, out var given) ? given.Path : null);
         }
 
         // Every path the settings give, so that a variable with no value is
@@ -242,12 +255,40 @@ public static partial class Translator
             var missing = Paths()
                 .Where(path => path is not null)
                 .SelectMany(path => VariableReference().Matches(path!).Select(match => match.Groups[1].Value))
-                .Where(name => ValueOf(name) is null)
+                .Where(name => ResolveVariable(name) is null)
                 .Distinct(StringComparer.OrdinalIgnoreCase);
 
             foreach (var name in missing)
             {
                 Error($"The variable {name} has no value. Give it one in the local settings file, in the environment, or under variables in the settings.");
+            }
+        }
+
+        // A variable that names a folder to download is fetched when the
+        // folder is not there, and only for the path the settings give: a
+        // value from the local settings file or the environment is somebody's
+        // own folder, used as it is.
+        private void FetchSources()
+        {
+            var fetcher = new SourceFetcher(options);
+            foreach (var (name, variable) in settings.Variables.Where(pair => pair.Value.Url is not null))
+            {
+                if (variable.Sha256 is null)
+                {
+                    Error($"The variable {name} says where to download from and not what the archive's SHA-256 hash is; it is not downloaded without one.");
+                    continue;
+                }
+
+                if (ResolveVariable(name) != variable.Path)
+                {
+                    continue;
+                }
+
+                var folder = Path.GetFullPath(Path.Combine(baseDirectory, variable.Path));
+                if (!Directory.Exists(folder) && fetcher.Fill(variable, folder) is { } problem)
+                {
+                    Error($"The variable {name}: {problem}");
+                }
             }
         }
 
@@ -549,7 +590,7 @@ public static partial class Translator
                     // differs from what it made last time, or the file is
                     // gone; a file a later step changed is otherwise kept.
                     var manifestPath = Path.Combine(generated, ManifestName);
-                    var before = ReadManifest(manifestPath);
+                    var before = options.Force ? [] : ReadManifest(manifestPath);
                     var after = new SortedDictionary<string, string>(StringComparer.Ordinal);
                     foreach (var (name, text) in source.Files)
                     {

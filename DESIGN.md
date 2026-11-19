@@ -614,6 +614,24 @@ Where a translation's sources are on one machine is said there, and never
 in the file that is shared. A variable with no value anywhere is reported
 before anything is read.
 
+**A variable can say where to download the folder it names.** Besides a
+value, a variable may give an archive's address, its SHA-256 hash and how
+many leading folders to drop. When the folder is not there, it is filled
+before anything is read; when it is, nothing is fetched, so a developer's
+own link to the sources wins and a fresh checkout on a build server fetches
+them. The hash is required, and an archive whose hash differs is refused,
+so what is translated is always what was named. The archive is written and
+expanded beside the folder and moved into place at the end, so an
+interrupted fetch leaves no folder that looks whole; an entry whose path
+would leave the folder is refused, and links in it are passed over. A value
+given by the local settings file or the environment is somebody's own
+folder and is used as it is. The formats are those .NET reads by itself:
+zip, tar, and tar compressed with gzip.
+
+A run can be forced, and then writes every translated file again and lists
+it as written, whatever the manifest says, for a rebuild that is to start
+from nothing.
+
 **A translated file says what it was translated from, and no more.** Its
 header names the program unit and the file it came from, without a folder,
 so that nothing of the machine it was translated on is in it, and no date,

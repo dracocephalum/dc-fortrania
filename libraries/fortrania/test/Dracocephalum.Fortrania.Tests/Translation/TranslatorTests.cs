@@ -546,7 +546,7 @@ public sealed class TranslatorTests : IDisposable
         Put("third/core.f", Core);
         var name = "FORTRANIA_TEST_" + Guid.NewGuid().ToString("N");
         var settings = Settings(Project("Example.Toolkit", Source("Core", $"$({name})/*.f")));
-        settings.Variables[name] = "third";
+        settings.Variables[name] = new VariableSettings { Path = "third" };
 
         // Act
         var fromSettings = Translator.Run(settings, _root);

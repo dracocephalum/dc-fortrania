@@ -431,13 +431,13 @@ the translator, and the project names what to translate.
   runtime's files to the compilation, as *The runtime can be handed out as
   source* describes.
 
-**Sources can be fetched, in a step like restore.** A translation may name
-an archive to download in place of files on disk, which suits sources that
-may be fetched by anyone and passed on by no one. It is done by a target of
-its own, run as packages are restored and not in every build, so that a
-build works offline and the server is asked once. The archive is named with
-its hash and refused when the hash differs, and it is kept in a cache
-between builds. Nothing is downloaded unless the project asks.
+**Sources can be fetched**, as `DESIGN.md` describes under *A variable can
+say where to download the folder it names*; it is done as part of a
+translation, and does nothing when the folder is there. Still to come: a
+`fortrania restore` that does only that, for a pipeline that wants fetching
+as a step of its own; the archive format of the toolkit's own packages,
+`.tar.Z`, which .NET does not read; and a forced run from the build step,
+so that rebuilding a project translates it whole.
 
 ## Input and output still to build
 

@@ -24,12 +24,13 @@ public sealed class TranslationSettings
     public RuntimeSettings Runtime { get; set; } = new();
 
     /// <summary>
-    /// Gets or sets values for the variables a path may name as
-    /// <c>$(Name)</c>, names compared without regard to case. They are the
-    /// last of three places a value is looked for: the local settings file
-    /// beside this one comes first, then the environment.
+    /// Gets or sets the variables a path may name as <c>$(Name)</c>, names
+    /// compared without regard to case. Their values are the last of three
+    /// places a value is looked for: the local settings file beside this
+    /// one comes first, then the environment. A variable may also say where
+    /// to download the folder it names, when there is none.
     /// </summary>
-    public IDictionary<string, string> Variables { get; set; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+    public IDictionary<string, VariableSettings> Variables { get; set; } = new Dictionary<string, VariableSettings>(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     /// Gets or sets the values the local settings file gave the variables,
@@ -96,7 +97,7 @@ public sealed class TranslationSettings
 
         // What is read is an ordinary dictionary; names are compared
         // without regard to case.
-        settings.Variables = new Dictionary<string, string>(settings.Variables, StringComparer.OrdinalIgnoreCase);
+        settings.Variables = new Dictionary<string, VariableSettings>(settings.Variables, StringComparer.OrdinalIgnoreCase);
         return settings;
     }
 }
