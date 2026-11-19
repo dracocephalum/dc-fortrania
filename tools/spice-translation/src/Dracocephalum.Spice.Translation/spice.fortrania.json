@@ -1,0 +1,56 @@
+{
+  // The SPICE Toolkit, translated from its FORTRAN 77 sources by Fortrania.
+  // Paths are taken from this file's folder. The sources are never part of
+  // the repository: nasa/ at its root is ignored, and is filled from NAIF's
+  // own server when it is not there. A local link in its place is used as
+  // it is.
+  "variables": {
+    "SpiceSources": {
+      "path": "../../../../nasa/N0067",
+      "url": "https://naif.jpl.nasa.gov/pub/naif/misc/tspice/N0067/PC_Linux_64bit/tspice.tar",
+      "sha256": "5ee6d1c6435586023c02c08410bed833dbd78e58a88e76b5fb4a3bb91d85b306",
+      "strip": 1
+    }
+  },
+
+  // Not yet a component of the repository: a translated file is to carry
+  // the routine's own comments before translated code is committed.
+  "output": "../../../../nasa/translated",
+  "runtime": { "project": "../../../../libraries/fortrania/src/Dracocephalum.Fortrania.Runtime/Dracocephalum.Fortrania.Runtime.csproj" },
+
+  // The toolkit's header in every file, and ZZPLATFM made to report the
+  // platform it runs on.
+  "onSuccess": [
+    { "run": [ "dotnet", "run", "--no-build", "--project", ".", "--", "rewrite" ] }
+  ],
+
+  "projects": [
+    {
+      "name": "Dracocephalum.Spice.Toolkit",
+      "properties": {
+        "TreatWarningsAsErrors": "false",
+        "EnforceCodeStyleInBuild": "false",
+        "RunAnalyzers": "false",
+        "IsPackable": "false"
+      },
+      "sources": [
+        { "name": "SpiceLib", "files": [ "$(SpiceSources)/src/spicelib/*.f" ] },
+        { "name": "Support", "files": [ "$(SpiceSources)/src/support/*.f" ] }
+      ]
+    },
+    {
+      "name": "Dracocephalum.Spice.TSpice",
+      "entry": "MAIN",
+      "properties": {
+        "TreatWarningsAsErrors": "false",
+        "EnforceCodeStyleInBuild": "false",
+        "RunAnalyzers": "false",
+        "IsPackable": "false"
+      },
+      "sources": [
+        { "name": "TestUtil", "files": [ "$(SpiceSources)/src/testutil/*.f" ] },
+        { "name": "TSpice", "class": "TSpiceMain", "files": [ "$(SpiceSources)/src/tspice/*.f", "$(SpiceSources)/src/tspice/*.pgm" ] }
+      ]
+    }
+  ]
+}

@@ -775,6 +775,11 @@ public static partial class Translator
                 $"    <RootNamespace>{project.Namespace ?? project.Name}</RootNamespace>",
                 "    <Nullable>enable</Nullable>",
                 "    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>",
+            ]);
+
+            lines.AddRange(project.Properties.Select(property => $"    <{property.Key}>{System.Security.SecurityElement.Escape(property.Value)}</{property.Key}>"));
+            lines.AddRange(
+            [
                 "  </PropertyGroup>",
                 string.Empty,
                 "  <ItemGroup>",

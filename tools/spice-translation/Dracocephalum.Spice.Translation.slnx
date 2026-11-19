@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Dracocephalum.Spice.Translation/Dracocephalum.Spice.Translation.csproj" />
+  </Folder>
+  <Folder Name="/test/">
+    <Project Path="test/Dracocephalum.Spice.Translation.Tests/Dracocephalum.Spice.Translation.Tests.csproj" />
+  </Folder>
+</Solution>

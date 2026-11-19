@@ -32,6 +32,13 @@ public sealed class ProjectSettings
     /// </summary>
     public IList<string>? References { get; set; }
 
+    /// <summary>
+    /// Gets or sets MSBuild properties written into the project file when
+    /// the translator writes one, after its own, by name; none unless set.
+    /// A project file that exists is not changed, so they do nothing there.
+    /// </summary>
+    public IDictionary<string, string> Properties { get; set; } = new Dictionary<string, string>(StringComparer.Ordinal);
+
     /// <summary>Gets or sets the FORTRAN libraries the project is made from, each a class.</summary>
     public IList<SourceSettings> Sources { get; set; } = [];
 }

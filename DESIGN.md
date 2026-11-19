@@ -31,8 +31,9 @@ The rule that follows from this is
 
 Hand-written work is under the Apache License 2.0: the translator, the
 runtime library, the public API, tests and documents. Translated code is not.
-It derives from the SPICE Toolkit, which has no open-source licence and is
-governed by the rules its owner publishes, so it stays under those rules.
+It derives from NASA's SPICE Toolkit, which has no open-source licence and
+is governed by the rules NAIF publishes for it, so it stays under those
+rules.
 
 The split is by folder and never by file within a project. A component that
 holds translated code has its own `LICENSE.md` and holds nothing a person
@@ -652,3 +653,77 @@ how a file the translator no longer makes is told from one somebody wrote.
 
 The settings file, the command line and the build step all read into the
 same description, kept in the translator's library and not in any of them.
+
+## The SPICE Toolkit's translation is a tool of its own
+
+What the translator is told about the toolkit, and what is done to the
+translation afterwards, is in `tools/spice-translation` and not in
+Fortrania: the translator knows FORTRAN, and the tool knows SPICE. Its
+settings name the toolkit's libraries as two projects, the libraries
+themselves and their test program, and read the sources from `nasa/` at
+the repository root, which git ignores and the settings fill from the
+NAIF's server, checked by hash, when it is not there.
+
+**The toolkit checks line endings itself, and `ZZPLATFM` decides the
+check.** The runtime reads a text file whatever its line ending, as
+*Text in sequence is lines, and bytes* above has it. The toolkit does not
+leave this to the runtime: on loading a text kernel it reads the file's
+first bytes by direct access, works out which ending the file has, and
+refuses the kernel when that is not the ending of the platform it says it
+was built for. It says so from `ZZPLATFM`, a table of facts about the
+platform, and the sources translated are the Unix variant, which expects a
+line feed alone. On Windows a program ends the lines it writes with a
+carriage return and a line feed, as the reference compiler's do there, so
+every text kernel the test suite writes for itself was refused, and the
+reference compiler's build of the same sources failed in exactly the same
+places.
+
+The toolkit's variants for each platform and compiler were compared,
+routine by routine: of the 1,483 files of the main library and 216 of the
+support library, 29 and 9 differ somewhere, and the test utilities are the
+same everywhere. Apart from `ZZPLATFM`, what differs is limits, the
+length of a file's name and how many text files are open at once, which
+the variant translated already has at the larger value and the runtime
+does not limit; a correction for characters whose code is negative, which
+the runtime's never are; how a program writes to the screen and ends; and
+the machine constants of a platform that stores numbers big-endian. So one
+routine needs to know the platform, and no variant is needed.
+
+One difference is not a limit. `STMP03` sums a series, and how many terms
+it sums is a constant its own comment says how to choose: the fewest
+after which one more changes nothing in double precision. The variant
+translated sums 11, where for IEEE doubles 10 are enough and the eleventh
+is some 10^-21 of the result; the Windows variant sums 10. The translation
+keeps 11, which is what the reference compiler's build of the same
+sources does, so that the two can be compared bit for bit. A result that
+differs in its last bit from the Windows build's would differ the same way
+between the toolkit's own builds.
+
+**`ZZPLATFM` is rewritten to answer from the machine it runs on.** After
+the translation, the tool replaces each fact the routine stores with a
+choice made when it runs: the line ending from the context's own setting,
+so that the check agrees with what the program writes, the byte order and
+the operating system from .NET, and the compiler as Fortrania, not as the
+compiler the sources name. The values chosen between are the toolkit's
+own names for its platforms. The rewrite finds each store by its constant
+and refuses when one is not there exactly once, so a new version of the
+sources that changes the routine stops the translation instead of being
+half rewritten. Supplying the routine by hand was the alternative; it
+would be a second copy to keep right, and a hand-written file in the
+translated component, whose licence is the toolkit's.
+
+With that, the translated test suite runs all 400 families on Windows.
+F_ZZASC2 then fails six cases: it is the test of the check itself, and the
+Linux package's copy expects the line feed alone to be native, where the
+Windows package's copy of the same test differs in exactly those six
+expectations. The reference compiler's build of the same sources, with
+`ZZPLATFM` told the same line ending, gives the same outcome for every
+family and every case that fails.
+
+**Every translated file carries the header NAIF's rules ask for.** The
+tool adds, inside the block the translator marks as generated, that the
+file is a machine translation of a routine of NASA's SPICE Toolkit, of
+which version, that it is not a product of NASA, Caltech/JPL or NAIF and
+that NAIF does not support it, and that the toolkit's
+terms apply; a file a rewrite changed says what changed. A file that has
+the header is left alone, so running the tool twice changes nothing.

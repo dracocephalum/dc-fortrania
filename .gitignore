@@ -525,3 +525,7 @@ docs/reviews/
 # a C# language server holds the whole repository and not one solution of
 # several. Written by a one-line command in AGENTS.md; never built from.
 .lsp/
+
+# The NAIF sources and their translation, which are never committed: filled
+# from NAIF, or a local link to a copy of them.
+/nasa/

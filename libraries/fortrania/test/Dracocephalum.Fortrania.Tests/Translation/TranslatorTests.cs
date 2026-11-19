@@ -71,6 +71,7 @@ public sealed class TranslatorTests : IDisposable
         library.ShouldContain("<PackageReference Include=\"Dracocephalum.Fortrania.Runtime\" Version=\"1.2.3\" />");
         library.ShouldNotContain("OutputType");
         library.ShouldNotContain("ProjectReference");
+        library.ShouldNotContain("TreatWarningsAsErrors");
         Text("out/Example.Toolkit/Generated/Core/Core.g.cs").ShouldNotContain("ToolMain");
         Text("out/Example.Tool/Generated/ToolMain/ToolMain.g.cs").ShouldContain("_library_Core");
 
@@ -83,6 +84,25 @@ public sealed class TranslatorTests : IDisposable
         var compiled = TranslatedProgram.FromSources(
             Directory.GetFiles(Path.Combine(_root, "out"), "*.cs", SearchOption.AllDirectories).Select(File.ReadAllText));
         compiled.RunMain("Example.Tool.Program").ShouldBe(7);
+    }
+
+    [Fact]
+    public void Run_WhenAProjectGivesProperties_ShouldWriteThemIntoTheProjectFileItMakes()
+    {
+        // Arrange
+        Put("core/core.f", Core);
+        var project = Project("Example.Toolkit", Source("Core", "core/*.f"));
+        project.Properties["TreatWarningsAsErrors"] = "false";
+        project.Properties["Description"] = "Translated <unchanged> & kept";
+
+        // Act
+        var result = Translator.Run(Settings(project), _root);
+
+        // Assert
+        result.Succeeded.ShouldBeTrue();
+        var file = Text("out/Example.Toolkit/Example.Toolkit.csproj");
+        file.ShouldContain("    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>\n    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>\n");
+        file.ShouldContain("<Description>Translated &lt;unchanged&gt; &amp; kept</Description>");
     }
 
     [Fact]

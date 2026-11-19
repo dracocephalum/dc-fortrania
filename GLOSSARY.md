@@ -18,6 +18,8 @@ where the code leans on it. Why something is as it is belongs in
 | Kept variable | A variable that holds its value between calls: one declared `SAVE`, one initialized with `DATA`, or a local array too large for the stack. |
 | Procedure shape | What a unit's own calls show of a procedure it was passed: its result and the types of its arguments. |
 | Reference sources | The FORTRAN 77 sources of the SPICE toolkit that are translated. They are never committed. |
+| SPICE Toolkit | NASA's library for the geometry of space missions, named for what its kernels hold: spacecraft, planets, instruments, orientation and events. "NASA's SPICE Toolkit" in prose; the legal origin, Caltech under a contract with NASA, only where a licence is stated. |
+| NAIF | NASA's Navigation and Ancillary Information Facility, the group at JPL that maintains and publishes the toolkit: the subject wherever its rules, its server or its support are meant. Never "the owner". |
 | Main library | The library of the reference sources that everything else of them is built on; its routines are what a user of the toolkit calls. |
 | Reference compiler | The FORTRAN compiler whose behaviour the translation follows wherever the language leaves a choice. It settles questions by experiment. |
 

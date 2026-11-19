@@ -388,9 +388,9 @@ a whole translation from them. Left to do:
   once for each variant and a shim of its name chooses between them, by a
   choice made once when the library is made over its context, from the
   context's `OperatingSystem` and `Architecture`, which default to the
-  machine's. Not needed for the reference sources, see *The reference
-  library checks line endings itself*, and so not built until a program
-  needs it.
+  machine's. Not needed for the reference sources, see `DESIGN.md`, *The SPICE
+  Toolkit's translation is a tool of its own*, and so not built until a
+  program needs it.
 - **Paths that go deeper than one folder.** The last part of a path may
   have `*` and `?`; `**` for folders at any depth is not read.
 - **The rest of what a translation is told**, under *What the translator
@@ -496,74 +496,6 @@ the library's choice as the default. The settings belong with the rest of
 what the runtime is told, *Settings for what differs by platform*, and a
 program translated as an executable may want them all on at once, as one
 choice of the translator's.
-
-## The reference library checks line endings itself
-
-The runtime reads a text file whatever its line ending, as `DESIGN.md` has
-it under *Text in sequence is lines, and bytes*. The reference library does
-not leave this to the runtime. On loading a text
-kernel it reads the file's first bytes by direct access, works out which
-ending the file has, and refuses the kernel when that is not the ending of
-the platform the library says it was built for. Translated faithfully, the
-check is still there, and reading any ending in the runtime does not get a
-file past it.
-
-Running the reference sources' test suite showed what it costs. The
-sources translated are the toolkit's Unix variant, which expects a line
-feed alone. On Windows the runtime ends a line written with a carriage
-return and a line feed, as the reference compiler does there, so every
-text kernel the tests write for themselves is refused, and what depends on
-it fails: 14 of the first 165 test families, after which the suite stops.
-The reference compiler's build of the same sources on the same machine
-fails in exactly the same places. With the context told to end lines with
-a line feed alone, the translated suite runs to its end: 400 families,
-399 passed, and the one that failed measured a run time and not a value.
-
-The reference sources come in a variant for each platform and compiler.
-All of them were compared, routine by routine and on code alone: of the
-1,483 files of the main library and 216 of the support library, 29 and 9
-differ on some platform, and the test utilities are the same everywhere.
-What differs is of few kinds. `ZZPLATFM` is a table of facts about the
-platform, its line ending for text among them, which is what decides the
-check above; `ZZASCII` itself differs only in a specifier of one compiler's
-own. The rest are limits, which the variant translated already has at the
-larger value; a correction for characters whose code is negative, which the
-runtime's never are; how a program writes to the screen and ends; and the
-machine constants of a platform that stores numbers big-endian. Cygwin's
-variant is Linux's but for the name `ZZPLATFM` gives.
-
-So `ZZPLATFM` is to answer from the machine and the context it runs in, the
-line ending the context writes above all, and not from the platform the
-sources were written for. That is done by a command after the translation,
-which rewrites it; nothing else needs a variant.
-
-Before that was known, two things were weighed, the second only if the
-first was not enough:
-
-- **Which ending a program writes.** The ending of the variant translated,
-  and not the platform's, makes the files it writes for itself readable by
-  it on every platform. A program written for the toolkit and a file made
-  by the original toolkit on the same machine would then disagree on
-  Windows.
-- **Whether the check is kept.** With any ending read by the runtime, the
-  check refuses a file the translated library could read. The two ways to
-  change one routine follow.
-
-The check itself is left as it is for now. How to change what one translated
-routine does, without editing translated code, is open, and there are two
-ways to weigh:
-
-- Leave the routine out of the translation and supply it by hand, which
-  the translator's settings already provide for. Nothing is paid at run
-  time; the whole routine has to be written again, and kept right when the
-  source changes.
-- Emit the routine as a method a class derived from the library can
-  override, so that only what differs is written. A call of such a method
-  is no longer direct and cannot be inlined, which
-  [`docs/rules/performance.md`](docs/rules/performance.md) rules out on a
-  computation path. So it could only be asked for routine by routine, in
-  the translator's settings, never for all, and what it costs is to be
-  measured before it is offered.
 
 ## Errors stay in the toolkit's error state until the managed boundary
 

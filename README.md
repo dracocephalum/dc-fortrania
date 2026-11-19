@@ -4,7 +4,7 @@
 > choices made, and the toolkit commit, are in
 > [`.agentics.yaml`](.agentics.yaml); open items are in [`TODO.md`](TODO.md).
 
-A pure managed .NET port of the NASA/NAIF SPICE toolkit, with no native
+A pure managed .NET port of NASA's SPICE Toolkit, with no native
 binaries: the original FORTRAN 77 sources are translated to C# by Fortrania,
 the translator and runtime library that are developed here alongside it.
 

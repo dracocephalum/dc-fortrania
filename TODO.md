@@ -25,6 +25,17 @@ undecided adds it here rather than mentioning it once in a conversation.
       such component exists yet. Close by: turning both back on once the
       translator's output builds clean, and deleting that section of the
       rule.
+- [ ] **`tools/spice-translation` refers to the translator as a project.**
+      A cross-component `ProjectReference`, allowed while no package feed
+      exists, with the comment `agentics/rules/layout.md` asks for. Close by:
+      a `PackageReference` to the translator's package once there is a feed.
+- [ ] **The translated toolkit is written to `nasa/translated/`, which git
+      ignores.** `docs/rules/translated-code.md` asks that a translated file
+      carry the routine's own comments, the original disclaimer among them,
+      and the translator does not carry them yet. Close by: carrying them,
+      then giving the translation a component of its own under
+      `libraries/`, with its `LICENSE.md`, and committing it in a commit of
+      its own.
 - [ ] **No component holds translated code yet, so the licence split exists
       only on paper.** `NOTICE`, `DESIGN.md` and
       `docs/rules/translated-code.md` describe it. Close by: the first such
