@@ -52,6 +52,15 @@ public class CSharpEmitterConcatenationTests
                 return Read(result, 36);
             }
 
+            public static string Fold()
+            {
+                byte* result = stackalloc byte[32];
+                int count;
+                Write(result, 32, new string('#', 32));
+                new Standalone().CFOLD(result, 32, &count);
+                return Read(result, 32) + count;
+            }
+
             public static string FunctionAlone()
             {
                 byte* name = stackalloc byte[5];
@@ -75,6 +84,30 @@ public class CSharpEmitterConcatenationTests
     [Fact]
     public void Run_WhenCharacterFunctionsAreReferenced_ShouldGiveResultsOfTheLengthTheCallerDeclares() =>
         Program.Value.Run<string>("Functions").ShouldBe("ADA     /ABADA   yesno       ! YES  ");
+
+    [Fact]
+    public void Run_WhenConstantsAreJoined_ShouldGiveWhatJoiningThemWhenRunGives() =>
+        Program.Value.Run<string>("Fold").ShouldBe("abcd|pre-xy      |middleabend   7061");
+
+    [Fact]
+    public void Emit_WhenConstantsAreJoined_ShouldJoinThemWhenTranslating()
+    {
+        // Act
+        var file = TranslatedProgram.Translate(ConcatenationSample.Source).Single(text => text.Contains("void CFOLD(", StringComparison.Ordinal));
+
+        // Assert: a concatenation of constants is one literal, however it
+        // is grouped and whatever constants it names; constants side by
+        // side among other values are one piece; and only the one
+        // concatenation with a variable in it is joined when run.
+        file.ShouldContain("AddrOf(\"abcdef\"u8), 6);");
+        file.ShouldContain("AddrOf(\"pre-xy\"u8), 6);");
+        file.ShouldContain("AddrOf(\"abcpre\"u8), 6");
+        file.ShouldContain(".Add(AddrOf(\"|middle\"u8), 7)");
+        file.ShouldContain(".Add(AddrOf(\"end\"u8), 3).Pad();");
+        file.ShouldContain("1000 * 7");
+        file.Split("Concat(").Length.ShouldBe(2);
+        file.ShouldNotContain(".End(");
+    }
 
     [Fact]
     public void Run_WhenACharacterFunctionIsCalledFromOutside_ShouldFillThePlaceGivenAndReturnItsAddress() =>

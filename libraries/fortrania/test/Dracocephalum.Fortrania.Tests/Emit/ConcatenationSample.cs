@@ -82,5 +82,22 @@ internal static class ConcatenationSample
              .   OUT ( 30:30 ) = '!'
               OUT ( 32:35 ) = UPPER ( TAG ( 2 ) )
               END
+
+              SUBROUTINE CFOLD ( OUT, N )
+              IMPLICIT NONE
+              CHARACTER*(*) OUT
+              INTEGER N
+              CHARACTER*3 PRE
+              PARAMETER ( PRE = 'pre' )
+              CHARACTER*4 SHORT
+              CHARACTER*12 WORK
+              INTEGER CCOUNT
+              SHORT = 'abc' // 'def'
+              WORK = PRE // '-' // ( 'x' // 'y' )
+              OUT = SHORT // '|' // WORK // '|' // 'mid' // 'dle'
+             .   // SHORT ( 1:2 ) // 'e' // 'nd'
+              N = CCOUNT ( 'ab' // 'c' // PRE, 'p' )
+             .   + 1000 * LEN ( 'ab' // PRE // 'cd' )
+              END
         """;
 }

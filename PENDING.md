@@ -745,6 +745,50 @@ checks line endings itself* has what both ran into. What is left is to make
 it a job that can be run again, and to compare against a build of the
 reference on the platform its variant is for, where it runs to its end.
 
+## More that the translator can write more simply
+
+What keeps the behaviour exactly is done without a setting, as
+`DESIGN.md` has it under *Constants are joined when translating*; each of
+these is known when translating, and each that is made for speed comes
+with its measurement, as `docs/rules/performance.md` asks. A number is the
+same only if it is the same bits the reference compiler gives, so a
+rewrite of arithmetic is checked against that compiler and not argued.
+
+- **A character value compared with a constant.** `NAME .EQ. 'J2000'`
+  goes through the runtime's comparison, which pads the shorter with
+  blanks as it goes. With one side a constant of known length, the
+  comparison is a compare of that many bytes and a check that the rest of
+  the other is blank, which can be written in place.
+- **A whole array copied or cleared by a `DO` loop.** A loop whose body
+  only assigns one array's elements to another's, or a constant to each,
+  with nothing else read or written, is a span copy or fill, when the
+  two arrays are known not to overlap.
+- **A real raised to a small constant power.** `X**2` as `x * x` is what
+  the reference compiler does too; a larger power, or one of another
+  type, is checked bit for bit first.
+
+The toolkit's translation is the measure of which are worth it: each is
+counted there before it is built, as the joined constants were.
+
+## How much goes on the stack is a setting
+
+What a method needs for itself, a local array, a character variable, a
+place where a value is joined, lies on the stack when it is small and in
+the instance's block otherwise, as `DESIGN.md` has it under *What a unit
+keeps between calls*. The limit is the emitter's own, 4,096 bytes, fixed;
+a place for joining that would be longer is refused. It is to be a setting
+of the translation, `stackLimit`, with that default, and 0 for nothing on
+the stack: a platform with a shallow stack, or a program that recurses
+through a deep chain of calls, then sets it lower. A place for joining
+that is over the limit goes to the block like a local, and is no longer
+refused.
+
+The limit is applied when translating, because every size is known then
+and the choice costs nothing when the code runs. Choosing when it runs
+would mean writing each such method twice, once on the stack and once in
+the block, which is not worth it until one binary has to serve platforms
+with different stacks.
+
 ## Measurements waiting for a benchmark project
 
 [`docs/rules/performance.md`](docs/rules/performance.md) asks that a change

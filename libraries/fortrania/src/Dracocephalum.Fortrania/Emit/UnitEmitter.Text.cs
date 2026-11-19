@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using Dracocephalum.Fortrania.Analysis;
 using Dracocephalum.Fortrania.Syntax;
@@ -11,6 +12,12 @@ namespace Dracocephalum.Fortrania.Emit;
 /// else it lies in a local of the method set aside for it, which is as long
 /// as the value can be at most, a length known when translating.
 /// </content>
+/// <remarks>
+/// Constants are joined when translating, and not each time the code runs:
+/// a concatenation of constants alone is one literal, which needs no local
+/// at all, and constants side by side among other values are one piece.
+/// The bytes are the same either way.
+/// </remarks>
 internal sealed partial class UnitEmitter
 {
     // The most bytes each such local has to hold, over all the statements
@@ -45,6 +52,15 @@ internal sealed partial class UnitEmitter
         Expression.Parenthesized { Inner: var inner } when IsConcatenation(inner) => Pieces(inner),
         _ => [expression],
     };
+
+    // Whether a character expression is a constant, and its value if it is:
+    // literals and named constants, and concatenations of them, however
+    // they are grouped.
+    private bool TryFold(Expression expression, [NotNullWhen(true)] out string? text)
+    {
+        text = (_evaluator.TryEvaluate(expression, _line) as Constant.Character)?.Value;
+        return text is not null;
+    }
 
     private static bool IsConcatenation(Expression expression) => expression switch
     {
@@ -105,6 +121,11 @@ internal sealed partial class UnitEmitter
     // the two are written, the address comes first.
     private Code Joined(Expression concatenation)
     {
+        if (TryFold(concatenation, out var folded))
+        {
+            return Text(folded);
+        }
+
         var capacity = Bound(concatenation)
             ?? throw Unsupported("a concatenation with an operand of assumed length, outside an assignment");
 
@@ -126,7 +147,7 @@ internal sealed partial class UnitEmitter
     private string Joining(string target, string capacity, Expression concatenation)
     {
         var text = $"{Runtime("Concat")}({target}, {capacity})";
-        foreach (var piece in Pieces(concatenation).Select(Value))
+        foreach (var piece in JoinedPieces(concatenation))
         {
             text += $".Add({piece.Text}, {piece.Length})";
         }
@@ -134,14 +155,50 @@ internal sealed partial class UnitEmitter
         return text;
     }
 
+    // The values a concatenation joins, with each run of constants side by
+    // side joined into one. A constant's value has nothing to do when it is
+    // written, so joining a run moves no other piece's work before or after
+    // another's.
+    private List<Code> JoinedPieces(Expression concatenation)
+    {
+        var pieces = new List<Code>();
+        string? run = null;
+        foreach (var piece in Pieces(concatenation))
+        {
+            if (TryFold(piece, out var constant))
+            {
+                run += constant;
+                continue;
+            }
+
+            if (run is not null)
+            {
+                pieces.Add(Text(run));
+                run = null;
+            }
+
+            pieces.Add(Value(piece));
+        }
+
+        if (run is not null)
+        {
+            pieces.Add(Text(run));
+        }
+
+        return pieces;
+    }
+
     // The sum of the lengths of what a concatenation joins, without joining.
     private string JoinedLength(Expression concatenation) =>
-        string.Join(" + ", Pieces(concatenation).Select(piece => Grouped(Value(piece).Length!)));
+        TryFold(concatenation, out var folded)
+            ? folded.Length.ToString(CultureInfo.InvariantCulture)
+            : string.Join(" + ", JoinedPieces(concatenation).Select(piece => Grouped(piece.Length!)));
 
     // An assignment to a character variable, element or substring.
     private void AssignText(Code target, Statement.Assignment assignment)
     {
-        if (!IsConcatenation(assignment.Value))
+        // A constant is copied as one, padded or cut to the variable's length.
+        if (!IsConcatenation(assignment.Value) || TryFold(assignment.Value, out _))
         {
             var value = Value(assignment.Value);
             _body.Line($"{Runtime("Assign")}({target.Text}, {target.Length}, {value.Text}, {value.Length});");

@@ -212,6 +212,17 @@ does not grow the stack. A character function is handed the place for its
 result, of the length the calling unit declares for it, and gives the
 address back, which makes a reference to it a value like any other.
 
+**Constants are joined when translating.** The values of literals and
+named constants are known then, so a concatenation of them alone is
+written as one literal, however it is grouped, and needs no place at all;
+constants side by side among other values are one piece. Most of the
+toolkit's concatenations are of this kind, an error message or a test's
+title written across continuation lines: of 18,062 joined when run, 442
+are left. The bytes are the same, so there is no setting for it. That is
+the rule for what the translator writes more simply than the source says:
+what keeps the behaviour exactly is always done, and only a different
+behaviour would be a choice, among the variances.
+
 **What a unit keeps between calls lies in a block of the instance, and is a
 pointer inside the method.** Kept are the variables a unit declares `SAVE`
 or initializes with `DATA`, the second because every compiler since has
