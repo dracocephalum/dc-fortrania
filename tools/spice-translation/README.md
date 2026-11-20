@@ -17,8 +17,9 @@ Fortrania over them: the toolkit's main and support libraries become one
 project, its test utilities and test program another. After the translation
 the settings run the tool's own `rewrite`, which puts the header NAIF's
 rules ask for into every translated file, makes `ZZPLATFM` report the
-platform it runs on instead of the one its sources were written for, and
-makes the test family `F_ZZASC2` expect the kernels that platform refuses.
+platform it runs on instead of the one its sources were written for, makes
+`CHBASE` return the base the runtime's characters give, and makes the test
+family `F_ZZASC2` expect the kernels that platform refuses.
 
 ## Run it
 
@@ -29,7 +30,8 @@ Translate, from the repository root:
 
     dotnet run --project tools/spice-translation/src/Dracocephalum.Spice.Translation -- translate
 
-`--force` writes every file again. The translation goes to `cache/translated/`;
+`--force` writes every file again, which a change to a rewrite needs: a file
+whose translation did not change is not written, and so not rewritten. The translation goes to `cache/translated/`;
 build `Dracocephalum.Spice.TSpice` there and run it to run the toolkit's own
 test suite.
 

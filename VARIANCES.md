@@ -30,3 +30,9 @@ program is met that needs it.
 | A `WRITE` to a character variable that runs past its last record | leaves the record it was writing as far as it had come, and was seen to write over the first record with what came after the last | writes each record whole or not at all, and nothing past the last | a record is written when it is whole; what the variable holds after the failure is left open by the language |
 | A `READ` from a character variable whose format moves past its last record before an item | gave status 0, and the item a value of blanks | gives status -1, the end of the file | the end of the file is where the language puts it |
 | A formatted `WRITE` that fails part of the way through its list | has written what came before the failure, with no line ending | writes nothing of the record | a record is written when it is whole |
+
+## The toolkit
+
+| Where | The reference toolkit | Here | Why |
+|---|---|---|---|
+| `CHBASE`, the base in which `ENCHAR` and `DECHAR` keep a number in characters | returns 128 in the variant translated, and 256 in most others, the Windows one among them | returns 256 on every platform | its header defines it by what `ICHAR(CHAR(n))` gives back, and the runtime reads a character as 0 to 255 everywhere; `DESIGN.md` has the rest |

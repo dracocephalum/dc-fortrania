@@ -745,8 +745,9 @@ same everywhere. Apart from `ZZPLATFM`, what differs is limits, the
 length of a file's name and how many text files are open at once, which
 the variant translated already has at the larger value and the runtime
 does not limit; a correction for characters whose code is negative, which
-the runtime's never are; how a program writes to the screen and ends; and
-the machine constants of a platform that stores numbers big-endian. So one
+the runtime's never are, and the base `CHBASE` returns, below; how a
+program writes to the screen and ends; and the machine constants of a
+platform that stores numbers big-endian. So one
 routine needs to know the platform, and no variant is needed.
 
 One difference is not a limit. `STMP03` sums a series, and how many terms
@@ -773,6 +774,19 @@ would be a second copy to keep right, and a hand-written file in the
 translated component, whose licence is the toolkit's.
 
 With that, the translated test suite runs all 400 families on Windows.
+
+**`CHBASE` is rewritten to return 256.** It is one constant: the base in
+which `ENCHAR` and `DECHAR` keep a number in characters, for the sizes a
+cell of characters carries in front of its elements. Its header defines it
+as the first number that does not come back from `ICHAR(CHAR(n))`. The
+variant translated holds 128, chosen for a compiler that read a character
+above 127 as a negative number; the Windows variant holds 256, as most do.
+The runtime reads a character as its byte, 0 to 255, on every platform, so
+the definition gives 256 everywhere, and the rewrite stores it outright
+with no choice made when the routine runs. Such a number is kept in memory
+only and never written to a file, so nothing made with one base is read
+with the other, and no test family depends on the value. It is the one row
+under *The toolkit* in `VARIANCES.md`.
 
 **`F_ZZASC2` is rewritten to expect what its platform refuses.** It is the
 test of that check: it writes kernels whose lines end in each of the three

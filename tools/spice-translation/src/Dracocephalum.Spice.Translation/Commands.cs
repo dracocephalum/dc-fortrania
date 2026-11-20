@@ -14,6 +14,7 @@ internal static class Commands
         new(StringComparer.Ordinal)
         {
             [PlatformRewrite.FileName] = (PlatformRewrite.Rewrite, PlatformRewrite.Description),
+            [CharacterBaseRewrite.FileName] = (CharacterBaseRewrite.Rewrite, CharacterBaseRewrite.Description),
             [LineEndingTestRewrite.FileName] = (LineEndingTestRewrite.Rewrite, LineEndingTestRewrite.Description),
         };
 
@@ -49,8 +50,8 @@ internal static class Commands
 
     /// <summary>
     /// Rewrites what the translation just wrote: the toolkit's header in every
-    /// file, the platform in <c>ZZPLATFM</c>, and the kernels <c>F_ZZASC2</c>
-    /// expects to be refused.
+    /// file, the platform in <c>ZZPLATFM</c>, the base in <c>CHBASE</c>, and
+    /// the kernels <c>F_ZZASC2</c> expects to be refused.
     /// </summary>
     /// <returns>The exit code: zero when every file was rewritten.</returns>
     public static int Rewrite()
