@@ -473,7 +473,11 @@ serves one instance. Bytes held in memory can be registered too, as a file
 to read and not to write: every read says where it reads, nothing is kept
 between reads, and so one copy of a kernel in memory can be registered with
 any number of instances and read by all of them at once. The provider can
-be replaced altogether. Two names are one file when the provider says so, which for the
+be replaced altogether, and `MemoryFileProvider` is one that keeps every
+file in memory: a program that writes files and reads them back finds each
+as it left it, nothing reaches the disk, and each instance given its own
+has files no other instance sees. A file there is one array of bytes, so
+it holds less than two gigabytes. Two names are one file when the provider says so, which for the
 disk is the full path, compared without regard to case where the file
 system has none.
 
@@ -808,6 +812,22 @@ calls against another by the clock and asks the first to take less than
 half as long again as the second. The first is also where the just-in-time
 compiler compiles and then recompiles the routines called, so the case
 can fail on a run where every value it checks is right.
+
+**The families can be run without the toolkit's main program.** That
+program runs all 400 in order, in one instance, in the working folder,
+which takes ten minutes. The runner beside the translation tool finds the
+families in the translated program and calls any of them by name, each in
+an instance of its own whose files are in memory, so the families share
+nothing and run side by side on as many threads as there are processors.
+Most of the suite's time on disk was the disk: the runtime writes a record
+with one call to the operating system, and the families that test the
+handling of many kernel files do little else. Measured one after the other
+on the same machine, the ten slowest families took 989 s on disk and 289 s
+in memory, and the slowest of all, `F_ZZDSKBSR`, 517 s and 28 s; the
+families that only compute took the same either way. A quick set leaves
+out the twenty slowest families and `F_SCLK1`. The runner is a way to find
+a fault sooner and not the measure of the translation: that stays the
+toolkit's own program, on disk, as NAIF runs it.
 
 **Every translated file carries the header NAIF's rules ask for.** The
 tool adds, inside the block the translator marks as generated, that the

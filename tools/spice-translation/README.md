@@ -8,7 +8,7 @@ rewrites what the translation needs after it is written.
 | Category | `tools/` |
 | Kind | tool |
 | Solution | `Dracocephalum.Spice.Translation.slnx` |
-| Projects | `src/Dracocephalum.Spice.Translation`, `test/Dracocephalum.Spice.Translation.Tests` |
+| Projects | `src/Dracocephalum.Spice.Translation`, `test/Dracocephalum.Spice.Translation.Tests`, and `src/Dracocephalum.Spice.TestRunner`, which is in no solution |
 
 ## What it does
 
@@ -45,6 +45,33 @@ the deepest procedures of each project and the count of the other two:
 - `widened.tsv`: every call that passes a 4-byte number where the procedure
   takes an 8-byte one, which may then be read at an address that is no
   multiple of 8.
+
+## Run the test families
+
+`Dracocephalum.Spice.TestRunner` runs the families of the toolkit's test
+program without its main program. It refers to the translated test program
+in `cache/translated/`, so it builds only after a translation, and is in no
+solution for that reason. From the repository root:
+
+    dotnet run -c Release --project tools/spice-translation/src/Dracocephalum.Spice.TestRunner -- --quick
+
+With no arguments it runs all 400 families, each in an instance of its own
+with its files in memory, as many at once as there are processors, and
+prints what each failed family wrote. It leaves nothing on disk.
+
+| Argument | What it does |
+|---|---|
+| a family's name, any number | runs only those |
+| `--quick` | leaves out the families in `slow-families.txt` |
+| `--disk` | keeps files on disk in the working folder and runs one family after another, as the test program does; run it in an empty folder |
+| `--jobs <n>` | how many families run at once |
+| `--times <file>` | writes each family's result and time, tab-separated |
+| `--verbose` | prints each family as it ends |
+| `--list` | lists the families and runs none |
+
+The exit code is 0 when every family passed and 1 when one failed. The
+toolkit's own program, built from `Dracocephalum.Spice.TSpice` and run on
+disk, stays the full check.
 
 ## Configuration
 

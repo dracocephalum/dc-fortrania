@@ -1,0 +1,25 @@
+# Test families the quick set leaves out, one name a line: the twenty that
+# took longest when all were run with files in memory, and F_SCLK1, which
+# has a case that compares two times by the clock and fails when the
+# machine is busy with other families.
+F_CK06
+F_CKBSR
+F_DASA2L
+F_DDHFTSIZE
+F_DWPOOL
+F_DYN01
+F_GFILUM
+F_GFPA
+F_GFRR
+F_GFSEP
+F_GFSUBC
+F_GFTFOV
+F_TANGPT2
+F_TRGSEP
+F_ZZDSKBSR
+F_ZZDSKBUX
+F_ZZGFCOU
+F_ZZGFRPWK
+F_ZZGFSPU
+F_ZZSEPQ
+F_SCLK1

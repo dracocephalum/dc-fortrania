@@ -25,6 +25,13 @@ undecided adds it here rather than mentioning it once in a conversation.
       such component exists yet. Close by: turning both back on once the
       translator's output builds clean, and deleting that section of the
       rule.
+- [ ] **The test runner lives with the translation tool, for want of a
+      better place.** `Dracocephalum.Spice.TestRunner` refers to the
+      translated test program in `cache/translated/`, so it is in no
+      solution and has no tests of its own. Its list of slow families was
+      measured once, on a machine that was saving power. Close by: moving it
+      beside the translated toolkit's component when that exists, into that
+      component's solution, and measuring the list again there.
 - [ ] **`tools/spice-translation` refers to the translator as a project.**
       A cross-component `ProjectReference`, allowed while no package feed
       exists, with the comment `agentics/rules/layout.md` asks for. Close by:

@@ -62,4 +62,5 @@ where the code leans on it. Why something is as it is belongs in
 | Format | A character value that says how the items of a statement are laid out in records. |
 | List-directed | Formatted transfer with no format, where each item's type says how it is written or read. |
 | File provider | What decides what a file name stands for: a path on disk, a stream or bytes registered under the name, or anything else that holds bytes. |
+| Test family | One routine of the toolkit's test program, named `F_` and what it tests, holding the test cases of one routine or a few. The program runs 400 of them. |
 | Status | The number an input or output statement gives: zero for success, negative at the end of a file, positive for a failure. `IOSTAT` receives it. |
