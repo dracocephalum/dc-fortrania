@@ -227,17 +227,9 @@ available as a third choice for that purpose. Local variables differ: the
 reference build already leaves them unset on every call, so local arrays are
 not zeroed.
 
-Where the memory comes from is a third choice of the creating program:
-
-- Native memory, freed when the instance is disposed.
-- Pinned arrays of the garbage collector, which need no disposal and are
-  zeroed and committed at once.
-- A pool of pinned blocks, from which an instance takes its blocks and to
-  which it gives them back when disposed. Creating an instance then asks
-  the system for nothing, which suits instances that come and go, and with
-  unzeroed memory nothing is cleared either. The blocks are allocated
-  pinned and kept by the pool; an array of the framework's ordinary pool may
-  be moved by the collector unless it is pinned for as long as it is lent.
+Where the memory comes from is the context's allocator, under *How much
+goes on the stack is a setting*, *Memory comes from an allocator, in two
+layers*.
 
 To be measured before the defaults are fixed: what an allocated and
 untouched block costs in physical memory on each platform, and what the
@@ -1054,12 +1046,73 @@ and matches nothing: no `try`/`finally` is needed. The translator finds
 those units by the walk that makes the report: those on a chain to a call
 through a procedure argument.
 
-**Where the memory comes from** is the context's, through one interface
-that hands out large pieces: the regions and the units' blocks, never a
-method's buffers one call at a time. By default it is a pinned array,
-`GC.AllocateUninitializedArray<byte>(size, pinned: true)`, which never
-moves and which the garbage collector frees with the context; a host may
-give its own, a pool for one.
+**Memory comes from an allocator, in two layers.** `IMemoryAllocator`
+hands out `MemoryBlock`s: a pointer, a length, the alignment asked for, 64
+bytes unless asked otherwise, and whether it is zeroed. Disposing a block
+gives it back, once however often it is disposed. It hands out large
+pieces only, the regions, the units' blocks of saved state and files
+loaded, never a method's buffers one call at a time.
+
+- **The shared allocator**, one for the process, is safe for any thread,
+  since contexts on every thread use it. It takes from native memory, or
+  from pinned arrays, `GC.AllocateUninitializedArray<byte>(size, pinned:
+  true)`, which never move and which the collector frees, offsetting
+  within the array where the alignment is above 8. It pools: a block given
+  back at or under a threshold, 1 MB unless set, goes to a list for its
+  size class, the powers of two, and is handed out again; a larger one goes
+  back to the system; a cap on the bytes pooled and a `Trim` keep an idle
+  process from holding memory. The framework's own array pool is not used,
+  since its arrays can be moved by the collector unless pinned for as long
+  as they are lent. Pooling pays here, where one context's blocks serve the
+  next across threads, which is how a pool of contexts comes and goes
+  cheaply; see *One caller at a time, and a pool of contexts*.
+- **Each context's allocator** stands in front of the shared one, with no
+  lock, since a context has one caller at a time. It keeps what the context
+  gives back while it lives, the regions of nesting levels after each
+  outermost call, and hands it out again; it goes to the shared allocator
+  only when it has nothing to give and when the context is disposed. Its
+  settings are its own: a threshold, a cap, or the host's own allocator
+  behind it. A lock left out saves little on allocations this rare; what
+  the layer gives is the reuse and the settings.
+
+**The settings can change while the program runs.** The runtime makes the
+shared allocator reachable, and its settings are one object that is never
+changed, only replaced whole; each allocation and each release reads it
+once, so changing them takes no lock, and one that races a change goes by
+the old settings or by the new. A block keeps its own size class,
+alignment and source, so a block taken under the old settings is given
+back rightly under the new ones. Lowering the threshold or the cap trims
+the pool to it, and turning pooling off empties it; blocks in use are not
+touched. A context's allocator takes the same settings object.
+
+**Saved state is zeroed, working buffers are not.** *Memory is zeroed
+unless asked otherwise*, under *Saved state is placed at translation and
+loaded at run time*, holds for the units' blocks. The regions of working
+buffers ask for memory unzeroed, which comes straight from the pool or the
+system, as `stackalloc` would under `[SkipLocalsInit]`.
+
+**A file can be read from memory.** The runtime reads every file through
+`FortranFile`, which has a length and reads and writes at an offset, both
+`long`. One more implementation reads from a region of memory: a pointer,
+a length, an owner that keeps the memory alive and is disposed with the
+file, and whether it may be written. A provider gives names to regions,
+so that `FURNSH` of a name reads from memory. Two ways make a region:
+
+- **Loading** takes a block the size of the file from the shared
+  allocator, aligned to a page, and reads the file into it once, unbuffered
+  where the system allows it, so that a large file is not held in the
+  system's file cache as well while it is read. After that nothing is read
+  from disk and no page fault comes, which suits a program that uses most
+  of a file and wants every call to take the same time.
+- **Mapping** maps the file into memory, reads nothing at first and then
+  only the pages used, and shares them with other processes; it is
+  *Memory-mapped kernels*, below.
+
+SPICE still copies each record it reads into its own buffers; what memory
+saves is the system call for each one. A pinned array holds at most about
+2^31 elements, so under 16 GB of `long`; native memory and a mapping have
+no such limit. A DAF reaches its own limit near the same size, since its
+addresses count 8-byte words in a 32-bit integer. JPL's DE441 is 3.1 GB.
 
 **A program that does recurse** has units the report finds; those keep
 their buffers on the stack in both modes.
@@ -1142,6 +1195,30 @@ that is not to be made before it does:
 - **Converting text at the managed boundary.** What turning a short .NET
   string into bytes costs per call, which is the whole case for *A variant
   with 16-bit characters*.
+- **`MOD` of real values.** It is C#'s `%`, which the runtime does by a
+  call to `fmod`, and SPICE reduces angles and times with it. `fmod` is
+  exact, so only an exact form may take its place, or the results move;
+  the question is whether one is faster.
+- **Searching and comparing text.** `INDEX` and the comparisons, `LGE`
+  and the three like it, are loops over bytes in the runtime.
+  `Span.IndexOf` and `SequenceCompareTo` are vectorized by .NET and give
+  the same answers; whether that pays on values as short as FORTRAN's
+  mostly are is the question, beside *Short copies* above.
+- **The toolkit's small vector and matrix routines.** `VDOT`, `MXV`,
+  `MXM`, `VCRSS` and their like are the most called arithmetic of the
+  toolkit, and the just-in-time compiler vectorizes no loop by itself.
+  Each could be a unit left out and written by hand with `Vector128` and
+  `Vector256`, provided its additions keep their order, so that the
+  results stay bit for bit; for three elements the gain may be small, and
+  a product of 3-by-3 matrices is the likelier case.
+
+The functions of the mathematical library are not among these. `SIN`,
+`EXP`, `ATAN2` and a real exponent call the platform's C runtime, as the
+reference compiler does, which is why the two agree bit for bit; a
+faster form of our own, or `Math.FusedMultiplyAdd` where the reference
+compiler multiplies and adds apart, would give that up. A form of our own
+that gives the same results on every platform would be a variance to
+offer, not a measurement to make.
 
 ## Back ends beyond C# source
 
@@ -1298,3 +1375,21 @@ toolkit has none such.
 
 Not built until a program needs it. A type of fewer than 4 bytes, should
 `INTEGER*2`, `LOGICAL*1` or `BYTE` ever be read, would be a second source.
+
+## .NET 10 first, and .NET 11 beside it
+
+The libraries target .NET 10, the release supported for longest, until
+November 2028, and what is built for .NET 10 runs on .NET 11 as well.
+Where .NET 11 has an API worth using, its new helpers of the vector types
+among them, a project targets both, `net10.0;net11.0`, so that its package
+holds a build for each, and the code that uses the API is under `#if
+NET11_0_OR_GREATER`, the symbol the SDK defines. Whether the processor has
+an instruction set is asked when the code runs, `Avx2.IsSupported` or
+`Vector256.IsHardwareAccelerated`, never by a symbol. Translated code is the
+same for both; only hand-written code carries the condition. Building both
+needs the .NET 11 SDK.
+
+.NET 11 does not start on an x64 processor below x86-64-v2, which adds
+SSE4.2 and POPCNT among others; Windows 11 asks the same, and so does every
+processor Windows 10 supports. That is no reason here to stay on .NET 10,
+which is chosen for its support, not for older hardware.
