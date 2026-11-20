@@ -385,17 +385,6 @@ a whole translation from them. Left to do:
   machine's. Not needed for the reference sources, see `DESIGN.md`, *The SPICE
   Toolkit's translation is a tool of its own*, and so not built until a
   program needs it.
-- **Strict alignment**, `strictAlignment`, off by default: for a processor
-  that cannot load a value from an address off its type's alignment, 32-bit
-  ARM among them. When on, every variable `EQUIVALENCE` places off its
-  alignment is read and written through `Unsafe.ReadUnaligned` and
-  `Unsafe.WriteUnaligned`, at that place alone. Those two work at an aligned address too, and on x64 and
-  ARM64 the just-in-time compiler turns them into the plain load and store,
-  so a translation made with it on still runs everywhere; it is off by
-  default only so that the code reads as plainly as the rest.
-  `docs/rules/portability.md`, *Alignment*, has why. Not needed for the
-  toolkit, which has no such variable, and so not built until a program
-  needs it.
 - **Paths that go deeper than one folder.** The last part of a path may
   have `*` and `?`; `**` for folders at any depth is not read.
 - **The rest of what a translation is told**, under *What the translator
@@ -643,6 +632,16 @@ support in .NET, for spreadsheet and scripting hosts. It is separate from
 the translated layer so that the layer carries nothing specific to one
 operating system. After the C interface, and only if asked for.
 
+Nothing inside a context is in COM's task memory: what crosses is a copy
+made at the boundary, a string as a `BSTR` and an array as a `SAFEARRAY`,
+which the generated marshalling allocates and the client frees, and no
+pointer into a context's memory is ever handed out. To decide when it is
+built: an in-process server is of the client's bitness, and 32-bit Office
+is still in use, so either an x86 build for it, a server out of process
+through a COM surrogate at the cost of a call across processes each
+time, or 64-bit hosts alone. Alignment does not stand in the way of x86,
+which reads any value at any address.
+
 ## An extended-precision variant
 
 A translator option that maps `DOUBLE PRECISION` to a wider floating-point
@@ -879,7 +878,8 @@ the emitter, or after it, becomes a pass, and so does what is planned:
 
 - joining constants, and the rewrites under *More that the translator can
   write more simply*;
-- the stack limit of *How much goes on the stack is a setting*;
+- the layout of working buffers of *How much goes on the stack is a
+  setting*;
 - the SPICE tool's platform rewrite, which becomes a pass the tool gives
   the translator rather than a second reading of its output; *Settings
   for what differs by platform* is the runtime's side of the same.
@@ -957,58 +957,118 @@ counted there before it is built, as the joined constants were.
 
 ## How much goes on the stack is a setting
 
-What a method needs for itself, a local array, a character variable, a
-place where a value is joined, lies on the stack when it is small and in
-the instance's block otherwise, as `DESIGN.md` has it under *What a unit
-keeps between calls*. The limit is the emitter's own, 4,096 bytes, fixed;
-a place for joining that would be longer is refused. Two settings of the
-translation are to take its place:
+What a method needs only while it runs, a local array, a character
+variable, a place where a value is joined, its working buffers, lies on
+the stack when it is small and in the unit's block otherwise, as
+`DESIGN.md` has it under *What a unit keeps between calls*. The limit is
+the emitter's own, 4,096 bytes; a place for joining that would be longer
+is refused. One library is to serve both a deep stack and a shallow one,
+by a choice of the context.
 
-- **`stackLimit`**, in bytes, 4,096 by default: what is no larger is on
-  the stack, always, with nothing tested when the code runs.
-- **`stackAtRunTime`**, off by default: whether what is larger is placed
-  when the code runs, on the stack if it is within a threshold the
-  runtime is given and in the block otherwise, rather than in the block
-  always, as now.
+**Two modes, chosen per context.** In the stack mode a method's buffers
+are on the stack, as now. In the heap mode they are at a fixed place in
+a block of working buffers that the context holds. Each method's buffers
+are one piece in either mode, and the method tests the context's setting
+once on entry, a branch that is always predicted the same way:
 
-A place for joining that is over the limit is then placed like a local,
-and is no longer refused.
+    byte* _locals;
+    if (_context.LocalsOnStack)
+    {
+        byte* onStack = stackalloc byte[17600];
+        _locals = onStack;
+    }
+    else
+    {
+        _locals = _context.Frames + 41200;
+    }
 
-**One limit is enough.** A second, above which nothing is ever on the
-stack, would do what the run-time threshold already does, and whoever
-sets that owns the choice; it would save no memory either, since the
-block holds room for everything over the limit in both cases.
+    byte* chrbuf = _locals + 0;
+    byte* eqryc = _locals + 2000;
 
-**The test costs one branch.** A local's size is a constant in FORTRAN
-77, so what is tested is a constant against the threshold, and it is
-tested only for what is over the limit: buffers large enough that the
-routine's work on them outweighs a branch. Neither side allocates when
-the code runs, since the block is reserved once; a memory manager, if
-there is one later, takes the block's place behind the same test.
+A buffer over the 4,096 bytes is at its fixed place in both modes, so the
+block exists in both, and a place for joining that is longer is no longer
+refused.
 
-**Three translations of one library, of these settings alone:**
+**The fixed places are laid out at translation.** FORTRAN 77 has no
+recursion, and the stack report proves it of a translation, so a method
+can start where the buffers of its deepest caller end: methods that can
+run at the same time never share bytes, and methods that never do share
+them, as calls one after another at one depth share the stack. The block
+is then exactly the deepest chain, 76,533 bytes for the toolkit, and a
+method's place is a constant: nothing is taken or given back on a call,
+nothing is to be undone after an exception, and the block never grows.
+The translator asserts that every place lies inside the block, from the
+same walk of the calls that makes the report.
 
-| Translation | `stackLimit` | `stackAtRunTime` | What it is for |
-|---|---|---|---|
-| Hpc | 4,096 | off | the fastest; nothing a run-time setting changes, the translation as it is now |
-| Balanced | small, for short character values and temporaries | on | the default package: what is small on the stack, what is large up to whoever runs it |
-| Compact | 0 | on | a shallow stack, or one not known when building: everything placed when the code runs |
+**A unit's saved state stays apart.** What `SAVE` and `DATA` keep is the
+program's state and stays in each unit's block, loaded on its first call
+and held until the context is disposed. What is in that block now only
+for being too large for the stack moves to the working side, so the unit
+blocks hold state alone.
 
-Where a library is placed changes none of its results, so the toolkit's
-tests are to agree across the three bit for bit. Balanced is the package
-to publish first; three packages are three builds, three runs of the
-tests and three to publish, so the others wait until someone needs them.
+**Regions.** The block has a region for each library a program uses,
+since a library's layout starts at its own beginning: 76 KB for the
+toolkit and 91 KB for its test program, which calls into it. Projects
+never call each other both ways, so regions apart are enough.
 
-**Where the threshold lives** is chosen by measuring with the benchmark
-project: on the settings each context is given, beside *Settings for
-what differs by platform*, so that threads with different stacks can
-differ, or one value for the process in a static read-only field, which
-the just-in-time compiler can fold into the code. Whether the block
-reserves room for all of it at once, or each unit's part when it is
-first used, is the question about an untouched block under *Measurements
-waiting for a benchmark project*.
+**A callback that calls back in gets a region of its own.** A procedure
+the host passes, a user function for a search, may call the library
+while a chain is running, and the layout cannot know of it; that is
+legal FORTRAN as long as it calls no routine that is running. Every
+procedure the host passes goes through the managed boundary, and the
+boundary gives each such nested entry the next level's region: of the
+library's full size, taken the first time the level is reached within an
+outermost call, reused by every later callback at that level, and given
+back when the outermost call returns. Level 0 is taken when the context
+is made and is never given back. The method does not know its level; the
+boundary moves `Frames` and puts it back. Past a depth of 16 the boundary
+throws rather than take another. In the stack mode a nested chain goes
+further down the thread's stack instead.
 
-**The defaults come from the stack report.** `DESIGN.md`, *A translation
+**A routine called again while it runs throws.** FORTRAN 77 does not allow
+it, and the toolkit's state is not made for it: a user function for
+`GFUDS` that calls `GFUDS` overwrites the search's saved state. Only a
+unit with saved state can be harmed, since its buffers are per call or
+per level, and only while a callback runs, so only a unit with `SAVE`
+state that can be running then carries a flag, a field of the instance:
+
+    if (_running_GFUDS == _context.CallNumber)
+    {
+        throw new FortranRecursionException("GFUDS");
+    }
+
+    _running_GFUDS = _context.CallNumber;
+
+and before every return, `_running_GFUDS = 0;`. The boundary numbers
+each outermost call, so a flag an exception left set holds an old number
+and matches nothing: no `try`/`finally` is needed. The translator finds
+those units by the walk that makes the report: those on a chain to a call
+through a procedure argument.
+
+**Where the memory comes from** is the context's, through one interface
+that hands out large pieces: the regions and the units' blocks, never a
+method's buffers one call at a time. By default it is a pinned array,
+`GC.AllocateUninitializedArray<byte>(size, pinned: true)`, which never
+moves and which the garbage collector frees with the context; a host may
+give its own, a pool for one.
+
+**A program that does recurse** has units the report finds; those keep
+their buffers on the stack in both modes.
+
+**Guarding the layout.** A mistake in it would let one routine overwrite
+another's buffers with nothing to see. The toolkit's tests and the
+bit-for-bit comparison are to run in both modes, and a debug build of the
+runtime can put guard bytes between regions and check them at the
+boundary.
+
+Two designs were set aside on the way. Limits and budgets that split a
+method's buffers between the stack and the heap at run time cost a cut
+to compute and a choice per buffer, for a gain over two modes that no one
+had asked for. Taking each method's buffers from the heap on every call
+and giving them back on return, which is what f2rust does for its large
+arrays, costs an allocation per call and a release on every way out.
+
+**What the report showed.** `DESIGN.md`, *A translation
 says how much stack each procedure can take*, has how it is made. Over
 N0067, with today's fixed limit of 4,096 bytes, and counting only what
 the translation takes itself:
@@ -1029,13 +1089,14 @@ the translation takes itself:
   its alignment.
 
 The just-in-time compiler's frames come on top, for chains of about 50
-calls. So the translation as it is, which is Hpc, fits the default stack
-of a .NET thread on desktop and server systems, a megabyte or more, with
-room to spare; Compact is for a thread that was given a small
-one, or a caller that is deep already. What the report cannot say yet is
-how deep Balanced comes for a given `stackLimit`, since it counts each
-method's bytes and not each buffer's; it is to count each buffer when
-`stackLimit` is built, and Balanced's limit is chosen from that.
+calls. So the stack mode fits the default stack of a .NET thread on
+desktop and server systems, a megabyte or more, with room to spare; the
+heap mode is for a thread that was given a small one, or a caller that is
+deep already, and leaves the thread's stack only the compiler's frames.
+Whether the heap mode is slower is for the benchmark project to say. It
+reuses its bytes as the stack does and fits in the second level of cache,
+and it clears nothing on entry, where `stackalloc` clears every buffer
+today: `EKFIND` clears 17,600 bytes on each call.
 
 ## Measurements waiting for a benchmark project
 
@@ -1204,3 +1265,26 @@ the longest file name and the most files open at once, the value is to come
 from a settings class the runtime is given, with the larger of the
 reference's values as the default, in place of a constant in translated
 code. `docs/rules/portability.md` has the table of differences.
+
+## A variable off its alignment is read as unaligned
+
+`docs/rules/portability.md`, *Alignment*, has why: 32-bit ARM needs a
+floating-point value, and a 64-bit integer loaded as a pair of words, at a
+multiple of 4. Every type the translator handles is 4 or 8 bytes, so only
+an `EQUIVALENCE` that shares a `CHARACTER` variable with a number can put
+one elsewhere, and its offsets are all known when translating. The
+toolkit has none such.
+
+- **Each such variable is read and written through `Unsafe.ReadUnaligned`
+  and `Unsafe.WriteUnaligned`**, at that place alone, and everything else is
+  written as it is now. There is no setting for it: on x64 and ARM64 the
+  just-in-time compiler is expected to turn the two into the plain load and
+  store, so the code runs as fast everywhere and correctly on 32-bit ARM
+  besides. The benchmark project is to confirm that from the code it
+  generates.
+- **Passing one as an argument copies it.** The procedure called reads its
+  argument with plain loads, so the caller passes an aligned copy and
+  copies it back after the call when the argument can be written.
+
+Not built until a program needs it. A type of fewer than 4 bytes, should
+`INTEGER*2`, `LOGICAL*1` or `BYTE` ever be read, would be a second source.

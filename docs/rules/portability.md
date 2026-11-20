@@ -49,9 +49,16 @@ would freeze one platform's answer into the library.
 source fixes the place.** The instance's block comes from the allocator,
 aligned for any type; the emitter puts each variable kept there at a
 multiple of its element size, up to 8; and the stack is the just-in-time
-compiler's, aligned likewise. `EQUIVALENCE` is the exception: it fixes in
-bytes where each of the variables it joins begins, and the language lets
-one begin where its type would not be aligned.
+compiler's, aligned likewise. The layout is worked out when translating,
+so it is the same on a 32-bit processor as on a 64-bit one. There are two
+exceptions:
+
+- `EQUIVALENCE` fixes in bytes where each of the variables it joins
+  begins, and the language lets one begin where its type would not be
+  aligned.
+- A call may pass a number of one type where the procedure takes another,
+  an `INTEGER` array element for a `DOUBLE PRECISION` argument; the
+  procedure then reads an 8-byte value at a multiple of 4.
 
 **x64 and ARM64 read such a place as it stands**, any type from any
 address, at most a little slower where it crosses a cache line, so the
@@ -62,21 +69,23 @@ floating-point load or store, or a 64-bit integer loaded as a pair of
 words, needs an address that is a multiple of 4; one that is not can stop
 the program with a bus error. This is from what is known of the
 processor, and has not been run: no such machine is available to the
-build.
+build. Every type the translator handles is 4 or 8 bytes, so a call that
+passes one type for another stays on a multiple of 4; only an
+`EQUIVALENCE` that shares a `CHARACTER` variable with a number, which the
+standard forbids and the translator accepts, can go below it.
 
 **32-bit ARM is not a target of the published packages.** *The rule*
 above does not name it, nothing is tested on it, and no package is made
 for it; whoever needs it translates the toolkit for it themselves.
 
-**The remedy is a setting of the translation, off by default.** Every
-offset is known when translating, so a place that is not aligned for its
-type can be read and written with `Unsafe.ReadUnaligned` and
-`Unsafe.WriteUnaligned`, at that place alone, with everything aligned
-written as it is now. `PENDING.md`, *What a translation's settings do not
-do yet*, has the setting, `strictAlignment`; it is not built. The toolkit
-does not need it: over N0067, `EQUIVALENCE` puts no variable off its
-alignment, and the translation's report of such places, `unaligned.tsv`,
-says so for each translation.
+**The translator is still to write such a place so that it runs there.**
+Those offsets are known when translating, so each such variable is to be
+read and written with `Unsafe.ReadUnaligned` and `Unsafe.WriteUnaligned`,
+always, with no setting, and passed to a call as an aligned copy.
+`PENDING.md`, *A variable off its alignment is read as unaligned*, has the
+plan; it is not built. The toolkit does not need it: over N0067,
+`EQUIVALENCE` puts no variable off its alignment, and the translation's
+report of such places, `unaligned.tsv`, says so for each translation.
 
 ## Intrinsics
 

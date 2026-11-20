@@ -58,6 +58,13 @@ undecided adds it here rather than mentioning it once in a conversation.
       trusted publishing and so needs no stored key; Azure DevOps would
       need one. The development pipeline is on GitHub either way. Close
       by: choosing, before the first release.
+- [ ] **Every `stackalloc` of the translation clears its memory on each
+      call.** Nothing asks for `[SkipLocalsInit]`, so `EKFIND` clears
+      17,600 bytes on every call, which FORTRAN does not ask for: a local
+      has no value until it is given one. Close by: emitting the attribute,
+      or setting it for the translated projects, with the toolkit's tests
+      and the bit-for-bit comparison passing, which would show any routine
+      that reads a local it never set.
 - [ ] **No component holds translated code yet, so the licence split exists
       only on paper.** `NOTICE`, `DESIGN.md` and
       `docs/rules/translated-code.md` describe it. Close by: the first such

@@ -30,6 +30,8 @@ where the code leans on it. Why something is as it is belongs in
 | Translator | The library that reads FORTRAN and writes C#: source form, lexer, parser, analysis and emitter. |
 | Emitter | The last stage of the translator, which writes C# source text. |
 | Stack use | What a call of a procedure can take from the stack: its own method's `stackalloc` bytes and those of the deepest chain of calls beneath it, the just-in-time compiler's frames left out. |
+| Working buffers | What a method needs only while it runs, its local arrays, character variables and places where values are joined, as against the saved state a unit keeps between calls. |
+| Heap mode | Planned: a context's choice to keep working buffers at fixed places in a block it holds, laid out at translation, rather than on the stack, the stack mode. |
 | Program tree | Planned: the program after lowering, with nothing of FORTRAN's left in it, between the analysis and a writer. |
 | Pass | Planned: a step that takes a program tree and gives one, an optimization or a lowering for a writer. |
 | Writer | Planned: what walks a program tree and writes one language's source, choosing only spelling and layout. |
