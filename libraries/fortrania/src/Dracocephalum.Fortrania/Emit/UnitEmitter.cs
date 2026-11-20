@@ -56,6 +56,7 @@ internal sealed partial class UnitEmitter
     // the caller.
     private readonly List<EmittedMethod> _methods = [];
     private readonly List<UnalignedVariable> _unaligned = [];
+    private readonly List<WidenedArgument> _widened = [];
 
     // What the method being written calls of the program's procedures, with
     // what it passes each; the bytes it takes from the stack; and whether it
@@ -174,7 +175,10 @@ internal sealed partial class UnitEmitter
         file.Append(methods);
 
         file.Close();
-        return new EmittedUnit(file.ToString(), _methods, _unaligned);
+
+        // Where control runs on from one entry point into the next, both
+        // methods hold the statements after the second, and so their calls.
+        return new EmittedUnit(file.ToString(), _methods, _unaligned, [.. _widened.Distinct()]);
     }
 
     // The statement that names the method, where there is one, gives the

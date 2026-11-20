@@ -4,4 +4,9 @@ namespace Dracocephalum.Fortrania.Emit;
 /// <param name="Text">The text of the C# source file.</param>
 /// <param name="Methods">The methods written, one per entry point, in the order written.</param>
 /// <param name="UnalignedVariables">The variables placed off their type's alignment, in the order the unit lays them out.</param>
-public sealed record EmittedUnit(string Text, IReadOnlyList<EmittedMethod> Methods, IReadOnlyList<UnalignedVariable> UnalignedVariables);
+/// <param name="WidenedArguments">The calls that pass a 4-byte number where an 8-byte one is taken, each once, in the order written.</param>
+public sealed record EmittedUnit(
+    string Text,
+    IReadOnlyList<EmittedMethod> Methods,
+    IReadOnlyList<UnalignedVariable> UnalignedVariables,
+    IReadOnlyList<WidenedArgument> WidenedArguments);

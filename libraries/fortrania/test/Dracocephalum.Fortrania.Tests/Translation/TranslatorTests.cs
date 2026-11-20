@@ -791,6 +791,47 @@ public sealed class TranslatorTests : IDisposable
         result.StackUse.Single().OwnBytes.ShouldBe(12 + 16);
     }
 
+    [Fact]
+    public void Run_WhenACallPassesAFourByteNumberForAnEightByteOne_ShouldListItOnce()
+    {
+        // Arrange: the statements after TOO run on from CALLER as well, so
+        // both of its methods hold the first call.
+        Put("core/widen.f", """
+                  SUBROUTINE CALLER
+                  INTEGER IC ( 4 )
+                  REAL R
+                  DOUBLE PRECISION D
+                  IC ( 1 ) = 0
+                  R = 0
+                  D = 0
+                  ENTRY TOO
+                  CALL TAKE ( IC ( 2 ) )
+                  CALL TAKE ( R )
+                  CALL TAKE ( D )
+                  CALL TAKE ( 1.0D0 )
+                  CALL TAKE ( 1 )
+                  END
+
+                  SUBROUTINE TAKE ( X )
+                  DOUBLE PRECISION X
+                  X = 1
+                  END
+            """);
+
+        // Act
+        var result = Translator.Run(Settings(Project("Example.Toolkit", Source("Core", "core/*.f"))), _root);
+
+        // Assert: a value has a local of the larger type to itself, and a
+        // double is passed as itself, so neither is listed.
+        result.Succeeded.ShouldBeTrue();
+        var file = Path.Combine(_root, "core", "widen.f");
+        result.WidenedPlaces.ShouldBe(
+        [
+            new WidenedPlace("Example.Toolkit", "Core", "CALLER", file, "IC", "TAKE", 1, 9),
+            new WidenedPlace("Example.Toolkit", "Core", "CALLER", file, "R", "TAKE", 1, 10),
+        ]);
+    }
+
     // A command for the system's own shell: the test needs one that is
     // on every machine the tests run on.
     private static CommandSettings Shell(string windows, string other) => new()

@@ -71,6 +71,15 @@ internal sealed partial class UnitEmitter
                 throw Unsupported("a value passed where a procedure is taken");
             }
 
+            // The pointer cast to double lands on a multiple of 4, which
+            // only some of the processors .NET runs on read at full speed
+            // or at all for an 8-byte value.
+            if (dummy?.Type == DataType.DoublePrecision
+                && FindPassedVariable(arguments[index]) is { Type.Type: DataType.Integer or DataType.Real or DataType.Logical } variable)
+            {
+                _widened.Add(new WidenedArgument(variable.Name, name, index + 1, _line));
+            }
+
             var (address, length) = Argument(arguments[index], dummy?.Type);
             addresses.Add(address);
             if (length is not null)
@@ -149,6 +158,16 @@ internal sealed partial class UnitEmitter
                 return value.Type == DataType.Character ? (value.Text, value.Length) : (Passed(value, expected), null);
         }
     }
+
+    // The variable whose own storage an argument passes: a variable named,
+    // or the array an element names. Any other argument is a value, passed
+    // in a local of the larger of the two types.
+    private Symbol? FindPassedVariable(Expression argument) => argument switch
+    {
+        Expression.Name name => _table.Find(name.Identifier) is { Kind: SymbolKind.Variable } variable ? variable : null,
+        Expression.Reference reference => _table.Find(reference.Identifier) is { Kind: SymbolKind.Variable } array ? array : null,
+        _ => null,
+    };
 
     private static string Cast(string address, DataType actual, DataType? expected) =>
         expected is { } type && type != DataType.Character && type.ToCSharpStorageType() != actual.ToCSharpStorageType()

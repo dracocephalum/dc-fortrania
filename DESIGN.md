@@ -251,9 +251,10 @@ caller's deepest call instead, the simpler bound, compounds through the
 toolkit's searches, which pass their functions down several levels, and
 came to 587 KB where this comes to 76 KB. The figures leave out the
 just-in-time compiler's own frames, which come on top. The same result
-lists each variable `EQUIVALENCE` puts off its type's alignment, for
-`docs/rules/portability.md`, *Alignment*. The SPICE tool writes both beside
-the translation; `PENDING.md`, *How much goes on the stack is a setting*,
+lists each variable `EQUIVALENCE` puts off its type's alignment, and each
+call that passes a 4-byte number where the procedure takes an 8-byte one,
+for `docs/rules/portability.md`, *Alignment*. The SPICE tool writes all
+three beside the translation; `PENDING.md`, *How much goes on the stack is a setting*,
 has what they showed.
 
 **A translated library computes, and is handed everything else.** What the

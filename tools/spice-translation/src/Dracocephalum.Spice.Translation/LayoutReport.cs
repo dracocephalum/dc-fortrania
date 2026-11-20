@@ -5,7 +5,8 @@ namespace Dracocephalum.Spice.Translation;
 
 /// <summary>
 /// Writes what a translation found of the machine its code takes: the stack
-/// each procedure can take, and the variables placed off their alignment.
+/// each procedure can take, the variables placed off their alignment, and
+/// the calls that pass a 4-byte number where an 8-byte one is taken.
 /// Each goes in a file of tab-separated columns beside the translation, for
 /// choosing the stack settings and for answering the 32-bit ARM question;
 /// <c>PENDING.md</c> and <c>docs/rules/portability.md</c> say what for.
@@ -17,6 +18,9 @@ internal static class LayoutReport
 
     /// <summary>The file the variables off their alignment are written to.</summary>
     public const string UnalignedFile = "unaligned.tsv";
+
+    /// <summary>The file the calls that pass a 4-byte number for an 8-byte one are written to.</summary>
+    public const string WidenedFile = "widened.tsv";
 
     // How many of the deepest procedures of each project are shown.
     private const int Shown = 5;
@@ -39,6 +43,12 @@ internal static class LayoutReport
                 .Select(place => Join(place.Project, place.Source, place.Unit, Path.GetFileName(place.File), place.Line, place.Variable, place.Offset, place.Alignment))
                 .Prepend("project\tsource\tunit\tfile\tline\tvariable\toffset\talignment"));
 
+        File.WriteAllLines(
+            Path.Combine(folder, WidenedFile),
+            result.WidenedPlaces
+                .Select(place => Join(place.Project, place.Source, place.Unit, Path.GetFileName(place.File), place.Line, place.Variable, place.Procedure, place.Argument))
+                .Prepend("project\tsource\tunit\tfile\tline\tvariable\tprocedure\targument"));
+
         var lines = new List<string>();
         foreach (var project in result.StackUse.GroupBy(use => use.Project))
         {
@@ -54,7 +64,11 @@ internal static class LayoutReport
         // a variable off that faults there.
         var onArm32 = result.UnalignedPlaces.Count(place => place.Offset % 4 != 0);
         lines.Add(Format($"Off their alignment: {result.UnalignedPlaces.Count} variables, {onArm32} of them off a multiple of 4."));
-        lines.Add(Format($"Written: {StackFile} and {UnalignedFile}, beside the projects."));
+
+        // A 4-byte number stays on a multiple of 4 wherever it is passed, so
+        // these are slower at worst and never fault.
+        lines.Add(Format($"Passed as 8 bytes from a 4-byte number: {result.WidenedPlaces.Count} arguments."));
+        lines.Add(Format($"Written: {StackFile}, {UnalignedFile} and {WidenedFile}, beside the projects."));
         return lines;
     }
 

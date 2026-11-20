@@ -32,13 +32,16 @@ Translate, from the repository root:
 build `Dracocephalum.Spice.TSpice` there and run it to run the toolkit's own
 test suite.
 
-Each translation also writes two reports beside the projects, and prints the
-deepest procedures of each:
+Each translation also writes three reports beside the projects, and prints
+the deepest procedures of each project and the count of the other two:
 
 - `stack-use.tsv`: for every procedure, what its own method takes from the
   stack, what its deepest chain of calls takes, and the chain;
 - `unaligned.tsv`: every variable `EQUIVALENCE` places off its type's
-  alignment, which is a question on 32-bit ARM.
+  alignment, which is a question on 32-bit ARM;
+- `widened.tsv`: every call that passes a 4-byte number where the procedure
+  takes an 8-byte one, which may then be read at an address that is no
+  multiple of 8.
 
 ## Configuration
 

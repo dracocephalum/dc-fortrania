@@ -12,7 +12,7 @@ public sealed class LayoutReportTests : IDisposable
     public void Dispose() => Directory.Delete(_folder, recursive: true);
 
     [Fact]
-    public void Write_WhenATranslationWasDone_ShouldWriteBothFilesAndSumThemUp()
+    public void Write_WhenATranslationWasDone_ShouldWriteEachFileAndSumThemUp()
     {
         // Arrange
         var result = new TranslationResult([], [], [], 2)
@@ -26,6 +26,10 @@ public sealed class LayoutReportTests : IDisposable
             [
                 new UnalignedPlace("Example.Toolkit", "Core", "SHARED", Path.Combine(_folder, "shared.f"), "D", 4, 8, 2),
                 new UnalignedPlace("Example.Toolkit", "Core", "SHARED", Path.Combine(_folder, "shared.f"), "E", 2, 4, 2),
+            ],
+            WidenedPlaces =
+            [
+                new WidenedPlace("Example.Toolkit", "Core", "CALLER", Path.Combine(_folder, "widen.f"), "IC", "TAKE", 1, 9),
             ],
         };
 
@@ -45,13 +49,19 @@ public sealed class LayoutReportTests : IDisposable
             "Example.Toolkit\tCore\tSHARED\tshared.f\t2\tD\t4\t8",
             "Example.Toolkit\tCore\tSHARED\tshared.f\t2\tE\t2\t4",
         ]);
+        File.ReadAllLines(Path.Combine(_folder, LayoutReport.WidenedFile)).ShouldBe(
+        [
+            "project\tsource\tunit\tfile\tline\tvariable\tprocedure\targument",
+            "Example.Toolkit\tCore\tCALLER\twiden.f\t9\tIC\tTAKE\t1",
+        ]);
         lines.ShouldBe(
         [
             "Example.Toolkit: 2 procedures, the deepest:",
             "      1,216 bytes  TOP > LEAF",
             "      1,200 bytes  LEAF",
             "Off their alignment: 2 variables, 1 of them off a multiple of 4.",
-            "Written: stack-use.tsv and unaligned.tsv, beside the projects.",
+            "Passed as 8 bytes from a 4-byte number: 1 arguments.",
+            "Written: stack-use.tsv, unaligned.tsv and widened.tsv, beside the projects.",
         ]);
     }
 }

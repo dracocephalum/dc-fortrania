@@ -1085,8 +1085,9 @@ the translation takes itself:
   whose routines come in copies, `ZZSPKEZ0` and `ZZSPKEZ1` among them,
   that stand in for recursion; the frame routines take some 6 KB each,
   and the error-message path at the bottom of a chain about 4 KB.
-- No procedure is reached again beneath itself, and no variable lies off
-  its alignment.
+- No procedure is reached again beneath itself, no variable lies off its
+  alignment, and no call passes a 4-byte number where an 8-byte one is
+  taken.
 
 The just-in-time compiler's frames come on top, for chains of about 50
 calls. So the stack mode fits the default stack of a .NET thread on

@@ -102,6 +102,7 @@ public static partial class Translator
         private readonly List<string> _removed = [];
         private readonly List<StackUse> _stackUse = [];
         private readonly List<UnalignedPlace> _unaligned = [];
+        private readonly List<WidenedPlace> _widened = [];
 
         private bool HasErrors => _messages.Any(message => message.IsError);
 
@@ -153,6 +154,7 @@ public static partial class Translator
                 {
                     StackUse = _stackUse,
                     UnalignedPlaces = _unaligned,
+                    WidenedPlaces = _widened,
                 };
         }
 
@@ -575,6 +577,8 @@ public static partial class Translator
 
                         _unaligned.AddRange(emitted.UnalignedVariables.Select(variable => new UnalignedPlace(
                             source.Project.Name, source.Settings.Name, unit.Name, unit.File, variable.Name, variable.Offset, variable.Alignment, variable.Line)));
+                        _widened.AddRange(emitted.WidenedArguments.Select(argument => new WidenedPlace(
+                            source.Project.Name, source.Settings.Name, unit.Name, unit.File, argument.Variable, argument.Procedure, argument.Argument, argument.Line)));
                     }
                     catch (Exception exception) when (IsOfTheSource(exception))
                     {

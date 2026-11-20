@@ -27,4 +27,11 @@ public sealed record TranslationResult(
     /// none or the translation was not done.
     /// </summary>
     public IReadOnlyList<UnalignedPlace> UnalignedPlaces { get; init; } = [];
+
+    /// <summary>
+    /// Gets the calls translated that pass a 4-byte number where an 8-byte
+    /// one is taken, by project, source and unit in ordinal order; empty
+    /// when there are none or the translation was not done.
+    /// </summary>
+    public IReadOnlyList<WidenedPlace> WidenedPlaces { get; init; } = [];
 }
