@@ -17,14 +17,25 @@ internal static class Commands
             .FirstOrDefault(attribute => attribute.Key == "ProjectDirectory")?.Value ?? Directory.GetCurrentDirectory();
         var path = Path.Combine(folder, SettingsFile);
 
-        var result = Translator.Run(TranslationSettings.Load(path), folder, new TranslationOptions { Force = force });
+        var settings = TranslationSettings.Load(path);
+        var result = Translator.Run(settings, folder, new TranslationOptions { Force = force });
         foreach (var message in result.Messages)
         {
             Console.Error.WriteLine(message);
         }
 
         Console.WriteLine($"{(result.Succeeded ? "Translated" : "Not translated")}: {result.Units} program units, {result.Written.Count} files written, {result.Removed.Count} removed.");
-        return result.Succeeded ? 0 : 1;
+        if (!result.Succeeded)
+        {
+            return 1;
+        }
+
+        foreach (var line in LayoutReport.Write(result, Path.GetFullPath(Path.Combine(folder, settings.Output))))
+        {
+            Console.WriteLine(line);
+        }
+
+        return 0;
     }
 
     /// <summary>Rewrites what the translation just wrote: the toolkit's header in every file, and the platform in <c>ZZPLATFM</c>.</summary>

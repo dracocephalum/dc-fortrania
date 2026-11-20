@@ -238,6 +238,24 @@ not tell the two apart. The memory is the program's, held by its context,
 and is freed when the context is disposed; the garbage collector does not
 free it.
 
+**A translation says how much stack each procedure can take.** The emitter
+counts what each method takes with `stackalloc` and which procedures it
+calls, passes and calls through an argument; the translator follows the
+calls, which form a graph without cycles since the language has no
+recursion, and gives each procedure its deepest chain, in
+`TranslationResult.StackUse`. A procedure passed as an argument is counted
+where the procedure it reaches calls one it was passed, beneath the call
+that passed it, and the figure is an upper bound because which argument is
+called there is not told apart. Counting a passed procedure on top of the
+caller's deepest call instead, the simpler bound, compounds through the
+toolkit's searches, which pass their functions down several levels, and
+came to 587 KB where this comes to 76 KB. The figures leave out the
+just-in-time compiler's own frames, which come on top. The same result
+lists each variable `EQUIVALENCE` puts off its type's alignment, for
+`docs/rules/portability.md`, *Alignment*. The SPICE tool writes both beside
+the translation; `PENDING.md`, *How much goes on the stack is a setting*,
+has what they showed.
+
 **A translated library computes, and is handed everything else.** What the
 libraries a FORTRAN program is linked from share, they share because they
 are one process: one set of units, one screen and keyboard. Here that is a

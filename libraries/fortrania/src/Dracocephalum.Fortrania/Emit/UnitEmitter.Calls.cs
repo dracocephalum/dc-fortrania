@@ -45,12 +45,23 @@ internal sealed partial class UnitEmitter
         var addresses = new List<string>(leading ?? []);
         var lengths = new List<string>();
         var lengthsComeLast = system is null && _options.Convention.TextLengthsComeLast;
+        var passes = new List<string>();
+        var passesOnArgument = false;
 
         for (var index = 0; index < arguments.Count; index++)
         {
             var dummy = procedure is not null && index < procedure.Arguments.Count ? procedure.Arguments[index] : null;
             if (arguments[index] is Expression.Name named && _table.Find(named.Identifier) is { } passed && IsProcedure(passed))
             {
+                if (passed.IsDummyArgument)
+                {
+                    passesOnArgument = true;
+                }
+                else
+                {
+                    passes.Add(passed.Name);
+                }
+
                 addresses.Add(PassedProcedure(passed, dummy));
                 continue;
             }
@@ -70,6 +81,7 @@ internal sealed partial class UnitEmitter
 
         if (through)
         {
+            _callsThroughArgument = true;
             return CallThrough(called!, arguments, addresses.Concat(lengths));
         }
 
@@ -78,10 +90,25 @@ internal sealed partial class UnitEmitter
             return $"_context.{system}({string.Join(", ", addresses)})";
         }
 
+        RecordCall(name, passes, passesOnArgument);
+
         // A procedure of another library is called on that library's
         // instance, which this one finds in the context they share.
         var owner = OwnerOf(name) is { } other ? other.Accessor + "." : string.Empty;
         return $"{owner}{_options.Convention.ProcedureName(name)}({string.Join(", ", addresses.Concat(lengths))})";
+    }
+
+    // Adds a call to what the method being written calls, joined with the
+    // method's other calls of the same procedure.
+    private void RecordCall(string name, List<string> passes, bool passesOnArgument)
+    {
+        if (!_calls.TryGetValue(name, out var known))
+        {
+            known = (new SortedSet<string>(StringComparer.Ordinal), false);
+        }
+
+        known.Passes.UnionWith(passes);
+        _calls[name] = (known.Passes, known.PassesOnArgument || passesOnArgument);
     }
 
     private (string Address, string? Length) Argument(Expression argument, DataType? expected)

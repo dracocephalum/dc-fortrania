@@ -86,9 +86,12 @@ public static partial class Translator
 
         // The text of each file to write, by its name.
         public Dictionary<string, string> Files { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+        // Each method written, by the name it is called by, with its unit.
+        public Dictionary<string, (Unit Unit, EmittedMethod Method)> Methods { get; } = new(StringComparer.Ordinal);
     }
 
-    private sealed class Translation(TranslationSettings settings, string baseDirectory, TranslationOptions options)
+    private sealed partial class Translation(TranslationSettings settings, string baseDirectory, TranslationOptions options)
     {
         private readonly List<TranslationMessage> _messages = [];
         private readonly List<Source> _sources = [];
@@ -97,6 +100,8 @@ public static partial class Translator
         private readonly Dictionary<string, IncludeFile?> _includes = new(StringComparer.Ordinal);
         private readonly List<string> _written = [];
         private readonly List<string> _removed = [];
+        private readonly List<StackUse> _stackUse = [];
+        private readonly List<UnalignedPlace> _unaligned = [];
 
         private bool HasErrors => _messages.Any(message => message.IsError);
 
@@ -129,6 +134,11 @@ public static partial class Translator
 
             if (!HasErrors)
             {
+                WorkOutStackUse();
+            }
+
+            if (!HasErrors)
+            {
                 Write();
             }
 
@@ -137,7 +147,13 @@ public static partial class Translator
                 RunCommands();
             }
 
-            return new TranslationResult(_messages, _written, _removed, HasErrors ? 0 : _sources.Sum(source => source.Units.Count));
+            return HasErrors
+                ? new TranslationResult(_messages, _written, _removed, 0)
+                : new TranslationResult(_messages, _written, _removed, _sources.Sum(source => source.Units.Count))
+                {
+                    StackUse = _stackUse,
+                    UnalignedPlaces = _unaligned,
+                };
         }
 
         private void Error(string text, string? file = null, int line = 0) => _messages.Add(new TranslationMessage(true, file, line, text));
@@ -550,7 +566,15 @@ public static partial class Translator
                             name = FileName(string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{unit.Name}_{number}"));
                         }
 
-                        source.Files[name] = emitter.Emit(unit.Table, unit.File);
+                        var emitted = emitter.EmitUnit(unit.Table, unit.File);
+                        source.Files[name] = emitted.Text;
+                        foreach (var method in emitted.Methods)
+                        {
+                            source.Methods[method.Name] = (unit, method);
+                        }
+
+                        _unaligned.AddRange(emitted.UnalignedVariables.Select(variable => new UnalignedPlace(
+                            source.Project.Name, source.Settings.Name, unit.Name, unit.File, variable.Name, variable.Offset, variable.Alignment, variable.Line)));
                     }
                     catch (Exception exception) when (IsOfTheSource(exception))
                     {

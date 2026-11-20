@@ -13,4 +13,18 @@ public sealed record TranslationResult(
 {
     /// <summary>Gets a value indicating whether the translation was done: with an error nothing is written at all.</summary>
     public bool Succeeded => !Messages.Any(message => message.IsError);
+
+    /// <summary>
+    /// Gets the most each procedure translated can take from the stack, by
+    /// project, source and procedure in ordinal order; empty when the
+    /// translation was not done.
+    /// </summary>
+    public IReadOnlyList<StackUse> StackUse { get; init; } = [];
+
+    /// <summary>
+    /// Gets the variables translated that lie off their type's alignment,
+    /// by project, source and unit in ordinal order; empty when there are
+    /// none or the translation was not done.
+    /// </summary>
+    public IReadOnlyList<UnalignedPlace> UnalignedPlaces { get; init; } = [];
 }

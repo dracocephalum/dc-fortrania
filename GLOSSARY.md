@@ -29,6 +29,7 @@ where the code leans on it. Why something is as it is belongs in
 |---|---|
 | Translator | The library that reads FORTRAN and writes C#: source form, lexer, parser, analysis and emitter. |
 | Emitter | The last stage of the translator, which writes C# source text. |
+| Stack use | What a call of a procedure can take from the stack: its own method's `stackalloc` bytes and those of the deepest chain of calls beneath it, the just-in-time compiler's frames left out. |
 | Program tree | Planned: the program after lowering, with nothing of FORTRAN's left in it, between the analysis and a writer. |
 | Pass | Planned: a step that takes a program tree and gives one, an optimization or a lowering for a writer. |
 | Writer | Planned: what walks a program tree and writes one language's source, choosing only spelling and layout. |

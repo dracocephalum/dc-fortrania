@@ -1008,14 +1008,34 @@ reserves room for all of it at once, or each unit's part when it is
 first used, is the question about an untouched block under *Measurements
 waiting for a benchmark project*.
 
-**The defaults come from a report, made first.** FORTRAN 77 has no
-recursion, so a library's calls form a graph without cycles, and the
-translator can add up, for each routine, the stack the deepest chain of
-calls beneath it uses: exactly within a library, and as an estimate
-where a call goes through an argument or into another library. The
-report of that, per routine, says whether 4,096 is right, what Compact
-saves and how small Balanced's limit should be, and gives a library's
-users the most stack any of its routines needs.
+**The defaults come from the stack report.** `DESIGN.md`, *A translation
+says how much stack each procedure can take*, has how it is made. Over
+N0067, with today's fixed limit of 4,096 bytes, and counting only what
+the translation takes itself:
+
+- The main library's deepest procedures are the geometry finders,
+  `GFPOSC`, `GFSNTC` and `GFSUBC` at 76,533 bytes and 53 calls deep; the
+  everyday entry points take 55 to 70 KB (`SPKEZR` 61,742, `PXFORM`
+  54,090, `SINCPT` 66,887), and time conversion about 6 KB (`STR2ET`
+  5,948).
+- Of its 2,041 procedures, 41 can take more than 64 KB and 166 more than
+  16 KB; 755 take anything of their own, and the most any takes of its own
+  is `EKFIND`'s 17,600 bytes, in locals each under the limit.
+- What makes the deepest chains deep is the toolkit's dynamic frames,
+  whose routines come in copies, `ZZSPKEZ0` and `ZZSPKEZ1` among them,
+  that stand in for recursion; the frame routines take some 6 KB each,
+  and the error-message path at the bottom of a chain about 4 KB.
+- No procedure is reached again beneath itself, and no variable lies off
+  its alignment.
+
+The just-in-time compiler's frames come on top, for chains of about 50
+calls. So the translation as it is, which is Hpc, fits the default stack
+of a .NET thread on desktop and server systems, a megabyte or more, with
+room to spare; Compact is for a thread that was given a small
+one, or a caller that is deep already. What the report cannot say yet is
+how deep Balanced comes for a given `stackLimit`, since it counts each
+method's bytes and not each buffer's; it is to count each buffer when
+`stackLimit` is built, and Balanced's limit is chosen from that.
 
 ## Measurements waiting for a benchmark project
 

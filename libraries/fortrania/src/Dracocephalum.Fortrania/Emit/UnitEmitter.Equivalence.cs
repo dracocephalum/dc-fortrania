@@ -81,6 +81,19 @@ internal sealed partial class UnitEmitter
 
             overlay.Size = overlay.Starts.Max(member => member.Value + (ElementCount(member.Key) * ElementSize(member.Key)));
             overlay.Block = string.Create(CultureInfo.InvariantCulture, $"_e{index + 1}");
+
+            // The block puts a set on a multiple of 8, and the stack on at
+            // least a multiple of the pointer's size, which is all that a
+            // processor that faults asks of any type. So a member is taken
+            // to be off its alignment when its start is. Character data has
+            // none to be off.
+            foreach (var (member, start) in overlay.Starts)
+            {
+                if (member.Type!.Type != DataType.Character && start % member.Type.Type.GetStorageSize() != 0)
+                {
+                    _unaligned.Add(new UnalignedVariable(member.Name, start, member.Type.Type.GetStorageSize(), member.Line));
+                }
+            }
         }
     }
 
@@ -128,7 +141,7 @@ internal sealed partial class UnitEmitter
                 continue;
             }
 
-            file.Line(string.Create(CultureInfo.InvariantCulture, $"byte* {overlay.Block} = stackalloc byte[{overlay.Size}];"));
+            file.Line($"byte* {overlay.Block} = {TakeFromStack("byte", overlay.Size, overlay.Size)};");
             foreach (var symbol in named)
             {
                 file.Line(PlacedDeclaration(symbol, overlay.Block, overlay.Starts[symbol]));

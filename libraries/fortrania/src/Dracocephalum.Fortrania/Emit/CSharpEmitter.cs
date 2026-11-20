@@ -117,7 +117,22 @@ public sealed class CSharpEmitter
     /// <returns>The text of a C# source file.</returns>
     /// <exception cref="UnsupportedConstructException">The unit uses something the emitter cannot translate yet.</exception>
     /// <exception cref="Analysis.FortranAnalysisException">The unit lays variables out in a way the language forbids, which shows only when their places are worked out.</exception>
-    public string Emit(SymbolTable table, string? sourceFile = null)
+    public string Emit(SymbolTable table, string? sourceFile = null) => EmitUnit(table, sourceFile).Text;
+
+    /// <summary>
+    /// Writes the program unit <paramref name="table"/> describes, and tells
+    /// what each of its methods takes from the stack and which of its
+    /// variables lie off their alignment.
+    /// </summary>
+    /// <param name="table">The names of a program unit that has passed the type check.</param>
+    /// <param name="sourceFile">
+    /// The file the unit was read from, which the header names without its
+    /// folder; <see langword="null"/> when there is none.
+    /// </param>
+    /// <returns>The text, and what was learnt writing it.</returns>
+    /// <exception cref="UnsupportedConstructException">The unit uses something the emitter cannot translate yet.</exception>
+    /// <exception cref="Analysis.FortranAnalysisException">The unit lays variables out in a way the language forbids, which shows only when their places are worked out.</exception>
+    public EmittedUnit EmitUnit(SymbolTable table, string? sourceFile = null)
     {
         ArgumentNullException.ThrowIfNull(table);
 

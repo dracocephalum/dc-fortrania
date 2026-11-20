@@ -52,6 +52,18 @@ internal sealed partial class UnitEmitter
     // does not name would still be taken from the stack on every call.
     private readonly HashSet<Symbol> _named = [];
 
+    // What was learnt of each method written and of the unit's layout, for
+    // the caller.
+    private readonly List<EmittedMethod> _methods = [];
+    private readonly List<UnalignedVariable> _unaligned = [];
+
+    // What the method being written calls of the program's procedures, with
+    // what it passes each; the bytes it takes from the stack; and whether it
+    // calls a procedure it was passed.
+    private readonly SortedDictionary<string, (SortedSet<string> Passes, bool PassesOnArgument)> _calls = new(StringComparer.Ordinal);
+    private long _stackBytes;
+    private bool _callsThroughArgument;
+
     // For each type, how many locals for passing values are in use in the
     // statement being written, and the most any statement needed.
     private Dictionary<DataType, (int InUse, int Most)> _slots = [];
@@ -90,7 +102,7 @@ internal sealed partial class UnitEmitter
         Primary,
     }
 
-    public string Emit()
+    public EmittedUnit Emit()
     {
         var isFunction = _table.Unit.Header?.Statement switch
         {
@@ -162,7 +174,7 @@ internal sealed partial class UnitEmitter
         file.Append(methods);
 
         file.Close();
-        return file.ToString();
+        return new EmittedUnit(file.ToString(), _methods, _unaligned);
     }
 
     // The statement that names the method, where there is one, gives the
@@ -179,6 +191,9 @@ internal sealed partial class UnitEmitter
     {
         _body = new CodeWriter();
         _preamble = new CodeWriter();
+        _stackBytes = 0;
+        _calls.Clear();
+        _callsThroughArgument = false;
         _isInPreamble = true;
         _constantsUsed.Clear();
         _named.Clear();
@@ -228,6 +243,11 @@ internal sealed partial class UnitEmitter
         // Comments that open the code are a block of their own after what is
         // declared, as anywhere else after code.
         WriteDeclarations(methods);
+        _methods.Add(new EmittedMethod(
+            name,
+            _stackBytes,
+            [.. _calls.Select(call => new EmittedCall(call.Key, [.. call.Value.Passes], call.Value.PassesOnArgument))],
+            _callsThroughArgument));
         if (methods.LastLine is not ("" or "{") && _body.FirstLine.StartsWith("//", StringComparison.Ordinal))
         {
             methods.Blank();
@@ -446,7 +466,7 @@ internal sealed partial class UnitEmitter
                 count *= ConstantExtent(bound) ?? throw Unsupported("a local array whose size is not constant");
             }
 
-            file.Line(string.Create(CultureInfo.InvariantCulture, $"{type}* {name} = stackalloc {type}[{count}];"));
+            file.Line($"{type}* {name} = {TakeFromStack(type, count, ElementCount(symbol) * ElementSize(symbol))};");
         }
 
         WriteScratch(file);
@@ -464,7 +484,7 @@ internal sealed partial class UnitEmitter
     {
         for (var number = 1; number <= _buffers.Count; number++)
         {
-            file.Line(string.Create(CultureInfo.InvariantCulture, $"byte* _s{number} = stackalloc byte[{_buffers[number - 1]}];"));
+            file.Line(string.Create(CultureInfo.InvariantCulture, $"byte* _s{number} = {TakeFromStack("byte", _buffers[number - 1], _buffers[number - 1])};"));
         }
 
         foreach (var (type, (_, most)) in _slots.OrderBy(slot => slot.Key))
@@ -493,7 +513,7 @@ internal sealed partial class UnitEmitter
         if (symbol.Type!.Type != DataType.Character)
         {
             var type = symbol.Type.Type.ToCSharpStorageType();
-            file.Line($"{type}* {name} = stackalloc {type}[1] {{ 0 }};");
+            file.Line($"{type}* {name} = {TakeFromStack(type, 1, symbol.Type.Type.GetStorageSize())} {{ 0 }};");
             return;
         }
 
@@ -507,8 +527,17 @@ internal sealed partial class UnitEmitter
             length = LengthOf(symbol);
         }
 
-        file.Line($"byte* {name} = stackalloc byte[{length}];");
+        var bytes = long.Parse(length, CultureInfo.InvariantCulture);
+        file.Line($"byte* {name} = {TakeFromStack("byte", bytes, bytes)};");
         file.Line($"new Span<byte>({name}, {length}).Fill((byte)' ');");
+    }
+
+    // Takes so many elements of a type from the stack for the method being
+    // written, and counts their bytes against it.
+    private string TakeFromStack(string type, long count, long bytes)
+    {
+        _stackBytes += bytes;
+        return string.Create(CultureInfo.InvariantCulture, $"stackalloc {type}[{count}]");
     }
 
     private static string Slot(DataType type, int number) => type switch

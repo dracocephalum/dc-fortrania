@@ -615,6 +615,182 @@ public sealed class TranslatorTests : IDisposable
         Text("out/Example.Toolkit/Generated/Core/.fortrania.json").ShouldContain("\"translator\": \"Fortrania ");
     }
 
+    [Fact]
+    public void Run_WhenProceduresCallEachOther_ShouldGiveEachTheDeepestChainBeneathIt()
+    {
+        // Arrange: TOP calls MID, and passes F to RUNF, which passes it on to
+        // INNER, which calls it. MID calls LEAF and SMALL. F is counted
+        // where INNER calls it, beneath RUNF, which is deeper than MID.
+        Put("core/chain.f", """
+                  SUBROUTINE TOP
+                  INTEGER K ( 4 )
+                  DOUBLE PRECISION F
+                  EXTERNAL F
+                  K ( 1 ) = 1
+                  CALL MID
+                  CALL RUNF ( F )
+                  END
+
+                  SUBROUTINE MID
+                  CALL LEAF
+                  CALL SMALL
+                  END
+
+                  SUBROUTINE LEAF
+                  DOUBLE PRECISION A ( 100 )
+                  A ( 1 ) = 1
+                  END
+
+                  SUBROUTINE SMALL
+                  INTEGER B ( 2 )
+                  B ( 1 ) = 1
+                  END
+
+                  SUBROUTINE RUNF ( G )
+                  DOUBLE PRECISION G, R ( 200 )
+                  EXTERNAL G
+                  R ( 1 ) = 1
+                  CALL INNER ( G )
+                  END
+
+                  SUBROUTINE INNER ( H )
+                  DOUBLE PRECISION H, V ( 10 )
+                  EXTERNAL H
+                  V ( 1 ) = H ( 1D0 )
+                  END
+
+                  DOUBLE PRECISION FUNCTION F ( Y )
+                  DOUBLE PRECISION Y, W ( 50 )
+                  W ( 1 ) = Y
+                  F = W ( 1 )
+                  END
+            """);
+
+        // Act
+        var result = Translator.Run(Settings(Project("Example.Toolkit", Source("Core", "core/*.f"))), _root);
+
+        // Assert
+        result.Succeeded.ShouldBeTrue();
+        result.StackUse.Select(use => use.Procedure).ShouldBe(["F", "INNER", "LEAF", "MID", "RUNF", "SMALL", "TOP"]);
+
+        var top = result.StackUse.Single(use => use.Procedure == "TOP");
+        top.OwnBytes.ShouldBe(16);
+        top.DeepestBytes.ShouldBe(16 + 1600 + 80 + 400);
+        top.DeepestChain.ShouldBe(["TOP", "RUNF", "INNER", "F"]);
+        top.TakesProcedures.ShouldBeFalse();
+        top.IsRecursive.ShouldBeFalse();
+
+        // Called from outside, RUNF takes what it is passed on top.
+        var runf = result.StackUse.Single(use => use.Procedure == "RUNF");
+        runf.DeepestBytes.ShouldBe(1600 + 80);
+        runf.DeepestChain.ShouldBe(["RUNF", "INNER"]);
+        runf.TakesProcedures.ShouldBeTrue();
+
+        result.StackUse.Single(use => use.Procedure == "MID").DeepestChain.ShouldBe(["MID", "LEAF"]);
+        result.StackUse.ShouldAllBe(use => use.Project == "Example.Toolkit" && use.Source == "Core");
+    }
+
+    [Fact]
+    public void Run_WhenAUnitHasEntryPoints_ShouldCountEachByWhatItsOwnStatementsTakeAndCall()
+    {
+        // Arrange: only KEEP names the array, and only PEEK calls LEAF.
+        Put("core/keep.f", """
+                  SUBROUTINE KEEP ( N )
+                  INTEGER N
+                  DOUBLE PRECISION BIG ( 100 )
+                  BIG ( 1 ) = N
+                  RETURN
+
+                  ENTRY PEEK ( N )
+                  CALL LEAF
+                  N = 1
+                  END
+
+                  SUBROUTINE LEAF
+                  INTEGER B ( 8 )
+                  B ( 1 ) = 1
+                  END
+            """);
+
+        // Act
+        var result = Translator.Run(Settings(Project("Example.Toolkit", Source("Core", "core/*.f"))), _root);
+
+        // Assert
+        result.Succeeded.ShouldBeTrue();
+        var keep = result.StackUse.Single(use => use.Procedure == "KEEP");
+        keep.OwnBytes.ShouldBe(800);
+        keep.DeepestChain.ShouldBe(["KEEP"]);
+
+        var peek = result.StackUse.Single(use => use.Procedure == "PEEK");
+        peek.OwnBytes.ShouldBe(0);
+        peek.DeepestBytes.ShouldBe(32);
+        peek.DeepestChain.ShouldBe(["PEEK", "LEAF"]);
+    }
+
+    [Fact]
+    public void Run_WhenACallReachesAnotherProject_ShouldFollowItThere()
+    {
+        // Arrange
+        Put("core/leaf.f", "      SUBROUTINE LEAF\n      INTEGER B ( 8 )\n      B ( 1 ) = 1\n      END\n");
+        Put("tool/tool.pgm", "      PROGRAM TOOL\n      CALL LEAF\n      END\n");
+
+        // Act
+        var result = Translator.Run(
+            Settings(Project("Example.Toolkit", Source("Core", "core/*.f")), Project("Example.Tool", Source("ToolMain", "tool/*.pgm"))),
+            _root);
+
+        // Assert
+        result.Succeeded.ShouldBeTrue();
+        var tool = result.StackUse.Single(use => use.Procedure == "TOOL");
+        tool.Project.ShouldBe("Example.Tool");
+        tool.DeepestBytes.ShouldBe(32);
+        tool.DeepestChain.ShouldBe(["TOOL", "LEAF"]);
+        result.StackUse.Select(use => use.Project).ShouldBe(["Example.Tool", "Example.Toolkit"]);
+    }
+
+    [Fact]
+    public void Run_WhenProceduresCallEachOtherInACircle_ShouldSaySoAndStopWhereItTurnsBack()
+    {
+        // Arrange
+        Put("core/circle.f", "      SUBROUTINE ONE\n      CALL TWO\n      END\n\n      SUBROUTINE TWO\n      INTEGER B ( 2 )\n      B ( 1 ) = 1\n      CALL ONE\n      END\n");
+
+        // Act
+        var result = Translator.Run(Settings(Project("Example.Toolkit", Source("Core", "core/*.f"))), _root);
+
+        // Assert
+        result.Succeeded.ShouldBeTrue();
+        var one = result.StackUse.Single(use => use.Procedure == "ONE");
+        one.IsRecursive.ShouldBeTrue();
+        one.DeepestBytes.ShouldBe(8);
+        one.DeepestChain.ShouldBe(["ONE", "TWO"]);
+    }
+
+    [Fact]
+    public void Run_WhenEquivalencePlacesAVariableOffItsAlignment_ShouldListIt()
+    {
+        // Arrange
+        Put("core/shared.f", """
+                  SUBROUTINE SHARED ( X )
+                  DOUBLE PRECISION X, D, E
+                  INTEGER I ( 3 ), J ( 4 )
+                  EQUIVALENCE ( I ( 2 ), D ), ( J ( 3 ), E )
+                  I ( 1 ) = 0
+                  J ( 1 ) = 0
+                  X = D + E
+                  END
+            """);
+
+        // Act
+        var result = Translator.Run(Settings(Project("Example.Toolkit", Source("Core", "core/*.f"))), _root);
+
+        // Assert: D begins 4 bytes in, which a double is not aligned on; E
+        // begins 8 bytes in, which it is.
+        result.Succeeded.ShouldBeTrue();
+        var place = result.UnalignedPlaces.ShouldHaveSingleItem();
+        place.ShouldBe(new UnalignedPlace("Example.Toolkit", "Core", "SHARED", Path.Combine(_root, "core", "shared.f"), "D", 4, 8, 2));
+        result.StackUse.Single().OwnBytes.ShouldBe(12 + 16);
+    }
+
     // A command for the system's own shell: the test needs one that is
     // on every machine the tests run on.
     private static CommandSettings Shell(string windows, string other) => new()

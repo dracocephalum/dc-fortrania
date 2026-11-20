@@ -32,6 +32,14 @@ Translate, from the repository root:
 build `Dracocephalum.Spice.TSpice` there and run it to run the toolkit's own
 test suite.
 
+Each translation also writes two reports beside the projects, and prints the
+deepest procedures of each:
+
+- `stack-use.tsv`: for every procedure, what its own method takes from the
+  stack, what its deepest chain of calls takes, and the chain;
+- `unaligned.tsv`: every variable `EQUIVALENCE` places off its type's
+  alignment, which is a question on 32-bit ARM.
+
 ## Configuration
 
 The sources are read from `cache/N0067/` at the repository root, which git
