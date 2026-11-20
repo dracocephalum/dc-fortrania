@@ -8,6 +8,15 @@ internal static class Commands
 {
     private const string SettingsFile = "spice.fortrania.json";
 
+    // The files a translation writes that are changed after it, by name,
+    // with what changes each and what its header says of the change.
+    private static readonly Dictionary<string, (Func<string, string> Rewrite, string Description)> Rewrites =
+        new(StringComparer.Ordinal)
+        {
+            [PlatformRewrite.FileName] = (PlatformRewrite.Rewrite, PlatformRewrite.Description),
+            [LineEndingTestRewrite.FileName] = (LineEndingTestRewrite.Rewrite, LineEndingTestRewrite.Description),
+        };
+
     /// <summary>Translates the toolkit as the settings beside this project say.</summary>
     /// <param name="force">Whether every file is written again whatever was written before.</param>
     /// <returns>The exit code: zero when the translation was done.</returns>
@@ -38,7 +47,11 @@ internal static class Commands
         return 0;
     }
 
-    /// <summary>Rewrites what the translation just wrote: the toolkit's header in every file, and the platform in <c>ZZPLATFM</c>.</summary>
+    /// <summary>
+    /// Rewrites what the translation just wrote: the toolkit's header in every
+    /// file, the platform in <c>ZZPLATFM</c>, and the kernels <c>F_ZZASC2</c>
+    /// expects to be refused.
+    /// </summary>
     /// <returns>The exit code: zero when every file was rewritten.</returns>
     public static int Rewrite()
     {
@@ -54,8 +67,9 @@ internal static class Commands
             try
             {
                 var text = File.ReadAllText(file);
-                var isPlatform = Path.GetFileName(file) == PlatformRewrite.FileName;
-                var rewritten = ToolkitHeader.AddTo(isPlatform ? PlatformRewrite.Rewrite(text) : text, isPlatform ? PlatformRewrite.Description : null);
+                var rewritten = Rewrites.TryGetValue(Path.GetFileName(file), out var rewrite)
+                    ? ToolkitHeader.AddTo(rewrite.Rewrite(text), rewrite.Description)
+                    : ToolkitHeader.AddTo(text);
                 if (rewritten != text)
                 {
                     File.WriteAllText(file, rewritten);

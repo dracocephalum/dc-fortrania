@@ -16,8 +16,9 @@ It holds the toolkit's translation settings, `spice.fortrania.json`, and runs
 Fortrania over them: the toolkit's main and support libraries become one
 project, its test utilities and test program another. After the translation
 the settings run the tool's own `rewrite`, which puts the header NAIF's
-rules ask for into every translated file and makes `ZZPLATFM` report the platform it
-runs on instead of the one its sources were written for.
+rules ask for into every translated file, makes `ZZPLATFM` report the
+platform it runs on instead of the one its sources were written for, and
+makes the test family `F_ZZASC2` expect the kernels that platform refuses.
 
 ## Run it
 

@@ -378,11 +378,20 @@ a whole translation from them. Left to do:
   operating system and which architecture it is for, `os` and
   `architecture`, either, both or neither; the entries with neither are the
   base, and the most specific entry that matches the machine wins, the
-  operating system before the architecture. A unit that differs is emitted
+  operating system before the architecture. The toolkit's test program is
+  the first that would use it: of its families, the Windows package's
+  copies of three differ from Linux's. `F_ZZASC2` expects other kernels
+  refused, and is rewritten after translation until this is built, when
+  the rewrite goes, though a variant chosen by operating system is then
+  wrong for a context told to write another platform's line ending;
+  `F_DNEARP` has a case that Linux's copy lacks; `F_TANGPT2` allows wider
+  tolerances, which the translation does not need. The test package of
+  each platform is then a source of its own, fetched and checked against
+  its own hash. A unit that differs is emitted
   once for each variant and a shim of its name chooses between them, by a
   choice made once when the library is made over its context, from the
   context's `OperatingSystem` and `Architecture`, which default to the
-  machine's. Not needed for the reference sources, see `DESIGN.md`, *The SPICE
+  machine's. The library does not need it, see `DESIGN.md`, *The SPICE
   Toolkit's translation is a tool of its own*, and so not built until a
   program needs it.
 - **Paths that go deeper than one folder.** The last part of a path may

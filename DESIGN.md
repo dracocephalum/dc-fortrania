@@ -773,12 +773,27 @@ would be a second copy to keep right, and a hand-written file in the
 translated component, whose licence is the toolkit's.
 
 With that, the translated test suite runs all 400 families on Windows.
-F_ZZASC2 then fails six cases: it is the test of the check itself, and the
-Linux package's copy expects the line feed alone to be native, where the
-Windows package's copy of the same test differs in exactly those six
-expectations. The reference compiler's build of the same sources, with
-`ZZPLATFM` told the same line ending, gives the same outcome for every
-family and every case that fails.
+
+**`F_ZZASC2` is rewritten to expect what its platform refuses.** It is the
+test of that check: it writes kernels whose lines end in each of the three
+ways and expects `FURNSH` to refuse those that do not end the platform's
+way. Which those are is fixed in each platform's copy of the test, and the
+copy translated is Linux's, so on Windows six of its expectations were the
+wrong way round, for the reference compiler's build of the same sources as
+for the translation. The tool makes them a choice made when the family
+runs, from the line ending its program writes, by the same means as
+`ZZPLATFM`'s rewrite, and refuses when the stores are not the ones the
+Linux copy makes. The Windows package's copy differs from Linux's in
+exactly those six expectations. The rewrite is a stand-in until a source
+can have a variant for each platform, under *Variants of a source for one
+platform* in `PENDING.md`; the family is then translated from the
+package's own copy for each platform, and the rewrite goes.
+
+Of the other test families, `F_SCLK1` has a case that times one series of
+calls against another by the clock and asks the first to take less than
+half as long again as the second. The first is also where the just-in-time
+compiler compiles and then recompiles the routines called, so the case
+can fail on a run where every value it checks is right.
 
 **Every translated file carries the header NAIF's rules ask for.** The
 tool adds, inside the block the translator marks as generated, that the
