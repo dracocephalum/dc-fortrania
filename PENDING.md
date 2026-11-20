@@ -385,6 +385,17 @@ a whole translation from them. Left to do:
   machine's. Not needed for the reference sources, see `DESIGN.md`, *The SPICE
   Toolkit's translation is a tool of its own*, and so not built until a
   program needs it.
+- **Strict alignment**, `strictAlignment`, off by default: for a processor
+  that cannot load a value from an address off its type's alignment, 32-bit
+  ARM among them. When on, every variable `EQUIVALENCE` places off its
+  alignment is read and written through `Unsafe.ReadUnaligned` and
+  `Unsafe.WriteUnaligned`, at that place alone. Those two work at an aligned address too, and on x64 and
+  ARM64 the just-in-time compiler turns them into the plain load and store,
+  so a translation made with it on still runs everywhere; it is off by
+  default only so that the code reads as plainly as the rest.
+  `docs/rules/portability.md`, *Alignment*, has why. Not needed for the
+  toolkit, which has no such variable, and so not built until a program
+  needs it.
 - **Paths that go deeper than one folder.** The last part of a path may
   have `*` and `?`; `**` for folders at any depth is not read.
 - **The rest of what a translation is told**, under *What the translator

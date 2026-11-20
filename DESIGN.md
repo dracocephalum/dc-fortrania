@@ -298,8 +298,9 @@ calls or it is too large for the stack, and on the stack otherwise. Nothing
 converts: a number read through a variable of another type shows the other
 type's bytes, in the order the machine keeps them, which is what the
 language says and what programs use it for. A variable may begin where its
-own type would not be aligned; the processors .NET runs on read it all the
-same. Two lists that put one variable in two places are an error in the
+own type would not be aligned; x64 and ARM64 read it all the same, and
+32-bit ARM may not, as `docs/rules/portability.md` has it under
+*Alignment*. Two lists that put one variable in two places are an error in the
 source, found here because this is where places are worked out.
 
 **An entry point is a method of its own.** A unit with `ENTRY` statements
