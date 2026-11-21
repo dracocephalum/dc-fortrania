@@ -681,3 +681,34 @@ how a file the translator no longer makes is told from one somebody wrote.
 The settings file, the command line and the build step all read into the
 same description, kept in the translator's library and not in any of them.
 
+
+## A package's version is in the code, and the build says what kind it is
+
+`Version.props` holds one number, major, minor and patch, and it is the
+next release's. Every package built beneath the file takes it, so the
+translator and the runtime always carry the same one, which is how a user
+knows which runtime a translation runs on. A component that is versioned
+apart carries a file of its own, found first; none does yet.
+
+What follows the number is not written anywhere. A build is one of three
+kinds, and says which: on a developer's machine, `0.1.0-dev`; the
+pipeline's build of the default branch, `0.1.0-ci.42`, with the pipeline's
+own counter; a release, `0.1.0` and nothing after it. So no commit exists
+only to change a version for a build, and a version cannot be told what it
+is not: a package without a label was built as a release. The counter
+stands after a dot, where it is compared as a number.
+
+**Two registries, and each takes one kind.** The pipeline's builds go to
+the package registry the host keeps beside the repository, which only
+those with access read, and the oldest are removed there as new ones
+arrive, since they are of no use once a few newer exist and the space is
+limited. Releases go to nuget.org and nothing else does: a version there
+is permanent, and whoever reads it should be able to take it for
+finished.
+
+**The pipeline is two jobs.** *Build and test* restores from the lock
+files, builds, runs the unit tests and packs; *Deploy* publishes exactly
+the packages the first job tested, and runs for the default branch only.
+Neither is given a secret: the registry beside the repository takes the
+run's own token, which may write this repository's packages and is gone
+when the run ends.

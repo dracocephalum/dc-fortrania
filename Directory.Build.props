@@ -18,6 +18,7 @@
   -->
 
   <Import Project="$(MSBuildThisFileDirectory)StyleCop.props" />
+  <Import Project="$(MSBuildThisFileDirectory)Packaging.props" />
 
   <!--
     Tests.props is imported from Directory.Build.targets, not here: its

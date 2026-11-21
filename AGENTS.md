@@ -24,7 +24,8 @@ exist.
 
 Build configuration lives **once, at the repository root** — `Directory.Build.props`,
 `Directory.Build.targets`, `Directory.Packages.props`, `Tests.props`,
-`StyleCop.props`, `stylecop.ruleset`, `stylecop.json`, `.editorconfig`. Every
+`StyleCop.props`, `Packaging.props`, `Version.props`, `stylecop.ruleset`,
+`stylecop.json`, `.editorconfig`. Every
 project inherits it. The targets file stamps every assembly's informational
 version with the short commit hash (`1.2.3+abcdef12`, `-dirty` when the tree
 is not clean); it never fails the build.
