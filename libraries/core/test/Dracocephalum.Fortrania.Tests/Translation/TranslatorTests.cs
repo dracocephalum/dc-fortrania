@@ -440,6 +440,41 @@ public sealed class TranslatorTests : IDisposable
     }
 
     [Fact]
+    public void Run_WhenTheRuntimeIsVersionedCentrally_ShouldReferToItsPackageWithNoVersion()
+    {
+        // Arrange
+        Put("core/core.f", Core);
+        var settings = Settings(Project("Example.Toolkit", Source("Core", "core/*.f")));
+        settings.Runtime = new RuntimeSettings { CentrallyVersioned = true };
+
+        // Act
+        var result = Translator.Run(settings, _root);
+
+        // Assert
+        result.Succeeded.ShouldBeTrue();
+        var library = Text("out/Example.Toolkit/Example.Toolkit.csproj");
+        library.ShouldContain("<PackageReference Include=\"Dracocephalum.Fortrania.Runtime\" />");
+        library.ShouldNotContain("Version=");
+    }
+
+    [Fact]
+    public void Run_WhenTheRuntimeIsVersionedCentrallyAndGivenAVersion_ShouldRefuseTheSettings()
+    {
+        // Arrange
+        Put("core/core.f", Core);
+        var settings = Settings(Project("Example.Toolkit", Source("Core", "core/*.f")));
+        settings.Runtime = new RuntimeSettings { Package = "1.2.3", CentrallyVersioned = true };
+
+        // Act
+        var result = Translator.Run(settings, _root);
+
+        // Assert
+        result.Succeeded.ShouldBeFalse();
+        result.Messages.ShouldHaveSingleItem().Text.ShouldBe("The settings give the runtime's package the version 1.2.3 and say that its version is managed centrally; it is one or the other.");
+        result.Written.ShouldBeEmpty();
+    }
+
+    [Fact]
     public void Run_WhenAStepAfterwardsChangedATranslatedFile_ShouldKeepItUntilTheTranslationOfItChanges()
     {
         // Arrange

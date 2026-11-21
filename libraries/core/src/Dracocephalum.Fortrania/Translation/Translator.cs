@@ -179,6 +179,11 @@ public static partial class Translator
                 Error("The settings name no project.");
             }
 
+            if (settings.Runtime is { CentrallyVersioned: true, Package: not null })
+            {
+                Error($"The settings give the runtime's package the version {settings.Runtime.Package} and say that its version is managed centrally; it is one or the other.");
+            }
+
             var classes = new HashSet<string>(StringComparer.Ordinal);
             var projects = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var project in settings.Projects)
@@ -781,9 +786,21 @@ public static partial class Translator
         {
             string Relative(string path) => Path.GetRelativePath(folder, path).Replace('\\', '/');
 
-            var runtime = Expand(settings.Runtime.Project) is { } runtimeProject
-                ? $"    <ProjectReference Include=\"{Relative(Path.GetFullPath(Path.Combine(baseDirectory, runtimeProject)))}\" />"
-                : $"    <PackageReference Include=\"Dracocephalum.Fortrania.Runtime\" Version=\"{settings.Runtime.Package ?? OwnVersion()}\" />";
+            // Central package management refuses a reference that carries a
+            // version, so there the version is left to the repository.
+            string runtime;
+            if (Expand(settings.Runtime.Project) is { } runtimeProject)
+            {
+                runtime = $"    <ProjectReference Include=\"{Relative(Path.GetFullPath(Path.Combine(baseDirectory, runtimeProject)))}\" />";
+            }
+            else if (settings.Runtime.CentrallyVersioned)
+            {
+                runtime = "    <PackageReference Include=\"Dracocephalum.Fortrania.Runtime\" />";
+            }
+            else
+            {
+                runtime = $"    <PackageReference Include=\"Dracocephalum.Fortrania.Runtime\" Version=\"{settings.Runtime.Package ?? OwnVersion()}\" />";
+            }
 
             var lines = new List<string>
             {
