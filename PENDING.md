@@ -477,6 +477,64 @@ Five things about files are decided and not built:
   each and no buffer, against a buffered or memory-mapped file, is for the
   benchmark project.
 
+## Input and output is to be looked at again as a whole
+
+Not designed yet: what follows is the ground to start from, and none of it
+is decided. The aim is that a developer controls where each file is and how
+it is reached, and that what they get without asking is the fastest that is
+safe.
+
+**What there is.** Two things are easily taken for one. The *access* is
+FORTRAN's and comes from the `OPEN` statement: direct, which is records of
+one length read and written by number, and is every binary kernel; or
+sequential, which is records in order with `REWIND` and `BACKSPACE`, and in
+the reference sources is text: text kernels, logs, the screen and the
+keyboard. The *store* is where the bytes are: a disk file reached at an
+offset with no buffer, bytes in memory that are only read, a file in memory
+that is written, a stream of the host's, and later a mapped file. Both
+kinds of access are built on one contract, `FortranFile`, which reads and
+writes at an offset and keeps no position, so every store serves both.
+
+**What is untidy.** A name reaches a store in three ways with a fixed order
+between them: the context's one provider, a registered stream, and
+registered bytes. A context has one provider, so kernels in memory and
+output on disk takes a provider written by hand. A buffer has no place to
+go but inside each store. A provider is told a name and a mode and nothing
+else.
+
+**Three layers, and what each might do.**
+
+- *The translated program* knows a name and what its `OPEN` said: the
+  access, the form, the record length, the status. The translator can add
+  what the FORTRAN never had: which library, which program unit, perhaps
+  which statement. All of it is to be passed without the program's source
+  or its behaviour changing.
+- *The runtime* keeps what is FORTRAN's: units, records, formats,
+  positions. To choose between: it also holds a few general abilities of
+  its own, a buffer among them, written once and light; or it passes every
+  request on and holds none. The first keeps providers small, the second
+  keeps the runtime from having to change.
+- *The provider* decides what a name is. A few plain ones would come with
+  the runtime: disk, memory, bytes to read, a stream. One more would choose
+  among others by rule, and take a function of the host's for the rule,
+  set up the way services are registered with a host. The streams and
+  bytes registered today would become one of the plain ones, in front of
+  the rest, so that a name has one way to a store.
+
+**Further ground.**
+
+- A buffer or a cache is safe only for a file no other unit and no other
+  program has open, so a request would say which it is, or the provider
+  would.
+- A store whose bytes are in memory could hand out a span over them in
+  place of copying a record, as an ability a file may or may not have.
+- `OPEN` in FORTRAN 77 cannot say that a file is only to be read, so the
+  runtime cannot tell a kernel being read from one being written, and the
+  fastest stores need to know. It would come from the host, or from a rule
+  on the name.
+- Whether each read and write carries what the opening did, or only the
+  opening does: a call per record is the path that has to stay short.
+
 ## A setting for each variance from the reference compiler
 
 The runtime follows the reference compiler wherever a program can tell the
@@ -1113,6 +1171,16 @@ saves is the system call for each one. A pinned array holds at most about
 2^31 elements, so under 16 GB of `long`; native memory and a mapping have
 no such limit. A DAF reaches its own limit near the same size, since its
 addresses count 8-byte words in a 32-bit integer. JPL's DE441 is 3.1 GB.
+
+**A file written in memory is to grow past 2 GB.** `MemoryFileProvider`,
+in `DESIGN.md`, keeps each file in one array of bytes, so under 2 GB. Kept
+in an array of `long` a file reaches 16 GB, which is the limit a DAF has
+anyway, and every record starts on an 8-byte boundary; blocks from the
+allocator, chained, have no limit at all. To be chosen when a file that
+size is first wanted, since the tests write nothing near it.
+
+How a name is given to one kind of file or another is under *Input and
+output is to be looked at again as a whole*.
 
 **A program that does recurse** has units the report finds; those keep
 their buffers on the stack in both modes.
