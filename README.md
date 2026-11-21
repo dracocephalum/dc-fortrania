@@ -1,12 +1,12 @@
-# dc-astro
+# dc-fortrania
 
 > Initialized with <https://github.com/dracocephalum/dc-agentics>. The
 > choices made, and the toolkit commit, are in
 > [`.agentics.yaml`](.agentics.yaml); open items are in [`TODO.md`](TODO.md).
 
-A pure managed .NET port of NASA's SPICE Toolkit, with no native
-binaries: the original FORTRAN 77 sources are translated to C# by Fortrania,
-the translator and runtime library that are developed here alongside it.
+Fortrania: a FORTRAN 77 to C# translator, and the small managed runtime
+library the translated code runs on, with no native binaries. It was
+written to translate NASA's SPICE Toolkit, and holds nothing of it.
 
 ## What is in here
 
@@ -41,6 +41,6 @@ their own index there.
 
 Apache License 2.0 — see [`LICENSE`](LICENSE). Copyright 2026 Chris Har.
 
-That covers what was written for this repository. Code translated from the
-SPICE Toolkit is not covered by it: [`NOTICE`](NOTICE) states the split, and
-[`DESIGN.md`](DESIGN.md), *Two licences, split by component*, explains it.
+That covers the translator and the runtime. What is translated with them
+keeps the terms of its sources: [`DESIGN.md`](DESIGN.md), *A translation
+keeps the terms of its sources*.

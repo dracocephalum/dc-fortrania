@@ -18,40 +18,28 @@ undecided adds it here rather than mentioning it once in a conversation.
       no gate. Close by: one of the first two, then
       `gh api repos/<owner>/<name>/rulesets --input .github/rulesets/protect-main.json`.
 
-- [ ] **Warnings-as-errors is relaxed for translated code, for now.**
-      Decided, and written down in `docs/rules/translated-code.md`,
-      *Building it*: a component that holds translated code turns
-      `TreatWarningsAsErrors` and the analyzers off in its own `.csproj`. No
-      such component exists yet. Close by: turning both back on once the
-      translator's output builds clean, and deleting that section of the
-      rule.
-- [ ] **The test runner lives with the translation tool, for want of a
-      better place.** `Dracocephalum.Spice.TestRunner` refers to the
-      translated test program in `cache/translated/`, so it is in no
-      solution and has no tests of its own. Its list of slow families was
-      measured once, on a machine that was saving power. Close by: moving it
-      beside the translated toolkit's component when that exists, into that
-      component's solution, and measuring the list again there.
-- [ ] **`tools/spice-translation` refers to the translator as a project.**
-      A cross-component `ProjectReference`, allowed while no package feed
-      exists, with the comment `agentics/rules/layout.md` asks for. Close by:
-      a `PackageReference` to the translator's package once there is a feed.
-- [ ] **The translated toolkit is written to `cache/translated/`, which git
-      ignores.** It now carries the routines' own comments, the original
-      disclaimer among them, as `docs/rules/translated-code.md` asks. What
-      is left is where it goes: whether the move to dc-spice comes first,
-      and whether the translation of the toolkit's tests is committed as
-      well as the toolkit's. Close by: giving the translation a component
-      of its own, with its `LICENSE.md`, and committing it in a commit of
-      its own.
-- [ ] **How packages are versioned.** For dc-fortrania's pipelines; see
-      `PENDING.md`, *Fortrania becomes a repository of its own*. The
-      options: the version read from the latest tag, with a development
-      build counted on from it as a pre-release (`1.2.0-dev.14`), which
-      MinVer does with nothing to keep in a file; or a version kept in a
-      file and a height counted from where it last changed, which
-      Nerdbank.GitVersioning does. Either keeps the commit hash the build
-      already stamps. Close by: choosing one, before the first pipeline.
+- [ ] **The local rules still speak as the translated library's
+      repository did.** `docs/rules/performance.md` and
+      `docs/rules/portability.md` were written when the translator, the
+      runtime and the translated SPICE library shared a repository, and
+      name the toolkit and its kernels where they mean translated code and
+      its files. `DESIGN.md`, `PENDING.md` and `GLOSSARY.md` have had what
+      was only the library's taken out, and may still hold a sentence that
+      was. Close by: reading each through once and rewording.
+- [ ] **How packages are versioned.** For the pipelines; see `PENDING.md`,
+      *Before Fortrania is published*. A development package needs a
+      number that rises with every build and sorts below the release it
+      leads to, so a pre-release with a counter after a dot
+      (`0.1.0-ci.42`): four numbers and a label is not a version NuGet
+      keeps, and a counter joined to the label sorts as text. Where the
+      counter comes from is the choice: the pipeline's own run number,
+      given to `dotnet pack` as a property, with nothing kept in a file
+      and nothing a local build can reproduce; the version read from the
+      latest tag with the commits since counted on, which MinVer does; or
+      a version kept in a file and a height counted from where it last
+      changed, which Nerdbank.GitVersioning does. Each keeps the commit
+      hash the build already stamps. Close by: choosing one, before the
+      first pipeline.
 - [ ] **What starts a release.** A pushed tag (`v1.2.0`) is the usual
       start, and fits a version read from tags; a release made on GitHub,
       or starting the pipeline by hand, are the others. Who may start one
@@ -59,21 +47,26 @@ undecided adds it here rather than mentioning it once in a conversation.
 - [ ] **Where development packages go.** GitHub Packages keeps them
       beside the repository, but asks for a token to read a package even
       from a public repository; a pipeline's own artifacts need nothing,
-      and are read by hand. Close by: choosing, with the development
+      and are read by hand; a folder on the developer's machine, named by
+      an environment variable, serves a local build of both repositories
+      with no host at all. Close by: choosing, with the development
       pipeline.
 - [ ] **Where the publishing pipeline runs.** GitHub Actions has nuget.org's
       trusted publishing and so needs no stored key; Azure DevOps would
       need one. The development pipeline is on GitHub either way. Close
       by: choosing, before the first release.
-- [ ] **Every `stackalloc` of the translation clears its memory on each
-      call.** Nothing asks for `[SkipLocalsInit]`, so `EKFIND` clears
-      17,600 bytes on every call, which FORTRAN does not ask for: a local
-      has no value until it is given one. Close by: emitting the attribute,
-      or setting it for the translated projects, with the toolkit's tests
-      and the bit-for-bit comparison passing, which would show any routine
-      that reads a local it never set.
-- [ ] **No component holds translated code yet, so the licence split exists
-      only on paper.** `NOTICE`, `DESIGN.md` and
-      `docs/rules/translated-code.md` describe it. Close by: the first such
-      component, created with its own `LICENSE.md`, the relaxed build
-      settings, and package metadata that points at that file.
+- [ ] **The packages have no metadata yet.** Neither project says what its
+      package is called, described as, or licensed under, and the
+      translator has no command to be packed as a tool. Close by: package
+      metadata inherited from the root, a `dotnet pack` that gives a
+      package for the runtime and one for the translator, and the command
+      of `PENDING.md`, *The command is `fortrania`, and the target
+      language its first word*.
+- [ ] **Every `stackalloc` of a translation clears its memory on each
+      call.** Nothing asks for `[SkipLocalsInit]`, so a routine of the
+      reference sources clears 17,600 bytes on every call, which FORTRAN
+      does not ask for: a local has no value until it is given one. Close
+      by: emitting the attribute, or a setting for the translated
+      projects, with the reference sources' tests and the comparison to
+      the last digit passing, which would show any routine that reads a
+      local it never set.

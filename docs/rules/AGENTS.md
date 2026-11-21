@@ -17,4 +17,3 @@ against a toolkit rule that still exists.
 |---|---|
 | Writing or reviewing code that runs on a computation or kernel-reading path, or choosing between a safe and an unsafe, an allocating and a non-allocating, or a general and a specialised form | [`docs/rules/performance.md`](docs/rules/performance.md) — performance is the first design constraint here; amends the C# coding rules |
 | Reading or writing binary data, using hardware intrinsics, or touching anything that differs by operating system, processor or byte order | [`docs/rules/portability.md`](docs/rules/portability.md) |
-| Creating or building a component that holds code translated from the SPICE toolkit, changing what the translator emits, or handling the original FORTRAN sources | [`docs/rules/translated-code.md`](docs/rules/translated-code.md) |

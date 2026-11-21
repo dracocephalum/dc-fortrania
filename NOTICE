@@ -1,4 +1,4 @@
-dc-astro
+dc-fortrania
 Copyright 2026 Chris Har
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not
@@ -14,15 +14,8 @@ License for the specific language governing permissions and limitations under
 the License.
 
 The licence above covers the work written for this repository: the
-translator, the runtime library, the public API, the tests and the
-documentation.
+translator, the runtime library, the tests and the documentation.
 
-It does NOT cover code translated from the SPICE Toolkit. Every such file
-says so in its header, and every component that holds such files carries its
-own LICENSE.md in place of this one. Translated code is a machine translation
-of software created by the California Institute of Technology under a U.S.
-Government contract with NASA and published by the Navigation and Ancillary
-Information Facility (NAIF). It is not open source, it remains subject to the
-rules NAIF publishes at https://naif.jpl.nasa.gov/naif/rules.html, and the
-original disclaimer is kept in each translated file. It is modified code:
-it is not a NAIF product, and NAIF does not support it.
+It says nothing about what is translated with them. A translation is a
+derived work of its FORTRAN sources and keeps their terms, whatever those
+are.
