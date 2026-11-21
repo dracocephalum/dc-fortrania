@@ -64,11 +64,10 @@ undecided adds it here rather than mentioning it once in a conversation.
       from there. Close by: a folder feed named by an environment
       variable, if testing a change in the repository that uses the
       packages turns out to need one.
-- [ ] **Every `stackalloc` of a translation clears its memory on each
-      call.** Nothing asks for `[SkipLocalsInit]`, so a routine of the
-      reference sources clears 17,600 bytes on every call, which FORTRAN
-      does not ask for: a local has no value until it is given one. Close
-      by: emitting the attribute, or a setting for the translated
-      projects, with the reference sources' tests and the comparison to
-      the last digit passing, which would show any routine that reads a
-      local it never set.
+- [ ] **Nothing makes a translation clear what it takes from the stack.**
+      It is left as the stack had it, as FORTRAN leaves it, and a program
+      that reads a local it never set shows that only by a wrong answer.
+      Wanted: a setting of the translator's that has every local cleared,
+      or filled with a value that stands out, for finding such a program.
+      Close by: the setting, and what it writes in place of the class's
+      `[SkipLocalsInit]`.
