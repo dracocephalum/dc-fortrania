@@ -475,7 +475,12 @@ Five things about files are decided and not built:
   read by the caller in the meantime.
 - What a disk file costs per record, read and written with one system call
   each and no buffer, against a buffered or memory-mapped file, is for the
-  benchmark project.
+  benchmark project. A first measurement, under *The families can be run
+  without the toolkit's main program* in `DESIGN.md`, found a record's
+  read at some 15 µs and its write at 20 µs, on a slowed machine, and both
+  small beside what opening files cost there; a buffer has yet to show it
+  is worth what it complicates, which is a file open in two units or two
+  programs at once.
 
 ## Input and output is to be looked at again as a whole
 

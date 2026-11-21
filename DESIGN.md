@@ -819,9 +819,13 @@ which takes ten minutes. The runner beside the translation tool finds the
 families in the translated program and calls any of them by name, each in
 an instance of its own whose files are in memory, so the families share
 nothing and run side by side on as many threads as there are processors.
-Most of the suite's time on disk was the disk: the runtime writes a record
-with one call to the operating system, and the families that test the
-handling of many kernel files do little else. Measured one after the other
+Most of the suite's time on disk was the disk, and of that, opening files:
+the families that test the handling of many kernel files write thousands
+of them and open each many times. On the machine measured, which scans a
+file for viruses when it is opened, the first opening of a file after it
+was written took some 28 ms whatever its size, and any other under 1 ms;
+of the 517 s below, 390 s were openings, 62 s the reading of four million
+records and 7 s the writing of 380,000. Measured one after the other
 on the same machine, the ten slowest families took 989 s on disk and 289 s
 in memory, and the slowest of all, `F_ZZDSKBSR`, 517 s and 28 s; the
 families that only compute took the same either way. A quick set leaves
