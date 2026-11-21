@@ -648,7 +648,7 @@ command after the translation.
 what the code beside it is for, and a routine of the reference sources
 opens with its documentation, the disclaimer the toolkit's rules require
 among it; a translation without them is harder to read and is not
-allowed to be published. Each comment line becomes a `// ` line at the
+allowed to be published. Each comment line becomes a `//` line at the
 indentation of the code it comes before, with the text after the comment
 character less the indentation the lines of its block share: in fixed
 form that indentation stood for the code's, which the C# has its own of,
@@ -680,7 +680,6 @@ how a file the translator no longer makes is told from one somebody wrote.
 
 The settings file, the command line and the build step all read into the
 same description, kept in the translator's library and not in any of them.
-
 
 ## A package's version is in the code, and the build says what kind it is
 

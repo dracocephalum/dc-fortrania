@@ -46,11 +46,11 @@ undecided adds it here rather than mentioning it once in a conversation.
       sorts below the release it follows. Close by: a step of the ci
       pipeline that fails when the version in the code is already on
       nuget.org, once there is a release to compare with.
-- [ ] **The deploy job has not run.** It runs on a push to the default
-      branch only, so its first run is the merge of the change that added
-      it. Whether the run's own token may remove a package version is the
-      part most likely to need mending: the host calls that ability a
-      preview. Close by: a run that publishes, and one that removes.
+- [ ] **The deploy job has not removed a version.** It has published, twice.
+      It removes once a package has more `ci` versions than it keeps, and
+      whether the run's own token may do that is the part most likely to
+      need mending: the host calls that ability a preview. Close by: a run
+      that removes.
 - [ ] **A package says little about itself.** No readme is packed, since
       the component's has links that only resolve in the repository, and
       the translator has no command to be packed as a tool. Close by: a
