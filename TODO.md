@@ -78,10 +78,8 @@ undecided adds it here rather than mentioning it once in a conversation.
       into its caller above all. Close by: a job that runs with tiering on
       and warms up until the code has settled, in a process of its own,
       for the figures of a change that turns on a call's cost.
-- [ ] **No benchmark has decided anything yet.** Short copies and equality
-      of character values have theirs; on the machine they were written on
-      the same benchmark gave figures a factor of two apart from run to
-      run, its processor at less than half speed under a power-saving
-      plan. Close by: both run on a machine at full speed, and each
-      question of `PENDING.md`, *Measurements waiting for a benchmark
-      project*, answered or struck as its benchmark is written.
+- [ ] **The copy that assumes no overlap is measured once, and not well.**
+      `tools/benchmarks` has it against the runtime's own copy and a
+      control; the machine it was written on gave figures a factor of two
+      apart from run to run. Close by: a run on a quiet machine, and the
+      candidate taken into the runtime or deleted with its benchmark.

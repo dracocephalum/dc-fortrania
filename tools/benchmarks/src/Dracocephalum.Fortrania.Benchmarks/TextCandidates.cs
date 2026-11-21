@@ -13,9 +13,39 @@ internal static unsafe class TextCandidates
     private const byte Blank = (byte)' ';
 
     /// <summary>
+    /// The runtime's own <c>Assign</c>, line for line, as the control: it
+    /// lies in this assembly as the candidates do and is called as they
+    /// are, so that where a method lies and whether it is compiled into
+    /// its caller is no part of a difference between them.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    public static void AssignAllowingOverlap(byte* target, int targetLength, byte* source, int sourceLength)
+    {
+        if (targetLength <= 0)
+        {
+            return;
+        }
+
+        if (sourceLength >= targetLength)
+        {
+            Buffer.MemoryCopy(source, target, targetLength, targetLength);
+            return;
+        }
+
+        if (sourceLength < 0)
+        {
+            sourceLength = 0;
+        }
+
+        Buffer.MemoryCopy(source, target, targetLength, sourceLength);
+        new Span<byte>(target + sourceLength, targetLength - sourceLength).Fill(Blank);
+    }
+
+    /// <summary>
     /// Assigns as the runtime's <c>Assign</c> does, for two values known not
     /// to overlap: the copy then need not look which way to go.
     /// </summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static void AssignDistinct(byte* target, int targetLength, byte* source, int sourceLength)
     {
         if (targetLength <= 0)
@@ -36,27 +66,5 @@ internal static unsafe class TextCandidates
 
         Unsafe.CopyBlockUnaligned(target, source, (uint)sourceLength);
         new Span<byte>(target + sourceLength, targetLength - sourceLength).Fill(Blank);
-    }
-
-    /// <summary>
-    /// Says whether two character values are equal, the shorter taken as
-    /// followed by blanks. It does not find their order, so it can stop at
-    /// the first difference without saying which way it goes.
-    /// </summary>
-    public static bool AreEqual(byte* left, int leftLength, byte* right, int rightLength)
-    {
-        leftLength = Math.Max(leftLength, 0);
-        rightLength = Math.Max(rightLength, 0);
-        var common = Math.Min(leftLength, rightLength);
-
-        if (!new ReadOnlySpan<byte>(left, common).SequenceEqual(new ReadOnlySpan<byte>(right, common)))
-        {
-            return false;
-        }
-
-        var rest = leftLength > common
-            ? new ReadOnlySpan<byte>(left + common, leftLength - common)
-            : new ReadOnlySpan<byte>(right + common, rightLength - common);
-        return !rest.ContainsAnyExcept(Blank);
     }
 }

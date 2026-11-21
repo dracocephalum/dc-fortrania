@@ -6,7 +6,9 @@ namespace Dracocephalum.Fortrania.Benchmarks;
 /// <summary>
 /// A character value assigned to another of its length, the length not
 /// known until the call: the runtime's copy, which allows the two to
-/// overlap, against one that does not. Character values in FORTRAN are
+/// overlap, against one that does not. The control is the runtime's copy
+/// again, placed and called as the candidate is; a candidate is ahead only
+/// by what it is ahead of the control. Character values in FORTRAN are
 /// mostly short, so the lengths are.
 /// </summary>
 public unsafe class ShortCopyBenchmarks
@@ -40,6 +42,15 @@ public unsafe class ShortCopyBenchmarks
         for (var repeat = 0; repeat < BenchmarkConfig.Repeats; repeat++)
         {
             Fortran.Assign(_target, Length, _source, Length);
+        }
+    }
+
+    [Benchmark(OperationsPerInvoke = BenchmarkConfig.Repeats)]
+    public void AssignAsControl()
+    {
+        for (var repeat = 0; repeat < BenchmarkConfig.Repeats; repeat++)
+        {
+            TextCandidates.AssignAllowingOverlap(_target, Length, _source, Length);
         }
     }
 
