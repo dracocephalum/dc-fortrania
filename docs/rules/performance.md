@@ -62,10 +62,11 @@ one type per file.
 
 ## Claims are measured
 
-A change made for speed comes with a benchmark that shows it, written with
-BenchmarkDotNet in `tools/benchmarks`, which measures the runtime as it is
-in the tree, and the numbers go in the change description; its `README.md`
-says how to run it and how to read what it prints. "Should be faster" is not a reason to add `unsafe`
-code or an intrinsic path; a measurement is. The same holds in reverse: a
-change that makes a computation path slower says so and says why it is worth
-it.
+A change made for speed comes with a benchmark that shows it, written in
+`tools/benchmarks` with BenchmarkDotNet's attributes, which measures the
+runtime as it is in the tree. It is decided by that tool's paired run, the
+candidate against what is there today, and the ratios go in the change
+description; its `README.md` says how to run it and how to read what it
+prints. "Should be faster" is not a reason to add `unsafe` code or an
+intrinsic path; a measurement is. The same holds in reverse: a change that
+makes a computation path slower says so and says why it is worth it.

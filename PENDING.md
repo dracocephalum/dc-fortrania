@@ -977,10 +977,33 @@ calls. So the stack mode fits the default stack of a .NET thread on
 desktop and server systems, a megabyte or more, with room to spare; the
 heap mode is for a thread that was given a small one, or a caller that is
 deep already, and leaves the thread's stack only the compiler's frames.
-Whether the heap mode is slower is for the benchmark project to say. It
-reuses its bytes as the stack does and fits in the second level of cache,
-and it clears nothing on entry, where `stackalloc` clears every buffer
-today: `EKFIND` clears 17,600 bytes on each call.
+**Measured, and the test on entry is what costs.** `tools/benchmarks` has
+the shapes written by hand, for a method that does next to nothing, which
+is where an entry weighs most, with a buffer of 64 bytes and one of 4,000.
+Against a method that takes its buffer from the stack and asks nothing:
+
+| Shape | 64 bytes | 4,000 bytes |
+|---|---|---|
+| tests the setting, takes from the stack | 35% slower | 28% slower |
+| tests the setting, takes from the block | 12% slower | 22% slower |
+| asks nothing, takes from the block | 12% faster | 12% faster |
+
+The figures repeated to a percent over several runs. Two things follow,
+and neither is decided:
+
+- **A `stackalloc` inside a branch is dearer than one at the top of a
+  method**, more than the test itself: the method that tests and then
+  takes from the stack is the slowest of the four. So one method body
+  serving both modes costs the stack mode a quarter to a third of a small
+  method's time, which is the mode nearly every caller would be in.
+- **The block alone is the fastest.** It takes nothing from the stack and
+  adjusts no stack pointer. If that holds for real routines, the choice
+  may not be worth offering at run time: the block for every method, or
+  the mode fixed when translating, would each leave no test on entry.
+
+To be done before either is taken: the same on routines of the toolkit's
+own size, where the entry is a smaller part, and with tiered compilation
+as a long-running program has it.
 
 ## Measurements waiting for a benchmark project
 
@@ -990,18 +1013,6 @@ is written. These are the questions it is to answer first, each a change
 that is not to be made before it does. A question that is answered leaves
 this list, for `DESIGN.md` where the answer shaped the code.
 
-- **Short copies.** Character assignment and concatenation copy with the
-  framework's overlap-safe copy. Character values in FORTRAN are mostly
-  short, names and brief messages, and an earlier measurement of ours on an
-  older framework had a plain block copy 8% ahead at 20 bytes and slightly
-  behind at 100. Where the emitter knows two values cannot overlap, as when
-  joining into a place of its own, the plain copy could be written. A
-  first, disturbed measurement had it well ahead at most lengths from 4 to
-  100 bytes, with the candidate where it may have been compiled into the
-  benchmark; it is to be measured again against a control placed as it
-  is. It is worth a second entry in the runtime only where the translator
-  made the target itself, since two values that do overlap would then be
-  copied wrongly.
 - **Arguments by value.** Analysis says which arguments a procedure never
   writes; what passing those as values saves, against the pointer every
   argument is today, is not known.
@@ -1026,8 +1037,9 @@ this list, for `DESIGN.md` where the answer shaped the code.
   and the three like it, are loops over bytes in the runtime.
   `Span.IndexOf` and `SequenceCompareTo` are vectorized by .NET and give
   the same answers; whether that pays on values as short as FORTRAN's
-  mostly are is the question, beside *Short copies* above. The
-  comparisons and `INDEX` are on the framework's vectorized forms already.
+  mostly are was the question. The comparisons and `INDEX` are on the
+  framework's vectorized forms already, and `DESIGN.md` has what was
+  measured of copies and of equality.
 - **The toolkit's small vector and matrix routines.** `VDOT`, `MXV`,
   `MXM`, `VCRSS` and their like are the most called arithmetic of the
   toolkit, and the just-in-time compiler vectorizes no loop by itself.
