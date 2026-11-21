@@ -179,9 +179,9 @@ public static partial class Translator
                 Error("The settings name no project.");
             }
 
-            if (settings.Runtime is { CentrallyVersioned: true, Package: not null })
+            if (settings.Runtime is { OmitPackageVersion: true, Package: not null })
             {
-                Error($"The settings give the runtime's package the version {settings.Runtime.Package} and say that its version is managed centrally; it is one or the other.");
+                Error($"The settings give the runtime's package the version {settings.Runtime.Package} and say to write none; it is one or the other.");
             }
 
             var classes = new HashSet<string>(StringComparer.Ordinal);
@@ -786,14 +786,12 @@ public static partial class Translator
         {
             string Relative(string path) => Path.GetRelativePath(folder, path).Replace('\\', '/');
 
-            // Central package management refuses a reference that carries a
-            // version, so there the version is left to the repository.
             string runtime;
             if (Expand(settings.Runtime.Project) is { } runtimeProject)
             {
                 runtime = $"    <ProjectReference Include=\"{Relative(Path.GetFullPath(Path.Combine(baseDirectory, runtimeProject)))}\" />";
             }
-            else if (settings.Runtime.CentrallyVersioned)
+            else if (settings.Runtime.OmitPackageVersion)
             {
                 runtime = "    <PackageReference Include=\"Dracocephalum.Fortrania.Runtime\" />";
             }

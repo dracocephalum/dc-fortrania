@@ -588,11 +588,13 @@ elsewhere refuses such a file.
   package, in the translator's own version, which needs nothing of the
   repository and holds wherever the project is put. As a project, where
   the settings give its path. Or as its package with no version, where
-  the settings say the repository manages package versions centrally:
-  that management refuses a reference that carries a version, and the
-  repository's own list then names it. It is asked for and never worked
-  out, because a reference with no version outside such a repository does
-  not fail: the restore warns and takes the lowest version there is.
+  the settings say to omit it and the version comes from elsewhere:
+  central package management is the usual case, which refuses a
+  reference that carries a version and names it in a list of the
+  repository's. The setting says what is written and not why, so that it
+  serves whatever else supplies a version. It is asked for and never
+  worked out, because a reference that nothing gives a version does not
+  fail: the restore warns and takes the lowest version there is.
 - **References between projects follow from the calls**, since the
   translator knows which source defines every routine called. Left out,
   they are worked out, and written into a project file being made or

@@ -15,15 +15,15 @@ public sealed class RuntimeSettings
 
     /// <summary>
     /// Gets or sets a value indicating whether the reference to the runtime's
-    /// package is written with no version, for a repository that manages its
-    /// package versions centrally.
+    /// package is written with no version.
     /// </summary>
     /// <remarks>
-    /// The version is then the one the repository's <c>Directory.Packages.props</c>
-    /// gives the package, and it is the repository's to keep it the
-    /// translator's own. Where versions are not managed centrally a
-    /// reference with no version does not fail: the restore warns and takes
-    /// the lowest version there is, so this is never set there.
+    /// The version then has to come from somewhere else, and it is the
+    /// user's to keep it the translator's own. Central package management
+    /// is the usual case: it refuses a reference that carries a version,
+    /// and names the version in <c>Directory.Packages.props</c>. Where
+    /// nothing gives one, the restore does not fail: it warns and takes the
+    /// lowest version there is.
     /// </remarks>
-    public bool CentrallyVersioned { get; set; }
+    public bool OmitPackageVersion { get; set; }
 }
