@@ -157,6 +157,15 @@ are calls to the runtime, which pads the shorter with blanks as the language
 defines. A dummy argument takes its length from the caller even when its
 declaration fixes it, because the caller cannot know which it is.
 
+Two shorter forms were measured and not taken. An assignment whose lengths
+the translator knows could be a copy written in place of the call: it came
+to the same time at 8 and at 20 bytes, the compiler carrying the constants
+through the call by itself, and the call is what reads as the FORTRAN
+does. And `.EQ.` could have a test of its own that does not find the order
+of the two: it was no faster than the comparison, which is the framework's
+vectorized one, and a second function would have the rule on padding to
+keep in step with the first.
+
 **A character value that is made needs a place, and gets the cheapest that
 is right.** Concatenation and a character function's result are values
 that were not there before. Joined in an assignment, the pieces are copied

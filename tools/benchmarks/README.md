@@ -30,7 +30,7 @@ what is measured is the runtime as it is in the tree.
 From this folder, always in `Release`:
 
     dotnet run -c Release --project src/Dracocephalum.Fortrania.Benchmarks
-    dotnet run -c Release --project src/Dracocephalum.Fortrania.Benchmarks -- --filter '*Equality*'
+    dotnet run -c Release --project src/Dracocephalum.Fortrania.Benchmarks -- --filter '*ShortCopy*'
     dotnet run -c Release --project src/Dracocephalum.Fortrania.Benchmarks -- --filter '*' --full
 
 With no argument it lists the benchmarks and runs none. `--filter` takes a
