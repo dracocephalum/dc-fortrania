@@ -102,6 +102,10 @@
          translator emits and run it; the translator itself does not use it. -->
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.12.0" />
 
+    <!-- Measures the runtime and the code the translator emits, in
+         tools/benchmarks only. Nothing that is published refers to it. -->
+    <PackageVersion Include="BenchmarkDotNet" Version="0.15.8" />
+
     <!-- Version tracks the TFM's ASP.NET Core major. net10.0 -> 10.0.x -->
     <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.11" />
 

@@ -17,6 +17,7 @@ map of categories.
 | Category | What lives there | Map |
 |---|---|---|
 | `libraries/` | packages published to NuGet | [`libraries/README.md`](libraries/README.md) |
+| `tools/` | what builds, tests or measures the rest, never published | [`tools/README.md`](tools/README.md) |
 
 ## Working here
 
