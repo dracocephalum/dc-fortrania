@@ -59,6 +59,7 @@ public sealed class CSharpEmitter
         file.Line("#nullable enable");
         file.Blank();
         file.Line("using System;");
+        file.Line("using System.Runtime.CompilerServices;");
         file.Line("using Dracocephalum.Fortrania.Runtime;");
         file.Blank();
         file.Line($"namespace {_options.Namespace};");
@@ -68,6 +69,12 @@ public sealed class CSharpEmitter
         file.Line("/// what the FORTRAN keeps between calls is kept per instance, in the memory of the");
         file.Line("/// program's context, and its files and units are the context's.");
         file.Line("/// </summary>");
+
+        // FORTRAN gives a local no value until the program does, so nothing
+        // here asks for one: without this, every method clears what it takes
+        // from the stack on each call. On the class, it holds for every
+        // method of every file of it.
+        file.Line("[SkipLocalsInit]");
         file.Open($"public unsafe partial class {name} : IFortranLibrary<{name}>");
         file.Line("private readonly FortranContext _context;");
         file.Line("private readonly StateMemory _memory;");

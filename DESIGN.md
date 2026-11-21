@@ -200,6 +200,15 @@ not tell the two apart. The memory is the program's, held by its context,
 and is freed when the context is disposed; the garbage collector does not
 free it.
 
+**What a method takes from the stack is not cleared.** The class the
+translator writes carries `[SkipLocalsInit]`, which holds for every method
+of every file of it, so a local array or character variable on the stack
+is as FORTRAN has it: without a value until the program gives it one. The
+reference compiler does not clear one either. A program that reads a local
+it never set is wrong in FORTRAN as well, and gets whatever the stack
+held, which may differ from one call to the next. What a unit keeps
+between calls is not touched by this, and is still handed out zeroed.
+
 **A translation says how much stack each procedure can take.** The emitter
 counts what each method takes with `stackalloc` and which procedures it
 calls, passes and calls through an argument; the translator follows the

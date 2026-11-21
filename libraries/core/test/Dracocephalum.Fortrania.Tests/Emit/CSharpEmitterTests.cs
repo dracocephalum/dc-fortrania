@@ -202,6 +202,7 @@ public class CSharpEmitterTests
         // Assert
         file.ShouldContain(
             """
+            [SkipLocalsInit]
             public unsafe partial class C : IFortranLibrary<C>
             {
                 private readonly FortranContext _context;

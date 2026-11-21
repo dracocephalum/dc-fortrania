@@ -900,7 +900,7 @@ touched. A context's allocator takes the same settings object.
 unless asked otherwise*, under *Saved state is placed at translation and
 loaded at run time*, holds for the units' blocks. The regions of working
 buffers ask for memory unzeroed, which comes straight from the pool or the
-system, as `stackalloc` would under `[SkipLocalsInit]`.
+system, as `stackalloc` does under the class's `[SkipLocalsInit]`.
 
 **A file can be read from memory.** The runtime reads every file through
 `FortranFile`, which has a length and reads and writes at an offset, both
