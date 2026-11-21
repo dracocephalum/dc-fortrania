@@ -54,7 +54,9 @@ undecided adds it here rather than mentioning it once in a conversation.
 - [ ] **A package says little about itself.** No readme is packed, since
       the component's has links that only resolve in the repository, and
       the translator has no command to be packed as a tool. Close by: a
-      readme written for the package's page, and the command of
+      readme written for the package's page, named in the pipeline's
+      trigger list after the entry that takes documents away, and the
+      command of
       `PENDING.md`, *The command is `fortrania`, and the target language
       its first word*.
 - [ ] **A build on a developer's machine has no feed.** It is numbered
