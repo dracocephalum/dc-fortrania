@@ -985,9 +985,11 @@ today: `EKFIND` clears 17,600 bytes on each call.
 ## Measurements waiting for a benchmark project
 
 [`docs/rules/performance.md`](docs/rules/performance.md) asks that a change
-made for speed come with a benchmark, and the component has no benchmark
-project yet. These are the questions it is to answer first, each a change
-that is not to be made before it does:
+made for speed come with a benchmark, and `tools/benchmarks` is where one
+is written. These are the questions it is to answer first, each a change
+that is not to be made before it does. The first two have their
+benchmarks, and no figures to decide by yet: the machine they were written
+on gave none that held from one run to the next.
 
 - **Short copies.** Character assignment and concatenation copy with the
   framework's overlap-safe copy. Character values in FORTRAN are mostly

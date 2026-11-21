@@ -38,6 +38,7 @@ on:
       - NOTICE
       # The code: each category folder, with its components.
       - 'libraries/**'
+      - 'tools/**'
       # No document is built. One that is packed, or read by a build, is
       # named after this line, which then no longer takes it away.
       - '!**/*.md'

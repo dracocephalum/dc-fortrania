@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Dracocephalum.Fortrania.Benchmarks/Dracocephalum.Fortrania.Benchmarks.csproj" />
+  </Folder>
+  <Folder Name="/test/">
+    <Project Path="test/Dracocephalum.Fortrania.Benchmarks.Tests/Dracocephalum.Fortrania.Benchmarks.Tests.csproj" />
+  </Folder>
+  <Project Path="../../libraries/core/src/Dracocephalum.Fortrania.Runtime/Dracocephalum.Fortrania.Runtime.csproj" />
+</Solution>

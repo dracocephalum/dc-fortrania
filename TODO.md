@@ -71,3 +71,17 @@ undecided adds it here rather than mentioning it once in a conversation.
       or filled with a value that stands out, for finding such a program.
       Close by: the setting, and what it writes in place of the class's
       `[SkipLocalsInit]`.
+- [ ] **The benchmarks measure code compiled once, without a profile.**
+      `tools/benchmarks` turns the runtime's tiered compilation off so that
+      a short run measures one thing, and so measures none of what a
+      long-running program gains from its own profile, a call compiled
+      into its caller above all. Close by: a job that runs with tiering on
+      and warms up until the code has settled, in a process of its own,
+      for the figures of a change that turns on a call's cost.
+- [ ] **No benchmark has decided anything yet.** Short copies and equality
+      of character values have theirs; on the machine they were written on
+      the same benchmark gave figures a factor of two apart from run to
+      run, its processor at less than half speed under a power-saving
+      plan. Close by: both run on a machine at full speed, and each
+      question of `PENDING.md`, *Measurements waiting for a benchmark
+      project*, answered or struck as its benchmark is written.
