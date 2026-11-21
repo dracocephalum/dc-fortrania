@@ -634,7 +634,8 @@ In this order, because each step changes what the next one looks at:
 is built in a repository of its own and takes the translator and the
 runtime as packages, so packages of a development version are made from
 the first pipeline on, long before a release. How they are numbered and
-where they go is in `TODO.md`.
+where they go is in `DESIGN.md`, *A package's version is in the code, and
+the build says what kind it is*.
 
 **It is the first repository with pipelines.**
 

@@ -26,42 +26,42 @@ undecided adds it here rather than mentioning it once in a conversation.
       its files. `DESIGN.md`, `PENDING.md` and `GLOSSARY.md` have had what
       was only the library's taken out, and may still hold a sentence that
       was. Close by: reading each through once and rewording.
-- [ ] **How packages are versioned.** For the pipelines; see `PENDING.md`,
-      *Before Fortrania is published*. A development package needs a
-      number that rises with every build and sorts below the release it
-      leads to, so a pre-release with a counter after a dot
-      (`0.1.0-ci.42`): four numbers and a label is not a version NuGet
-      keeps, and a counter joined to the label sorts as text. Where the
-      counter comes from is the choice: the pipeline's own run number,
-      given to `dotnet pack` as a property, with nothing kept in a file
-      and nothing a local build can reproduce; the version read from the
-      latest tag with the commits since counted on, which MinVer does; or
-      a version kept in a file and a height counted from where it last
-      changed, which Nerdbank.GitVersioning does. Each keeps the commit
-      hash the build already stamps. Close by: choosing one, before the
-      first pipeline.
-- [ ] **What starts a release.** A pushed tag (`v1.2.0`) is the usual
-      start, and fits a version read from tags; a release made on GitHub,
-      or starting the pipeline by hand, are the others. Who may start one
-      is part of it. Close by: choosing, with the versioning above.
-- [ ] **Where development packages go.** GitHub Packages keeps them
-      beside the repository, but asks for a token to read a package even
-      from a public repository; a pipeline's own artifacts need nothing,
-      and are read by hand; a folder on the developer's machine, named by
-      an environment variable, serves a local build of both repositories
-      with no host at all. Close by: choosing, with the development
-      pipeline.
 - [ ] **Where the publishing pipeline runs.** GitHub Actions has nuget.org's
       trusted publishing and so needs no stored key; Azure DevOps would
       need one. The development pipeline is on GitHub either way. Close
       by: choosing, before the first release.
-- [ ] **The packages have no metadata yet.** Neither project says what its
-      package is called, described as, or licensed under, and the
-      translator has no command to be packed as a tool. Close by: package
-      metadata inherited from the root, a `dotnet pack` that gives a
-      package for the runtime and one for the translator, and the command
-      of `PENDING.md`, *The command is `fortrania`, and the target
-      language its first word*.
+- [ ] **The release pipeline is not written.** Decided: pushing a tag
+      starts it, `v` and the version for everything that follows the
+      root `Version.props`, the component's folder name before it
+      (`build/v0.3.1`) for a component with a file of its own; it builds
+      that commit as a release and publishes to nuget.org, and nothing
+      else ever publishes there. It refuses a tag that is not the version
+      in the code, a commit that is not on the default branch, and a
+      version nuget.org already has. Close by: the workflow, and trusted
+      publishing set up on the nuget.org account, before the first
+      release.
+- [ ] **Nothing stops a version that was released from being built
+      again.** `Version.props` holds the next release's number and is
+      raised by hand after a release; a ci build made before it is raised
+      sorts below the release it follows. Close by: a step of the ci
+      pipeline that fails when the version in the code is already on
+      nuget.org, once there is a release to compare with.
+- [ ] **The deploy job has not run.** It runs on a push to the default
+      branch only, so its first run is the merge of the change that added
+      it. Whether the run's own token may remove a package version is the
+      part most likely to need mending: the host calls that ability a
+      preview. Close by: a run that publishes, and one that removes.
+- [ ] **A package says little about itself.** No readme is packed, since
+      the component's has links that only resolve in the repository, and
+      the translator has no command to be packed as a tool. Close by: a
+      readme written for the package's page, and the command of
+      `PENDING.md`, *The command is `fortrania`, and the target language
+      its first word*.
+- [ ] **A build on a developer's machine has no feed.** It is numbered
+      `-dev` and packed to whatever folder is named; nothing reads it
+      from there. Close by: a folder feed named by an environment
+      variable, if testing a change in the repository that uses the
+      packages turns out to need one.
 - [ ] **Every `stackalloc` of a translation clears its memory on each
       call.** Nothing asks for `[SkipLocalsInit]`, so a routine of the
       reference sources clears 17,600 bytes on every call, which FORTRAN
