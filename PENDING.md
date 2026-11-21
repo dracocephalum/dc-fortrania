@@ -30,45 +30,6 @@ passes through intact.
 - Lengths are in bytes. The boundary refuses a string that would be cut in
   the middle of a character rather than passing a broken one inward.
 
-## Two API layers
-
-    ISpiceCore    Dracocephalum.Astro.Spice            hand-written, managed    converts, validates, throws
-        |
-    ISpiceLib     Dracocephalum.Astro.Spice.Toolkit    generated, FORTRAN-shaped    pointers, no conversion
-
-`ISpiceLib` is the translated library, SPICELIB, as it is: one member per public
-routine, with the routine's own argument list, caller-supplied buffers for
-results, and errors left in the toolkit's error state. It is generated with
-the code it fronts and lives with it. Its arguments are trusted to be well
-formed, so the toolkit's own checks are the only ones made.
-
-The assembly is named for the toolkit and the interface for the library
-within it, because the toolkit holds more than SPICELIB, its support library
-and its utility programs, and those can join the same assembly later behind
-interfaces of their own.
-
-`ISpiceCore` is the layer a .NET program is meant to use, in the role the
-reference toolkit's C wrappers play over its translated C. It takes strings,
-spans and ordinary .NET types, pins what it is given, sizes and fills the
-buffers, checks lengths once, checks the error state after each call and
-throws. It is hand-written, so it is a component of its own under the
-repository's licence. A caller of this layer never sees a pointer.
-
-The interface exists for substitution in tests and for a second
-implementation, not as the call path. The implementation is a sealed class,
-and code that calls it per evaluation holds the class, or is generic over it,
-so that the call is direct and can be inlined —
-[`docs/rules/performance.md`](docs/rules/performance.md) rules out interface
-dispatch on a computation path.
-
-`ISpiceCore` is shaped for C# first, and for callers outside .NET second;
-neither gives anything up for another language. Visual Basic cannot use a
-span, so a member that takes or returns one cannot be called from it. Such
-members get an array-taking counterpart for Visual Basic, added beside the
-core as further overloads or extension methods that forward to it. The core
-members themselves are never reshaped to suit, and where the two pull apart
-the counterpart pays the cost, a copy for instance, not the core.
-
 ## The translated layer passes pointers
 
 Every argument of a translated routine is a raw pointer: `double*` for a
@@ -110,8 +71,8 @@ to remember.
 `SAVE` variables of every routine and any large local array, is native
 memory owned by the library instance and freed with it. Small local arrays
 are `stackalloc`. A managed array is never handed inward without being
-pinned for the length of the call, which `ISpiceCore` does on the caller's
-behalf.
+pinned for the length of the call, which a managed layer over a translated
+library does on the caller's behalf.
 
 **A character constant is a `u8` literal, and its address is taken as it
 stands.** The compiler stores the bytes of a `u8` literal in the assembly
@@ -238,9 +199,10 @@ test on entry costs in a routine of the 50.
 ## One caller at a time, and a pool of contexts
 
 A context is not safe for two callers at once, since the routines of its
-libraries share state. `ISpiceCore` detects it: each call marks the context
-as in use with an interlocked exchange and fails if it already was, at a
-cost of a few nanoseconds, with an option to turn the check off. It is not
+libraries share state. A managed layer over them is to detect it: each call
+marks the context as in use with an interlocked exchange and fails if it
+already was, at a cost of a few nanoseconds, with an option to turn the
+check off. It is not
 tied to a thread, because code that awaits may resume on another thread and
 still be one caller. The translated layer below has no such check.
 
@@ -383,9 +345,10 @@ a whole translation from them. Left to do:
   once for each variant and a shim of its name chooses between them, by a
   choice made once when the library is made over its context, from the
   context's `OperatingSystem` and `Architecture`, which default to the
-  machine's. The library does not need it, see `DESIGN.md`, *The SPICE
-  Toolkit's translation is a tool of its own*, and so not built until a
-  program needs it.
+  machine's. The reference sources turned out not to need it: one routine
+  of theirs has to know the platform, and a command run after the
+  translation rewrites that one. So it is not built until a program needs
+  it.
 - **Paths that go deeper than one folder.** The last part of a path may
   have `*` and `?`; `**` for folders at any depth is not read.
 - **The rest of what a translation is told**, under *What the translator
@@ -414,8 +377,8 @@ the translator, and the project names what to translate.
 - **Where the output goes is a setting of each translation.** Temporary:
   under the project's intermediate folder, compiled and never seen, which
   suits a FORTRAN program of the user's own. Kept: in a folder of the
-  project, to be committed, which is what `docs/rules/translated-code.md`
-  asks of the reference sources. A kept translation is redone only when its
+  project, to be committed, which suits a library whose sources cannot be
+  published with it, as the reference sources cannot. A kept translation is redone only when its
   sources are there, or when asked for by name, so that the project builds
   on a machine that has only the translated code.
 - **The step is skipped when nothing changed**, by the inputs and outputs
@@ -463,8 +426,6 @@ Five things about files are decided and not built:
   managed layer decides what it shows of what the toolkit writes there,
   its error messages above all.
 
-- `ISpiceCore` is to offer a stream directly, as an overload that takes
-  one, over the context's `Register`.
 - A program's contexts are to be configurable from the host's settings, the
   usual application settings among them. `FortranContextOptions` is what
   they are read into; which memory a program's libraries keep their
@@ -475,10 +436,11 @@ Five things about files are decided and not built:
   read by the caller in the meantime.
 - What a disk file costs per record, read and written with one system call
   each and no buffer, against a buffered or memory-mapped file, is for the
-  benchmark project. A first measurement, under *The families can be run
-  without the toolkit's main program* in `DESIGN.md`, found a record's
-  read at some 15 µs and its write at 20 µs, on a slowed machine, and both
-  small beside what opening files cost there; a buffer has yet to show it
+  benchmark project. A first measurement, of the toolkit's tests that
+  handle many kernel files, found a record's read at some 15 µs and its
+  write at 20 µs, on a slowed machine, and both small beside what opening
+  files cost there, where a scanner looks at each file that was written
+  when it is next opened; a buffer has yet to show it
   is worth what it complicates, which is a file open in two units or two
   programs at once.
 
@@ -555,157 +517,6 @@ what the runtime is told, *Settings for what differs by platform*, and a
 program translated as an executable may want them all on at once, as one
 choice of the translator's.
 
-## Errors stay in the toolkit's error state until the managed boundary
-
-The reference toolkit does not throw. A routine that detects a fault records
-a short code such as `SPICE(NOLEAPSECONDS)`, a long message built from a
-template with `#` markers that later calls fill in, and the chain of
-routines it was called through; every caller then checks a flag and returns
-early. The translated code keeps exactly that, because it is what the source
-does and because an exception on a computation path is ruled out by
-[`docs/rules/performance.md`](docs/rules/performance.md).
-
-- The library always runs in the toolkit's *return* error mode. Its default,
-  which ends the process, is never available: the routine that would exit
-  is hand-written in the runtime and throws instead.
-- `ISpiceLib` leaves the error where the toolkit put it. A caller of that
-  layer checks and resets it, as a FORTRAN caller would.
-- `ISpiceCore` checks after every call and throws one exception type that
-  carries the short code, the long message and the traceback, then resets
-  the state. The short code is the stable identifier a program switches on.
-
-## Logging is the managed layer's, and optional
-
-The translated library and the runtime reference no logging package. What
-the toolkit would print, error reports and anything written to standard
-output, goes to a sink the library instance is given, and is discarded when
-there is none.
-
-`ISpiceCore` can be given an `ILogger` and connects it to that sink, so a
-host sees the toolkit's reports in its own log at a level it controls. A log
-line is never written from a computation path, and a host that passes no
-logger pays nothing.
-
-## Messages can be localized, in the managed layer only
-
-The translated code and its messages stay as the toolkit wrote them, in
-English and in ASCII: the regression tests compare them, and the short codes
-are identifiers, never translated. Localization applies to what a person
-reads, the long message on the exception `ISpiceCore` throws.
-
-It is possible because nearly every long message starts from a literal
-template. Two things are prepared for it from the start, since neither can
-be added afterwards without regenerating everything:
-
-- The error state keeps the template and the values substituted into it,
-  beside the finished English text. The handful of routines that set and
-  fill a message are hand-written in the runtime to do so.
-- The translator writes a catalogue of every message template it meets,
-  each with a stable identifier, as a by-product of translation.
-
-A localized message is then the translated template for that identifier,
-filled with the same values, looked up for the current UI culture from
-ordinary .NET resources shipped as satellite assemblies. A template with no
-translation, or a message the source assembled without a literal template,
-falls back to the English text.
-
-## A C interface for callers outside .NET
-
-The translated library can be compiled ahead of time into an ordinary native
-library that exports C functions, one per routine, each a plain forward to
-`ISpiceLib` taking a handle to a program's context as its first argument. It
-needs no .NET installation on the machine that uses it. The pointer-based
-signatures of the translated layer exist partly so that this facade is
-mechanical; the translator generates it from the same routine list.
-
-Exports cannot be instance members, so they are static methods, and a
-method becomes a C export only where a project is published ahead of time
-as a native library. What that gives is one file with everything compiled
-into it, the translated code, the runtime and a copy of .NET's own. Two
-such files in one process are two of everything, each with its own table
-of handles, so a program loads one native library of ours and never two.
-
-Two libraries are wanted, the second made from the first:
-
-- **The toolkit's own exports all take a handle first.** That is this
-  port's native interface, and it keeps what the port adds: several
-  independent programs in one process. They come in two styles, the
-  FORTRAN routines as they are, and the reference C toolkit's names and
-  argument lists with the handle in front. The conversions the second
-  style does, C strings, row-major matrices, zero-based indices, are the
-  same ones `ISpiceCore` needs, and both are generated from the routine's
-  argument list and its documented inputs and outputs, with a short list
-  of routines written by hand. The reference C wrappers are not
-  translated. A program made for this interface makes a context first,
-  through an export that takes the settings, and passes its handle on.
-- **A second library stands in for the reference C toolkit as it is.** Its
-  project refers to the toolkit and adds the same functions without the
-  handle, each a forward to the one with it, so that an existing program
-  changes libraries without changing source. It keeps one context of its
-  own for the process and makes it the first time one is needed, with what
-  a program run on its own has. Published, it is the one file, the
-  toolkit's exports and its own.
-
-The default context is that second library's and not the runtime's, as
-`DESIGN.md` has it. The other way round was weighed and set aside: with
-the functions that take no handle in the toolkit and the second library a
-bare stub that only makes the default, the stub has no function of its own
-to make it from and would depend on code running by itself when the file
-is loaded, and the toolkit would carry functions that fail until something
-else has been run.
-
-The handle is the context's own, `FortranContext.Handle`, and an export
-turns it back with `FromHandle` and asks the context for the library; no
-library is made by the caller. Those two exist in the runtime; the exports
-do not yet.
-
-A routine that takes a procedure takes it, in this interface, as a C
-function pointer whose first argument is the handle:
-`void (*udstep)(void *handle, double *et, double *step)`. Three things
-follow from the handle being there:
-
-- The export stores the C pointer in the instance and passes the translated
-  routine a fixed static forwarder, which is called with the instance,
-  finds the pointer there and calls it. Nothing is allocated. The export
-  puts back what was stored before when it returns, since a callback may
-  itself start a call that stores another.
-- The exports have that same shape, so a C program can pass one of them as
-  the callback, as programs written for the reference C toolkit pass its
-  default step, refinement and progress routines. That costs two
-  transitions per callback, out to native code and straight back in; the
-  export can recognise the address of one of its own and pass the managed
-  routine directly, if a benchmark asks for it.
-- A callback written by the user has the handle it needs to call the
-  library from inside.
-
-No .NET exception may pass through a native frame. Every export catches
-what the translated code throws, a `STOP` among them, and reports it by its
-return value, also when the export was itself reached from a callback.
-
-A call from managed to native code is not marshalled here, since every
-argument is a pointer or a number, and still costs a transition in each
-direction, some tens of nanoseconds: the thread is marked as running native
-code so that the garbage collector need not wait for it. The transition can
-be switched off only for a native function that is short, never blocks and
-never calls back, which a callback into the library is not.
-
-## A COM interface, on Windows
-
-A second generated facade over `ISpiceLib`, using the source-generated COM
-support in .NET, for spreadsheet and scripting hosts. It is separate from
-the translated layer so that the layer carries nothing specific to one
-operating system. After the C interface, and only if asked for.
-
-Nothing inside a context is in COM's task memory: what crosses is a copy
-made at the boundary, a string as a `BSTR` and an array as a `SAFEARRAY`,
-which the generated marshalling allocates and the client frees, and no
-pointer into a context's memory is ever handed out. To decide when it is
-built: an in-process server is of the client's bitness, and 32-bit Office
-is still in use, so either an x86 build for it, a server out of process
-through a COM surrogate at the cost of a call across processes each
-time, or 64-bit hosts alone. Alignment does not stand in the way of x86,
-which reads any value at any address.
-
 ## An extended-precision variant
 
 A translator option that maps `DOUBLE PRECISION` to a wider floating-point
@@ -781,77 +592,23 @@ It needs the emitter and enough of the runtime to print, so it starts when
 those exist. Until then the compiler is used by hand to settle single
 questions, and what it settles is recorded where the answer is used.
 
-## Validating the translated library
+## Before Fortrania is published
 
-Two checks are wanted once the main library of the reference sources runs,
-and neither replaces the other.
-
-- **The reference sources' own tests.** They come with a test program and
-  its families of test routines, in FORTRAN like the library. Translated
-  with the same translator and run, they test the translated library as
-  they test the original. They need the rest of what the reference sources
-  use beyond the main library, which *Input and output still to build*
-  lists, and a way to run a translated main program.
-- **The same run under both.** A test program run as the reference compiler
-  builds it and as the translator translates it writes two logs, and the
-  logs are compared. Where the tests only say pass or fail, this compares
-  the numbers themselves, to the last digit where the two agree and with
-  the difference shown where they do not. Differences are expected in the
-  last digits of what the mathematical library computes, a sine or a
-  logarithm, where .NET and the reference compiler's library need not
-  round alike; each is to be traced to such a call or treated as a fault.
-
-The second needs the reference compiler and so is run by hand or in a job
-of its own, like the regeneration of expected outputs under *Conformance
-tests against a reference compiler*.
-
-The first is done, by hand: 2,211 program units in two projects, built
-with no error and no warning, and run on Windows beside the reference
-compiler's build of the same sources with the same line ending. All 400
-families run in both, and every family and every case that fails is the
-same in both; `DESIGN.md`, *The SPICE Toolkit's translation is a tool of
-its own*, has why two fail. What is left of it is to make it a job that
-can be run again.
-
-The second is done by hand as well. A program of ours, not the toolkit's,
-makes the test utilities' kernels and calls some 25 of the main library's
-routines over 40 epochs: time conversion, states with each aberration
-correction, frame transformations, rotations and their conversions,
-coordinate conversions, conic elements and propagation, and a sub-point.
-It prints each double to 17 significant digits, which tells any two
-doubles apart. Built by the reference compiler, against its build of the
-toolkit, and translated with the toolkit, it gives 8,604 lines, and the
-two outputs are the same byte for byte.
-
-That includes what the mathematical library computes, which was expected
-to differ in the last digit. On Windows, .NET's `Math` and this build of
-the reference compiler call the same C runtime library, so they agree; on
-another platform both call that platform's library, and the two builds
-there are to agree with each other, not with the builds on Windows.
-
-What is left is to make the program and its comparison a job that runs
-again, over more of the library. It is the toolkit's and not the
-translator's, so it goes to dc-spice when that repository exists, as a
-tool of its own or as its integration tests, and is not committed here
-before the move; see *Fortrania becomes a repository of its own*.
-
-## Fortrania becomes a repository of its own
-
-The translator, its runtime and its command move to a repository of their
-own, dc-fortrania, and are published as packages; what is SPICE's stays
-here, to become dc-spice. Fortrania is the larger product and the one with
-other users, and it holds nothing of the toolkit's, so nothing stops it
-being published but its readiness.
+Fortrania was begun beside the library it was written to translate, NASA's
+SPICE Toolkit, and moved to this repository with its history. It holds
+nothing of the toolkit's, so nothing stops it being published but its
+readiness.
 
 **Not before it has been tested on the toolkit, and made fast and clean.**
 In this order, because each step changes what the next one looks at:
 
 1. **The toolkit's tests agree with the reference compiler's build.** Done
-   for the outcome of every family and case; see *Validating the
-   translated library*.
-2. **Agreement to the last digit**, the second check there, over the main
-   library's core routines. Done by hand for some 25 of them; to become a
-   job, and to reach further.
+   for the outcome of every family and case. The check is the translated
+   library's and is run in its repository, since it needs the toolkit's
+   sources.
+2. **Agreement to the last digit**, over the main library's core routines.
+   Done by hand for some 25 of them; to become a job there, and to reach
+   further.
 3. **An optimization round**, for speed: the runtime's hot paths and the
    code the translator emits, measured with a benchmark project as
    `docs/rules/performance.md` asks, and the rewrites listed under *More
@@ -873,19 +630,13 @@ In this order, because each step changes what the next one looks at:
    the runtime of the translator's own version, is to be the rule for the
    packages: one version number for the two.
 
-**The move keeps the history.** `libraries/fortrania` is moved with its
-history, by rewriting a copy of this repository down to that folder, and
-not as a fresh copy of the files. The new repository is initialized with
-the agentics toolkit, takes the root build configuration, and divides the
-documents by subject: what is the translator's and the runtime's in
-`DESIGN.md`, this file, `GLOSSARY.md` and `VARIANCES.md` goes, and what
-is the toolkit's stays; `docs/rules/performance.md` and `portability.md`
-hold in both, and `translated-code.md` stays. Here the translator and the
-runtime are then packages, which closes the cross-component project
-reference `TODO.md` lists.
+**Development packages come before all of that.** The translated library
+is built in a repository of its own and takes the translator and the
+runtime as packages, so packages of a development version are made from
+the first pipeline on, long before a release. How they are numbered and
+where they go is in `TODO.md`.
 
-**It is the first repository with pipelines.** Nothing here builds on a
-server yet, and dc-fortrania is where that starts:
+**It is the first repository with pipelines.**
 
 - **A development pipeline on GitHub.** Every pull request and every push
   to the default branch is built and tested; a push to the default branch
@@ -898,18 +649,14 @@ server yet, and dc-fortrania is where that starts:
   in the choice `TODO.md` lists.
 - **Its tests need nothing of NAIF's.** Fortrania's samples are its own,
   checked against the reference compiler by hand, so the pipelines need
-  neither the toolkit's sources nor the compiler. dc-spice's pipeline,
-  later, downloads the sources by their hash and must never upload them,
-  as an artifact or a cache anyone else can read, since that would be
-  publishing them.
+  neither the toolkit's sources nor the compiler.
 - **The reference compiler comes from the machine, not from a package.**
   No package of the .NET ecosystem carries gfortran, and one would weigh
   some hundreds of megabytes for each platform. Where a pipeline needs
-  it, for dc-spice's comparison with the reference build or to check
-  Fortrania's samples again, the pipeline installs it as a step of its
-  own, as the Fortran community's setup action does on Linux, macOS and
-  Windows runners. A test that needs it looks for it on the path and,
-  where it is missing, says that it was skipped and why, and never
+  it, to check Fortrania's samples again, the pipeline installs it as a
+  step of its own, as the Fortran community's setup action does on Linux,
+  macOS and Windows runners. A test that needs it looks for it on the path
+  and, where it is missing, says that it was skipped and why, and never
   passes in silence.
 
 What is learnt setting these up, the steps, what failed and the rules
@@ -921,10 +668,10 @@ templates of the agentics toolkit for every repository after this one.
 The emitter turns the analysed program into C# text in one step, so what
 it decides and what it writes are mixed: the joining of constants under
 *Constants are joined when translating* in `DESIGN.md` is done on the
-strings as they are written, and the SPICE tool's platform rewrite reads
-the output back with the C# compiler, changes that tree and writes it
-again. The optimization round, step 3 of *Fortrania becomes a repository
-of its own*, puts a tree in between, and is built on it:
+strings as they are written, and a command that changes a routine after
+the translation reads the output back with the C# compiler, changes that
+tree and writes it again. The optimization round, step 3 of *Before
+Fortrania is published*, puts a tree in between, and is built on it:
 
     parse → analyse → lower to the program tree → passes → a writer
 

@@ -1,4 +1,4 @@
-# fortrania
+# core
 
 A FORTRAN 77 to C# translator, with the small managed runtime library the
 translated code runs on.
@@ -13,8 +13,8 @@ translated code runs on.
 ## What it does
 
 Fortrania reads fixed-form FORTRAN 77 source and emits C# that keeps the
-original routine structure and comments. It exists to translate the SPICE
-toolkit for this repository, in the tradition of `f2c`: the translated code
+original routine structure and comments. It was written to translate NASA's
+SPICE Toolkit, in the tradition of `f2c`: the translated code
 depends on a runtime library that supplies the FORTRAN intrinsics, string
 semantics and record-based file input and output, written directly in managed
 C# with no native code.
@@ -62,7 +62,5 @@ None.
 
 ## Notes
 
-- The translator and runtime are not specific to astronomy and are expected
-  to move to a repository of their own once they are stable.
 - Which code here is held to the performance rule and which is not:
   [`docs/rules/performance.md`](../../docs/rules/performance.md).

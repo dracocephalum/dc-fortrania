@@ -12,9 +12,10 @@ decided at run time or made not to matter.
 
 ## Byte order
 
-**Hand-written code never assumes a byte order.** That is the whole rule;
-`DESIGN.md`, *Byte order is the format's concern, not ours*, says why nothing
-more is needed.
+**Hand-written code never assumes a byte order.** That is the whole rule.
+Nothing more is needed because a file format that records its own byte
+order, as the reference toolkit's binary files do, is converted by the code
+that reads it, and that code is translated with the rest.
 
 - Where hand-written code turns bytes into a wider type or back — the
   runtime's unformatted file input and output is the main place — it goes

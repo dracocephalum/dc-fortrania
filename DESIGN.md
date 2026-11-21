@@ -3,53 +3,15 @@
 Why the repository is shaped the way it is. Type comments say what the code
 does; this page holds the decisions a reader could not infer from it.
 
-## Translated code is committed, and it is an intermediate product
+## A translation keeps the terms of its sources
 
-The library is produced in three steps:
-
-    FORTRAN 77 sources  --translator-->  C# sources  --compiler-->  NuGet package
-    (never in this repository)           (committed)                (what is published)
-
-The middle step is committed on purpose. A change to the translator then
-shows up in review as a diff in exactly the routines it affects, a build
-needs neither the original sources nor a translator run, and anyone can read
-what the published assembly was compiled from.
-
-It is still machine output, and it is treated as such:
-
-- It is never edited by hand. A wrong translation is fixed in the translator
-  and the output regenerated.
-- It is not the product. The package compiled from it is, together with the
-  hand-written API over it.
-- It lives in components of its own, apart from hand-written code, so that
-  its licence and its relaxed build settings cover nothing else.
-
-The rule that follows from this is
-[`docs/rules/translated-code.md`](docs/rules/translated-code.md).
-
-## Two licences, split by component
-
-Hand-written work is under the Apache License 2.0: the translator, the
-runtime library, the public API, tests and documents. Translated code is not.
-It derives from NASA's SPICE Toolkit, which has no open-source licence and
-is governed by the rules NAIF publishes for it, so it stays under those
-rules.
-
-The split is by folder and never by file within a project. A component that
-holds translated code has its own `LICENSE.md` and holds nothing a person
-wrote; every other component is covered by the root [`LICENSE`](LICENSE) and
-[`NOTICE`](NOTICE). A reader can therefore tell which terms apply from where
-a file is, and each translated file repeats it in its header for the reader
-who arrives at the file alone.
-
-## Byte order is the format's concern, not ours
-
-Binary kernels record their own byte order and the reference toolkit converts
-when it reads one of the other order. That logic is translated with the rest,
-and the .NET runtime runs on both orders, so the library relies on the two of
-them rather than adding a layer of its own. What hand-written code owes is
-narrower: it never assumes an order —
-[`docs/rules/portability.md`](docs/rules/portability.md).
+The translator and the runtime are under the Apache License 2.0, and
+nothing here is translated from anybody else's sources. What a user
+translates is a derived work of what they translated and stays under its
+terms, which the translator cannot know: a translated file's header names
+the unit and the file it came from and claims nothing more, and the
+comments of the source, a notice of its own among them, are carried into
+it. A project that publishes a translation says what its terms are.
 
 ## Fortrania's lexer finds no keywords
 
@@ -253,7 +215,8 @@ came to 587 KB where this comes to 76 KB. The figures leave out the
 just-in-time compiler's own frames, which come on top. The same result
 lists each variable `EQUIVALENCE` puts off its type's alignment, and each
 call that passes a 4-byte number where the procedure takes an 8-byte one,
-for `docs/rules/portability.md`, *Alignment*. The SPICE tool writes all
+for `docs/rules/portability.md`, *Alignment*. The tool that translates the
+reference sources writes all
 three beside the translation; `PENDING.md`, *How much goes on the stack is a setting*,
 has what they showed.
 
@@ -718,125 +681,3 @@ how a file the translator no longer makes is told from one somebody wrote.
 The settings file, the command line and the build step all read into the
 same description, kept in the translator's library and not in any of them.
 
-## The SPICE Toolkit's translation is a tool of its own
-
-What the translator is told about the toolkit, and what is done to the
-translation afterwards, is in `tools/spice-translation` and not in
-Fortrania: the translator knows FORTRAN, and the tool knows SPICE. Its
-settings name the toolkit's libraries as two projects, the libraries
-themselves and their test program, and read the sources from `cache/` at
-the repository root, which git ignores and the settings fill from the
-NAIF's server, checked by hash, when it is not there.
-
-**The toolkit checks line endings itself, and `ZZPLATFM` decides the
-check.** The runtime reads a text file whatever its line ending, as
-*Text in sequence is lines, and bytes* above has it. The toolkit does not
-leave this to the runtime: on loading a text kernel it reads the file's
-first bytes by direct access, works out which ending the file has, and
-refuses the kernel when that is not the ending of the platform it says it
-was built for. It says so from `ZZPLATFM`, a table of facts about the
-platform, and the sources translated are the Unix variant, which expects a
-line feed alone. On Windows a program ends the lines it writes with a
-carriage return and a line feed, as the reference compiler's do there, so
-every text kernel the test suite writes for itself was refused, and the
-reference compiler's build of the same sources failed in exactly the same
-places.
-
-The toolkit's variants for each platform and compiler were compared,
-routine by routine: of the 1,483 files of the main library and 216 of the
-support library, 29 and 9 differ somewhere, and the test utilities are the
-same everywhere. Apart from `ZZPLATFM`, what differs is limits, the
-length of a file's name and how many text files are open at once, which
-the variant translated already has at the larger value and the runtime
-does not limit; a correction for characters whose code is negative, which
-the runtime's never are, and the base `CHBASE` returns, below; how a
-program writes to the screen and ends; and the machine constants of a
-platform that stores numbers big-endian. So one
-routine needs to know the platform, and no variant is needed.
-
-One difference is not a limit. `STMP03` sums a series, and how many terms
-it sums is a constant its own comment says how to choose: the fewest
-after which one more changes nothing in double precision. The variant
-translated sums 11, where for IEEE doubles 10 are enough and the eleventh
-is some 10^-21 of the result; the Windows variant sums 10. The translation
-keeps 11, which is what the reference compiler's build of the same
-sources does, so that the two can be compared bit for bit. A result that
-differs in its last bit from the Windows build's would differ the same way
-between the toolkit's own builds.
-
-**`ZZPLATFM` is rewritten to answer from the machine it runs on.** After
-the translation, the tool replaces each fact the routine stores with a
-choice made when it runs: the line ending from the context's own setting,
-so that the check agrees with what the program writes, the byte order and
-the operating system from .NET, and the compiler as Fortrania, not as the
-compiler the sources name. The values chosen between are the toolkit's
-own names for its platforms. The rewrite finds each store by its constant
-and refuses when one is not there exactly once, so a new version of the
-sources that changes the routine stops the translation instead of being
-half rewritten. Supplying the routine by hand was the alternative; it
-would be a second copy to keep right, and a hand-written file in the
-translated component, whose licence is the toolkit's.
-
-With that, the translated test suite runs all 400 families on Windows.
-
-**`CHBASE` is rewritten to return 256.** It is one constant: the base in
-which `ENCHAR` and `DECHAR` keep a number in characters, for the sizes a
-cell of characters carries in front of its elements. Its header defines it
-as the first number that does not come back from `ICHAR(CHAR(n))`. The
-variant translated holds 128, chosen for a compiler that read a character
-above 127 as a negative number; the Windows variant holds 256, as most do.
-The runtime reads a character as its byte, 0 to 255, on every platform, so
-the definition gives 256 everywhere, and the rewrite stores it outright
-with no choice made when the routine runs. Such a number is kept in memory
-only and never written to a file, so nothing made with one base is read
-with the other, and no test family depends on the value. It is the one row
-under *The toolkit* in `VARIANCES.md`.
-
-**`F_ZZASC2` is rewritten to expect what its platform refuses.** It is the
-test of that check: it writes kernels whose lines end in each of the three
-ways and expects `FURNSH` to refuse those that do not end the platform's
-way. Which those are is fixed in each platform's copy of the test, and the
-copy translated is Linux's, so on Windows six of its expectations were the
-wrong way round, for the reference compiler's build of the same sources as
-for the translation. The tool makes them a choice made when the family
-runs, from the line ending its program writes, by the same means as
-`ZZPLATFM`'s rewrite, and refuses when the stores are not the ones the
-Linux copy makes. The Windows package's copy differs from Linux's in
-exactly those six expectations. The rewrite is a stand-in until a source
-can have a variant for each platform, under *Variants of a source for one
-platform* in `PENDING.md`; the family is then translated from the
-package's own copy for each platform, and the rewrite goes.
-
-Of the other test families, `F_SCLK1` has a case that times one series of
-calls against another by the clock and asks the first to take less than
-half as long again as the second. The first is also where the just-in-time
-compiler compiles and then recompiles the routines called, so the case
-can fail on a run where every value it checks is right.
-
-**The families can be run without the toolkit's main program.** That
-program runs all 400 in order, in one instance, in the working folder,
-which takes ten minutes. The runner beside the translation tool finds the
-families in the translated program and calls any of them by name, each in
-an instance of its own whose files are in memory, so the families share
-nothing and run side by side on as many threads as there are processors.
-Most of the suite's time on disk was the disk, and of that, opening files:
-the families that test the handling of many kernel files write thousands
-of them and open each many times. On the machine measured, which scans a
-file for viruses when it is opened, the first opening of a file after it
-was written took some 28 ms whatever its size, and any other under 1 ms;
-of the 517 s below, 390 s were openings, 62 s the reading of four million
-records and 7 s the writing of 380,000. Measured one after the other
-on the same machine, the ten slowest families took 989 s on disk and 289 s
-in memory, and the slowest of all, `F_ZZDSKBSR`, 517 s and 28 s; the
-families that only compute took the same either way. A quick set leaves
-out the twenty slowest families and `F_SCLK1`. The runner is a way to find
-a fault sooner and not the measure of the translation: that stays the
-toolkit's own program, on disk, as NAIF runs it.
-
-**Every translated file carries the header NAIF's rules ask for.** The
-tool adds, inside the block the translator marks as generated, that the
-file is a machine translation of a routine of NASA's SPICE Toolkit, of
-which version, that it is not a product of NASA, Caltech/JPL or NAIF and
-that NAIF does not support it, and that the toolkit's
-terms apply; a file a rewrite changed says what changed. A file that has
-the header is left alone, so running the tool twice changes nothing.

@@ -1,8 +1,8 @@
-# dc-astro
+# dc-fortrania
 
-A pure managed .NET port of NASA's SPICE Toolkit, with no native
-binaries: the original FORTRAN 77 sources are translated to C# by Fortrania,
-the translator and runtime library that are developed here alongside it.
+Fortrania: a FORTRAN 77 to C# translator, and the small managed runtime
+library the translated code runs on, with no native binaries. It was
+written to translate NASA's SPICE Toolkit, and holds nothing of it.
 
 Primary framework: .NET. Namespace prefix: `Dracocephalum`.
 
@@ -18,8 +18,6 @@ exist.
 | Path | Purpose |
 |---|---|
 | `libraries/` | packages published to NuGet |
-| `tools/` | programs that build this repository's products, never published |
-| `cache/` | ignored by git: the SPICE Toolkit's sources, filled from NAIF or linked to a local copy, and their translation while it is not yet committed |
 | `agentics/` | the toolkit's — `rules/` this repository is held to, see *Agent guidelines* below, and `templates/`; replaced whole by a sync, never edited in place |
 | `docs/rules/` | this repository's own rules, once it has any, and `AGENTS.md` there is their index — started from `agentics/templates/rules-AGENTS.md`; the sync copies its rows into the table below |
 | `.claude/skills/` | Claude Code shims; the toolkit's are replaced whole by a sync, a shim of the same name included |
@@ -66,7 +64,6 @@ makes it selectable from a plain-language request.
 | Leaving something unfinished, blocked, or undecided — or asked what is still open | [`TODO.md`](TODO.md) — add it there; a remark in a conversation is lost |
 | Writing or reviewing code that runs on a computation or kernel-reading path, or choosing between a safe and an unsafe, an allocating and a non-allocating, or a general and a specialised form | [`docs/rules/performance.md`](docs/rules/performance.md) — performance is the first design constraint here; amends the C# coding rules |
 | Reading or writing binary data, using hardware intrinsics, or touching anything that differs by operating system, processor or byte order | [`docs/rules/portability.md`](docs/rules/portability.md) |
-| Creating or building a component that holds code translated from the SPICE toolkit, changing what the translator emits, or handling the original FORTRAN sources | [`docs/rules/translated-code.md`](docs/rules/translated-code.md) |
 
 The documents above are the substance, for every tool. In Claude Code some
 are also invocable through a shim in `.claude/skills/` -
@@ -97,7 +94,7 @@ by saying so in the document — *Precedence* in
 |---|---|
 | Meeting a word of this repository's you are not sure of, or about to name something | [`GLOSSARY.md`](GLOSSARY.md) — one line a word; use the word that is there before making another |
 | Making the runtime or translated code behave otherwise than the reference compiler or the reference toolkit does, or asked how it differs | [`VARIANCES.md`](VARIANCES.md) — every deliberate difference, with what the reference does, what this does and why; add the row in the change that makes it |
-| Building the Fortrania runtime, the translated SPICE library or the managed API over it, or asked what is planned and how it is to be done | [`PENDING.md`](PENDING.md) — approaches decided ahead of the code; a section moves to `DESIGN.md` when it is built |
+| Building the translator or the runtime, or asked what is planned and how it is to be done | [`PENDING.md`](PENDING.md) — approaches decided ahead of the code; a section moves to `DESIGN.md` when it is built |
 
 ## Conventions
 

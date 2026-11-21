@@ -1,9 +1,9 @@
 # Variances
 
 Where translated code or the runtime knowingly behaves otherwise than the
-reference: the reference compiler, for what the language leaves to a
-compiler, and the reference toolkit, for what it does. Everywhere else the
-aim is the same behaviour, and a difference not listed here is a fault.
+reference compiler does, for what the language leaves to a compiler.
+Everywhere else the aim is the same behaviour, and a difference not listed
+here is a fault.
 
 The list is the whole of them. A change that makes another adds its row in
 the same change. [`PENDING.md`](PENDING.md), *A setting for each variance
@@ -31,8 +31,3 @@ program is met that needs it.
 | A `READ` from a character variable whose format moves past its last record before an item | gave status 0, and the item a value of blanks | gives status -1, the end of the file | the end of the file is where the language puts it |
 | A formatted `WRITE` that fails part of the way through its list | has written what came before the failure, with no line ending | writes nothing of the record | a record is written when it is whole |
 
-## The toolkit
-
-| Where | The reference toolkit | Here | Why |
-|---|---|---|---|
-| `CHBASE`, the base in which `ENCHAR` and `DECHAR` keep a number in characters | returns 128 in the variant translated, and 256 in most others, the Windows one among them | returns 256 on every platform | its header defines it by what `ICHAR(CHAR(n))` gives back, and the runtime reads a character as 0 to 255 everywhere; `DESIGN.md` has the rest |
