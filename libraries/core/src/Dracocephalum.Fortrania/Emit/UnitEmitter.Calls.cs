@@ -27,9 +27,6 @@ internal sealed partial class UnitEmitter
             : new Code(invocation, type);
     }
 
-    private string Invocation(string name, IReadOnlyList<Expression> arguments) =>
-        CSharpExpressionWriter.Write(InvocationNode(name, arguments));
-
     // A call of a procedure of the program. Each argument is an address;
     // where the procedure declares another type than the caller passes,
     // the pointer is cast, which is what passing by address amounts to. A
@@ -125,12 +122,6 @@ internal sealed partial class UnitEmitter
 
         known.Passes.UnionWith(passes);
         _calls[name] = (known.Passes, known.PassesOnArgument || passesOnArgument);
-    }
-
-    private (string Address, string? Length) Argument(Expression argument, DataType? expected)
-    {
-        var (address, length) = ArgumentNode(argument, expected);
-        return (CSharpExpressionWriter.Write(address), length is null ? null : CSharpExpressionWriter.Write(length));
     }
 
     private (TreeExpression Address, TreeExpression? Length) ArgumentNode(Expression argument, DataType? expected)

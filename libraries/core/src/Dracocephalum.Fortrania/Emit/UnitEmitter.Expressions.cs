@@ -17,7 +17,6 @@ internal sealed partial class UnitEmitter
 
     // A length or a position is put in parentheses before it joins an
     // expression, unless it is a single name or number.
-    private static string Grouped(string text) => IsNameOrNumber(text) ? text : $"({text})";
 
     private static TreeExpression Group(TreeExpression node) => node is TreeExpression.Local or TreeExpression.Integer { Value: >= 0 }
         ? node
@@ -25,8 +24,6 @@ internal sealed partial class UnitEmitter
 
     private static TreeExpression AtLeast(TreeExpression node, Level needed) =>
         CSharpExpressionWriter.LevelOf(node) >= needed ? node : new TreeExpression.Grouped(node);
-
-    private static bool IsNameOrNumber(string text) => text.All(character => char.IsLetterOrDigit(character) || character == '_');
 
     // The number a length is, where it is known when translating.
     private static int? KnownNumber(TreeExpression? node) =>
@@ -289,7 +286,6 @@ internal sealed partial class UnitEmitter
     // A value as it is stored in a place of the given type. Numbers convert
     // as assignment converts them, a real value to an integer by dropping
     // its fraction, which is what the cast does.
-    private static string Stored(Code value, DataType type) => CSharpExpressionWriter.Write(StoredNode(value, type));
 
     private static TreeExpression StoredNode(Code value, DataType type)
     {
@@ -463,8 +459,6 @@ internal sealed partial class UnitEmitter
             new TreeExpression.Binary(@operator, left.Node, right.Node),
             isLogical ? DataType.Logical : Wider(left.Type, right.Type));
     }
-
-    private string Compared(Code left, Code right) => CSharpExpressionWriter.Write(ComparedNode(left, right));
 
     private TreeExpression.Call ComparedNode(Code left, Code right) =>
         new TreeExpression.Call(Runtime("Compare"), [left.Node, left.LengthNode!, right.Node, right.LengthNode!]);

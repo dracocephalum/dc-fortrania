@@ -112,6 +112,12 @@ internal abstract record TreeExpression
     /// <summary>An object of a type of the runtime's or the framework's made, which is how an exception to be thrown comes to be.</summary>
     internal sealed record New(string Type, IReadOnlyList<TreeExpression> Arguments) : TreeExpression;
 
+    /// <summary>An argument of a call given by the name of the parameter it is for.</summary>
+    internal sealed record NamedArgument(string Name, TreeExpression Value) : TreeExpression;
+
+    /// <summary>So many bytes at an address, as one value: a span.</summary>
+    internal sealed record Bytes(TreeExpression Address, TreeExpression Length) : TreeExpression;
+
     /// <summary>A call through the address of a procedure.</summary>
     internal sealed record Invoke(TreeExpression Target, IReadOnlyList<TreeExpression> Arguments) : TreeExpression;
 
