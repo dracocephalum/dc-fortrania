@@ -19,6 +19,12 @@ internal static class CSharpExpressionWriter
                 return integer.Value.ToString(CultureInfo.InvariantCulture);
             case TreeExpression.Number number:
                 return number.Value.ToCSharpLiteral();
+            case TreeExpression.Null:
+                return "null";
+            case TreeExpression.Character character:
+                return $"'{character.Value}'";
+            case TreeExpression.StackAllocation taken:
+                return string.Create(CultureInfo.InvariantCulture, $"stackalloc {taken.Type}[{taken.Count}]") + (taken.IsZeroed ? " { 0 }" : string.Empty);
             case TreeExpression.Local local:
                 return local.Name;
             case TreeExpression.Utf8 text:

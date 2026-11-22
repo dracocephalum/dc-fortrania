@@ -50,6 +50,19 @@ internal abstract record TreeExpression
     /// <summary>A real, double precision or logical value known when translating.</summary>
     internal sealed record Number(Constant Value) : TreeExpression;
 
+    /// <summary>No address at all.</summary>
+    internal sealed record Null : TreeExpression;
+
+    /// <summary>One character, as the target language writes one.</summary>
+    internal sealed record Character(char Value) : TreeExpression;
+
+    /// <summary>
+    /// So many elements of a type taken from the stack for as long as the
+    /// method runs, set to zero where that is asked for and otherwise left
+    /// as the stack had them.
+    /// </summary>
+    internal sealed record StackAllocation(string Type, long Count, bool IsZeroed = false) : TreeExpression;
+
     /// <summary>A local or a parameter of the method, a constant it declares, or a member of the framework named in full, by its name.</summary>
     internal sealed record Local(string Name) : TreeExpression;
 

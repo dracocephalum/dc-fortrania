@@ -52,6 +52,20 @@ internal static class CSharpStatementWriter
 
                 break;
 
+            case TreeStatement.LocalFunction function:
+                // One that only gives a value is written as that value.
+                var signature = $"{(function.IsStatic ? "static " : string.Empty)}{function.ReturnType} {function.Name}({string.Join(", ", function.Parameters)})";
+                if (function.Body is [TreeStatement.Return { Value: { } value }])
+                {
+                    text.Line($"{signature} => {Expression(value)};");
+                }
+                else
+                {
+                    WriteBlock(text, signature, function.Body);
+                }
+
+                break;
+
             case TreeStatement.While loop:
                 WriteBlock(text, $"while ({Expression(loop.Condition)})", loop.Body);
                 break;
@@ -80,7 +94,7 @@ internal static class CSharpStatementWriter
     {
         TreeStatement.Evaluate evaluated => Expression(evaluated.Expression),
         TreeStatement.Assign assigned => $"{Expression(assigned.Target)} = {Expression(assigned.Value)}",
-        TreeStatement.Declare declared => $"{declared.Type} {declared.Name} = {Expression(declared.Value)}",
+        TreeStatement.Declare declared => $"{(declared.IsConstant ? "const " : string.Empty)}{declared.Type} {declared.Name} = {Expression(declared.Value)}",
         TreeStatement.Advance advanced => $"{Expression(advanced.Target)} {(advanced.IsSubtracted ? "-=" : "+=")} {Expression(advanced.Amount)}",
         TreeStatement.Decrement decremented => Expression(decremented.Target) + "--",
         _ => throw new ArgumentOutOfRangeException(nameof(statement)),

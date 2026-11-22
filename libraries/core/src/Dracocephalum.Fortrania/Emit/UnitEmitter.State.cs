@@ -128,15 +128,18 @@ internal sealed partial class UnitEmitter
         ? long.Parse(LengthOf(symbol), CultureInfo.InvariantCulture)
         : symbol.Type.Type.GetStorageSize();
 
-    private string KeptDeclaration(Symbol symbol) => PlacedDeclaration(symbol, "_state", _offsets[symbol.Name]);
+    private TreeStatement.Declare KeptDeclaration(Symbol symbol) => PlacedDeclaration(symbol, "_state", _offsets[symbol.Name]);
 
     // Declares a variable as a pointer to its place in a block of bytes.
-    private static string PlacedDeclaration(Symbol symbol, string block, long place)
+    private static TreeStatement.Declare PlacedDeclaration(Symbol symbol, string block, long place)
     {
         var type = symbol.Type!.Type.ToCSharpStorageType();
         var name = symbol.Name.ToCSharpLocal();
-        var offset = place.ToString(CultureInfo.InvariantCulture);
-        return type == "byte" ? $"byte* {name} = {block} + {offset};" : $"{type}* {name} = ({type}*)({block} + {offset});";
+        var address = Add(Plus(new TreeExpression.Local(block)), Plus(new TreeExpression.Integer(place)));
+        return new TreeStatement.Declare(
+            type + "*",
+            name,
+            type == "byte" ? address : new TreeExpression.Converted(type + "*", new TreeExpression.Grouped(address)));
     }
 
     // The field that holds the unit's block, and the method that hands the
@@ -161,7 +164,7 @@ internal sealed partial class UnitEmitter
         WriteData(data, named);
         foreach (var symbol in named)
         {
-            file.Line(KeptDeclaration(symbol));
+            file.Line(CSharpStatementWriter.WriteLine(KeptDeclaration(symbol))!);
         }
 
         file.Lines(data);
@@ -173,7 +176,7 @@ internal sealed partial class UnitEmitter
 
     // The lines that open a method that names kept variables. A method that
     // names none does not ask for the block.
-    private void WriteStateAccess(CodeWriter file)
+    private void WriteStateAccess(List<TreeStatement> file)
     {
         var kept = _table.Symbols.Where(symbol => IsKept(symbol) && _named.Contains(symbol)).ToList();
         if (kept.Count == 0)
@@ -181,15 +184,16 @@ internal sealed partial class UnitEmitter
             return;
         }
 
-        file.Line($"byte* _state = {StateField};");
-        file.Open("if (_state == null)");
-        file.Line($"_state = {StateLoader}();");
-        file.Close();
+        var state = new TreeExpression.Local("_state");
+        file.Add(new TreeStatement.Declare("byte*", state.Name, new TreeExpression.Local(StateField)));
+        file.Add(new TreeStatement.If(
+        [
+            new TreeStatement.Branch(
+                new TreeExpression.Binary(TreeExpression.Operation.Equal, state, new TreeExpression.Null()),
+                [new TreeStatement.Assign(state, new TreeExpression.Call(StateLoader, []))]),
+        ]));
 
-        foreach (var symbol in kept)
-        {
-            file.Line(KeptDeclaration(symbol));
-        }
+        file.AddRange(kept.Select(KeptDeclaration));
     }
 
     // One element, or part of one, that a DATA statement gives a value.
