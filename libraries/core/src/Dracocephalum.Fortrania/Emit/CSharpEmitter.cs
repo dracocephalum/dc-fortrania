@@ -47,8 +47,13 @@ public sealed class CSharpEmitter
     /// what the program's libraries share. The class is complete with this
     /// file and one per program unit.
     /// </summary>
+    /// <param name="region">
+    /// What the library is to ask of its context for its project's working
+    /// buffers, where its units were written to keep them wherever the
+    /// context says; nothing where they keep them on the stack.
+    /// </param>
     /// <returns>The text of a C# source file.</returns>
-    public string EmitClass()
+    public string EmitClass(LibraryRegion? region = null)
     {
         var name = _options.ClassName;
         var file = new CodeWriter();
@@ -79,6 +84,10 @@ public sealed class CSharpEmitter
         file.Line("private readonly FortranContext _context;");
         file.Line("private readonly StateMemory _memory;");
         file.Line("private readonly FortranIO _io;");
+        if (region is not null)
+        {
+            file.Line($"private readonly BufferRegion {WorkingBuffersPass.RegionField};");
+        }
 
         // Another library of the program is asked of the context when it
         // is first called, which makes it if nothing has, and not when
@@ -103,6 +112,16 @@ public sealed class CSharpEmitter
         file.Line("_context = context;");
         file.Line("_memory = context.Memory;");
         file.Line("_io = context.IO;");
+        if (region is not null)
+        {
+            // Every library of a project asks for the same region, and the
+            // context lays it out after those of the projects that call in.
+            var refersTo = string.Join(", ", region.RefersTo.Select(name => $"\"{name}\""));
+            file.Line(string.Create(
+                System.Globalization.CultureInfo.InvariantCulture,
+                $"{WorkingBuffersPass.RegionField} = context.Working.Register(\"{region.Project}\", {region.OwnBytes}, {region.ReachBytes}, [{refersTo}], WorkingBuffers.Default);"));
+        }
+
         file.Line("context.Add(this);");
         file.Close();
         file.Blank();
@@ -144,5 +163,22 @@ public sealed class CSharpEmitter
         ArgumentNullException.ThrowIfNull(table);
 
         return new UnitEmitter(table, _options, _findProcedure, sourceFile).Emit();
+    }
+
+    /// <summary>
+    /// Writes a unit again so that a context chooses where its procedures
+    /// keep their working buffers: on the stack, or each at its place in
+    /// the project's region of the context's block. The class is then to
+    /// be written with the region, by <see cref="EmitClass"/>.
+    /// </summary>
+    /// <param name="unit">A unit as <see cref="EmitUnit"/> gave it.</param>
+    /// <param name="placeOf">Where a procedure's buffers start in its project's region, by the procedure's name; nothing for one that is to keep the stack.</param>
+    /// <returns>The text of a C# source file.</returns>
+    public static string WriteWithPlaces(EmittedUnit unit, Func<string, long?> placeOf)
+    {
+        ArgumentNullException.ThrowIfNull(unit);
+        ArgumentNullException.ThrowIfNull(placeOf);
+
+        return unit.File is { } file ? CSharpFileWriter.Write(WorkingBuffersPass.Apply(file, placeOf)) : unit.Text;
     }
 }

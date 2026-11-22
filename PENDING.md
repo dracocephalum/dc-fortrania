@@ -846,18 +846,41 @@ by a choice of the context.
   would spoil the next routine's buffer and show as a wrong answer. A
   procedure's address is never kept in the block.
 
-**Built so far: the places.** A translation works out where each
-procedure's buffers would start in a region of its project's own,
-`StackUse.Place`, and what each project needs,
-`TranslationResult.WorkingRegions`; nothing is emitted from them yet. A
-procedure starts where the buffers of its deepest caller by name in its
-own project end; one on a chain that comes back to itself gets no place
-and keeps the stack. For the reference sources every one of 2,761
-procedures has a place: the toolkit's region is 73,056 bytes and its
-test program's 40,472, so a context that runs the test program needs
-113,528 for each level.
+**Built: a context chooses, and translated code follows.** `DESIGN.md` has
+it under *Where a method keeps its working buffers is the context's to
+say*. A translation works out each procedure's place in its project's
+region, `StackUse.Place`, and what each project needs,
+`TranslationResult.WorkingRegions`; a pass over the program tree has each
+method with buffers take them as one piece, from the stack or from its
+place; each library asks its context for its project's region when it is
+made; and a forwarder moves the context to the next level and back. For
+the reference sources every one of 2,761 procedures has a place, the
+toolkit's region is 73,128 bytes and its test program's 40,488, and all
+400 test families give the same in either mode, the one that times
+itself apart.
 
-**How the rest is to go, which changes three things below.**
+**Not built, of what this section decides or plans:**
+
+- A translation fixed to one mode, with no test on entry. The context
+  already refuses a library translated for the other mode than it asks
+  for; nothing yet makes such a library.
+- What a statement function takes stays on the stack in both modes, a
+  few bytes for a value on its way.
+- Arrays kept in a unit's block only for being too large for the stack
+  are still there, and not on the working side.
+- The page that cannot be touched at each end of a block, and the known
+  value after each method's buffers under the setting that clears or
+  fills every local.
+- The check for a routine with saved state that is entered while it is
+  running.
+- A procedure the host passes: it reaches translated code through no
+  forwarder, so the managed layer is to enter and leave a level for it.
+- The comparison to the last digit with the reference compiler's build,
+  which was not run again in the block's mode, and the depth the stack
+  really reaches in each.
+- The allocator in two layers; a block comes straight from the system.
+
+**How it differs from what follows, which was written first.**
 
 - **A project's places are its own**, worked out from that project
   alone, so that a library is translated once and used by any program,
@@ -1197,6 +1220,45 @@ faster form of our own, or `Math.FusedMultiplyAdd` where the reference
 compiler multiplies and adds apart, would give that up. A form of our own
 that gives the same results on every platform would be a variance to
 offer, not a measurement to make.
+
+## Messages in other languages
+
+Not designed yet; what follows is the idea and what it has to answer. A
+program's messages are character constants in its source. A translation
+could give each one a number, write them all to a file beside the code,
+and have the program ask the runtime for the text of that number in the
+context's language, with the constant itself as the answer where there is
+none. Languages are then made after the translation and apart from it,
+as assemblies or files of their own.
+
+**What makes it possible.** A character value is an address and a length
+already, so a message of another length is passed as easily as the
+constant; and constants are joined when translating, so a message
+written across continuation lines is one text to translate.
+
+**What it has to answer.**
+
+- **Which constants are messages.** Most are not: a keyword compared
+  with, a name looked up, a format, a file name. To translate one of
+  those is to break the program. So the settings are to say where
+  messages are, the argument of a procedure that takes one, the first of
+  the reference sources' `SETMSG` say, and nothing is taken for a
+  message that the settings do not name.
+- **A number that lasts.** One that counts constants in order changes
+  when a source does, and every translation made so far with it. A
+  number worked out from the text, and from where it is used if the same
+  text is to be told apart, stays with its message.
+- **No cost where it is not used.** A translation without the setting
+  writes the constant as now. With it, a context that has no language
+  gives the constant back after one test; one that has a language looks
+  the number up in a table, which is to be an index and not a search.
+- **Bytes, not characters.** The runtime's text is UTF-8 bytes, and a
+  FORTRAN program cuts, pads and wraps by the byte. A message in another
+  script can be cut inside a character or wrapped at the wrong width,
+  and a longer one is cut where it is stored in a variable of fixed
+  length.
+- **The language is the context's**, as its files and its console are,
+  and not the thread's.
 
 ## Back ends beyond C# source
 

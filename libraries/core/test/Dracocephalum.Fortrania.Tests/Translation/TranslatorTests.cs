@@ -745,6 +745,118 @@ public sealed class TranslatorTests : IDisposable
     }
 
     [Fact]
+    public void Run_WhenProceduresHaveBuffers_ShouldLetAContextKeepThemOnTheStackOrInItsBlockWithTheSameResult()
+    {
+        // Arrange: TOP passes F to RUNF, which calls it while its own array
+        // holds what it reads afterwards. F fills an array and has SUMUP
+        // add it up from a copy. Were F to lie where RUNF does, RUNF would
+        // read what F wrote.
+        Put("core/buffers.f", """
+                  SUBROUTINE TOP ( R )
+                  DOUBLE PRECISION R, A ( 10 ), F
+                  EXTERNAL F
+                  INTEGER I
+                  DO I = 1, 10
+                     A ( I ) = I
+                  END DO
+                  CALL RUNF ( F, A, R )
+                  R = R + A ( 10 )
+                  END
+
+                  SUBROUTINE RUNF ( G, A, R )
+                  DOUBLE PRECISION G, A ( 10 ), R, W ( 20 )
+                  EXTERNAL G
+                  INTEGER I
+                  DO I = 1, 20
+                     W ( I ) = 2 * I
+                  END DO
+                  R = G ( A ( 3 ) )
+                  R = R + W ( 20 ) + W ( 1 )
+                  END
+
+                  DOUBLE PRECISION FUNCTION F ( Y )
+                  DOUBLE PRECISION Y, V ( 30 ), S
+                  INTEGER I
+                  DO I = 1, 30
+                     V ( I ) = Y * I
+                  END DO
+                  CALL SUMUP ( V, S )
+                  F = S
+                  END
+
+                  SUBROUTINE SUMUP ( V, S )
+                  DOUBLE PRECISION V ( 30 ), S, B ( 30 )
+                  CHARACTER*12 TAG
+                  INTEGER I
+                  TAG = 'SUM'
+                  S = 0
+                  DO I = 1, 30
+                     B ( I ) = V ( I )
+                  END DO
+                  DO I = 1, 30
+                     S = S + B ( I )
+                  END DO
+                  IF ( TAG .NE. 'SUM' ) S = -1
+                  END
+            """);
+        const string Driver =
+            """
+            using Dracocephalum.Fortrania.Runtime;
+
+            namespace Translated;
+
+            public static unsafe class Driver
+            {
+                public static double RunOnStack() => Run(WorkingBuffers.Stack).Result;
+
+                public static double RunInBlock() => Run(WorkingBuffers.Block).Result;
+
+                public static long BlockBytesOnStack() => Run(WorkingBuffers.Stack).BlockBytes;
+
+                public static long BlockBytesInBlock() => Run(WorkingBuffers.Block).BlockBytes;
+
+                private static (double Result, long BlockBytes) Run(WorkingBuffers place)
+                {
+                    using var context = new FortranContext(new FortranContextOptions { WorkingBuffers = place });
+                    double result = 0;
+                    context.Get<Example.Toolkit.Core>().TOP(&result);
+                    return (result, context.Working.BlockBytes);
+                }
+            }
+            """;
+
+        // Act
+        var result = Translator.Run(Settings(Project("Example.Toolkit", Source("Core", "core/*.f"))), _root);
+
+        // Assert
+        result.Succeeded.ShouldBeTrue();
+
+        // TOP and RUNF one after the other, F at the top of a level of its
+        // own and SUMUP after it: 240 bytes for F, then 240 and 12 more.
+        result.StackUse.ToDictionary(use => use.Procedure, use => use.Place).ShouldBe(
+            new Dictionary<string, long?> { ["TOP"] = 0, ["RUNF"] = 80, ["F"] = 0, ["SUMUP"] = 240 },
+            ignoreOrder: true);
+        result.WorkingRegions.ShouldBe([new WorkingRegion("Example.Toolkit", 496, 496)]);
+
+        var runf = Text("out/Example.Toolkit/Generated/Core/RUNF.g.cs");
+        runf.ShouldContain("byte* _locals = _working.Start + 80;");
+        runf.ShouldContain("if (_working.IsOnStack)");
+        runf.ShouldContain("byte* _onStack = stackalloc byte[160];");
+        runf.ShouldContain("double* w = (double*)_locals;");
+        Text("out/Example.Toolkit/Generated/Core/SUMUP.g.cs").ShouldContain("byte* tag = _locals + 240;");
+        Text("out/Example.Toolkit/Generated/Core/Core.g.cs")
+            .ShouldContain("_working = context.Working.Register(\"Example.Toolkit\", 496, 496, [], WorkingBuffers.Default);");
+
+        var compiled = TranslatedProgram.FromSources(
+            Directory.GetFiles(Path.Combine(_root, "out"), "*.cs", SearchOption.AllDirectories).Select(File.ReadAllText).Append(Driver));
+        const double Expected = (3 * 465) + 40 + 2 + 10;
+        compiled.Run<double>("RunOnStack").ShouldBe(Expected);
+        compiled.Run<double>("RunInBlock").ShouldBe(Expected);
+        compiled.Run<long>("BlockBytesOnStack").ShouldBe(0);
+        compiled.Run<long>("BlockBytesInBlock").ShouldBe(496);
+    }
+
+    [Fact]
     public void Run_WhenAUnitHasEntryPoints_ShouldCountEachByWhatItsOwnStatementsTakeAndCall()
     {
         // Arrange: only KEEP names the array, and only PEEK calls LEAF.

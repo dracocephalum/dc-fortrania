@@ -77,8 +77,8 @@ undecided adds it here rather than mentioning it once in a conversation.
       of one.
 
 - [ ] **The block of working memory has nothing around it.** The runtime
-      has the block, `WorkingMemory`, with its regions and its levels; no
-      translated code uses it yet. A page that cannot be touched at each
+      has the block, `WorkingMemory`, with its regions and its levels, and
+      translated code keeps its buffers there where a context says. A page that cannot be touched at each
       end of a block is decided and not built: it needs the operating
       system's own calls to protect memory, one way on Windows and
       another elsewhere, which the runtime has none of so far. Close by:

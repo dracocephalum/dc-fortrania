@@ -9,4 +9,9 @@ public sealed record EmittedUnit(
     string Text,
     IReadOnlyList<EmittedMethod> Methods,
     IReadOnlyList<UnalignedVariable> UnalignedVariables,
-    IReadOnlyList<WidenedArgument> WidenedArguments);
+    IReadOnlyList<WidenedArgument> WidenedArguments)
+{
+    // The unit as a tree, which the text was written from, for a pass to be
+    // made over it once what the pass needs is known of the whole program.
+    internal TreeFile? File { get; init; }
+}

@@ -145,7 +145,7 @@ internal sealed partial class UnitEmitter
 
         // Where control runs on from one entry point into the next, both
         // methods hold the statements after the second, and so their calls.
-        return new EmittedUnit(CSharpFileWriter.Write(file), _methods, _unaligned, [.. _widened.Distinct()]);
+        return new EmittedUnit(CSharpFileWriter.Write(file), _methods, _unaligned, [.. _widened.Distinct()]) { File = file };
     }
 
     // The statement that names the method, where there is one, gives the
@@ -209,7 +209,10 @@ internal sealed partial class UnitEmitter
             signature,
             _preamble.Statements,
             declarations,
-            _body.Statements));
+            _body.Statements)
+        {
+            Procedure = name,
+        });
         _methods.Add(new EmittedMethod(
             name,
             _stackBytes,

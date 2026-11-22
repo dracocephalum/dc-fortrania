@@ -253,6 +253,39 @@ it never set is wrong in FORTRAN as well, and gets whatever the stack
 held, which may differ from one call to the next. What a unit keeps
 between calls is not touched by this, and is still handed out zeroed.
 
+**Where a method keeps its working buffers is the context's to say.** The
+stack is the fastest place and needs a thread whose stack is deep enough,
+some 90 KB for the reference sources beside what the just-in-time
+compiler takes; a thread that was given a small one cannot run them. So a
+context has a setting, and a method with arrays or character variables
+takes them as one piece: from the stack, or from a place in a block the
+context holds, by one test on entry. A method with scalars alone has
+nothing to choose, and scalars are ordinary locals whichever is chosen:
+they are few bytes, and a local can live in a register where a place in a
+block cannot.
+
+- **A place is fixed when a program is translated.** FORTRAN 77 has no
+  recursion, so a procedure can start where the buffers of its deepest
+  caller end. Nothing is taken or given back on a call and nothing is to
+  be undone after an exception.
+- **Each project has a region of its own**, laid out from that project's
+  calls by name alone, so that a library is translated once and serves
+  any program. The context puts the regions one after another, a
+  project's after those of every project that can call into it, and has
+  room for all a call can reach before anything runs, since each project
+  says what it reaches.
+- **A procedure called through an argument runs at a level of its own**:
+  the forwarder that reaches it moves the context to another block and
+  back. Such a procedure may call back into a library whose chain is
+  still running, which no layout of one project can foresee. How deep
+  the levels go is the host's to limit, 16 unless it says otherwise.
+
+It was measured before it was built, with the shapes written by hand: the
+test on entry costs a tenth to a third of a method that does nothing, and
+nothing that can be told from noise in one that does fifty nanoseconds of
+work. `PENDING.md`, *How much goes on the stack is a setting*, has the
+figures and what is not built.
+
 **A translation says how much stack each procedure can take.** The emitter
 counts what each method takes with `stackalloc` and which procedures it
 calls, passes and calls through an argument; the translator follows the

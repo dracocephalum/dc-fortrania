@@ -1,0 +1,125 @@
+namespace Dracocephalum.Fortrania.Emit;
+
+/// <summary>
+/// The pass that lets a context choose where a method keeps its working
+/// buffers. A method that takes buffers from the stack, each by itself,
+/// comes out taking them as one piece: from the stack, or from its place
+/// in its project's region of the context's block, by a test on entry.
+/// </summary>
+/// <remarks>
+/// <para>
+/// A method with no buffers is left as it is, and so tests nothing; its
+/// scalars are ordinary locals in either case. So is a method that has no
+/// place, one on a chain of calls that comes back to itself, which keeps
+/// the stack. What a statement function takes is left on the stack too:
+/// it is a local function, a few bytes for a value on its way.
+/// </para>
+/// <para>
+/// <c>PENDING.md</c>, <em>How much goes on the stack is a setting</em>, has
+/// the measurements behind the shape: the test costs nothing that can be
+/// measured in a method that works, and one piece costs what several do.
+/// </para>
+/// </remarks>
+internal static class WorkingBuffersPass
+{
+    /// <summary>The field of a library that holds its project's region.</summary>
+    public const string RegionField = "_working";
+
+    private const string Piece = "_locals";
+    private const string OnStack = "_onStack";
+
+    /// <summary>Gives the bytes a method's piece takes: what its buffers take together, up to a multiple of 8.</summary>
+    /// <param name="stackBytes">What the method takes from the stack as it is written before the pass.</param>
+    public static long PieceBytes(long stackBytes) => (stackBytes + 7) / 8 * 8;
+
+    /// <summary>Rewrites the methods of a file that have a place.</summary>
+    /// <param name="file">The file as the emitter made it.</param>
+    /// <param name="placeOf">Where a procedure's piece starts in its project's region, by the procedure's name; nothing for one that has no place.</param>
+    public static TreeFile Apply(TreeFile file, Func<string, long?> placeOf) =>
+        file with { Members = [.. file.Members.Select(member => member is TreeMethod { Procedure: { } procedure } method && placeOf(procedure) is { } place ? Apply(method, place) : member)] };
+
+    private static TreeMethod Apply(TreeMethod method, long place)
+    {
+        var buffers = method.Declarations
+            .OfType<TreeStatement.Declare>()
+            .Where(declared => declared.Value is TreeExpression.StackAllocation)
+            .ToList();
+        if (buffers.Count == 0)
+        {
+            return method;
+        }
+
+        // The widest elements first, so that each lies at a multiple of
+        // its own size with nothing left empty between them.
+        var offsets = new Dictionary<TreeStatement.Declare, long>();
+        long size = 0;
+        foreach (var buffer in buffers.OrderByDescending(ElementBytes))
+        {
+            offsets[buffer] = size;
+            size += ElementBytes(buffer) * ((TreeExpression.StackAllocation)buffer.Value).Count;
+        }
+
+        var piece = new TreeExpression.Local(Piece);
+        var onStack = new TreeExpression.Local(OnStack);
+        var region = new TreeExpression.Local(RegionField + ".Start");
+        var declarations = new List<TreeStatement>();
+        foreach (var declaration in method.Declarations)
+        {
+            if (declaration is not TreeStatement.Declare { Value: TreeExpression.StackAllocation taken } buffer)
+            {
+                declarations.Add(declaration);
+                continue;
+            }
+
+            if (buffer == buffers[0])
+            {
+                // The place in the block first, and the stack in its stead
+                // where the context says so: a pointer may be given what
+                // is taken from the stack only where it is declared.
+                declarations.Add(new TreeStatement.Declare("byte*", Piece, At(region, place)));
+                declarations.Add(new TreeStatement.If(
+                [
+                    new TreeStatement.Branch(
+                        new TreeExpression.Local(RegionField + ".IsOnStack"),
+                        [
+                            new TreeStatement.Declare("byte*", OnStack, new TreeExpression.StackAllocation("byte", PieceBytes(size))),
+                            new TreeStatement.Assign(piece, onStack),
+                        ]),
+                ]));
+            }
+
+            var address = At(piece, offsets[buffer]);
+            declarations.Add(buffer with
+            {
+                Value = taken.Type == "byte" ? address : new TreeExpression.Converted(buffer.Type, Group(address)),
+            });
+
+            // What was to be zero when taken is set so, since neither the
+            // piece nor the block is.
+            if (taken.IsZeroed)
+            {
+                for (long element = 0; element < taken.Count; element++)
+                {
+                    declarations.Add(new TreeStatement.Assign(
+                        new TreeExpression.Indexed(new TreeExpression.Local(buffer.Name), new TreeExpression.Integer(element)),
+                        new TreeExpression.Integer(0)));
+                }
+            }
+        }
+
+        return method with { Declarations = declarations };
+    }
+
+    private static TreeExpression At(TreeExpression start, long offset) => offset == 0
+        ? start
+        : new TreeExpression.Sum([new(start), new(new TreeExpression.Integer(offset))]);
+
+    private static TreeExpression Group(TreeExpression address) => address is TreeExpression.Sum ? new TreeExpression.Grouped(address) : address;
+
+    private static long ElementBytes(TreeStatement.Declare buffer) => ((TreeExpression.StackAllocation)buffer.Value).Type switch
+    {
+        "byte" => 1,
+        "int" or "float" => 4,
+        _ => 8,
+    };
+}
