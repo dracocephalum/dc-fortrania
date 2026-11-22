@@ -1001,9 +1001,35 @@ and neither is decided:
   may not be worth offering at run time: the block for every method, or
   the mode fixed when translating, would each leave no test on entry.
 
-To be done before either is taken: the same on routines of the toolkit's
-own size, where the entry is a smaller part, and with tiered compilation
-as a long-running program has it.
+**And with a method that does some work**, the two shapes translated code
+has most and has largest, each against what is written today:
+
+| Shape | Against today's |
+|---|---|
+| a scalar passed on by its address: an ordinary local, `&count` | 15% faster |
+| the same scalar in the block | 4% slower, 25% in one run of three |
+| ten arrays of 17,600 bytes together, the most a routine takes: one `stackalloc` and not ten | the same |
+| the same ten arrays in the block | 4% to 5% faster |
+
+- **A scalar that is passed on is better an ordinary local**, whatever
+  the mode: today it is a `stackalloc` of one element, which gives the
+  method the frame and the check every `stackalloc` brings. This is the
+  commonest shape there is, and it needs no setting.
+- **The block's lead is small once a method works**, some 5% for a call
+  that does a few tens of nanoseconds of work, and a scalar is slower
+  there than on the stack.
+- **Ten pieces or one makes no difference** to the time.
+
+So the stack remains the place for scalars in either mode, and what the
+block would hold is the arrays and character variables. A method in the
+block's mode still takes from the stack what every method does: its
+return address, the registers it saves, its scalars and the room for the
+arguments of what it calls, some tens of bytes that differ from method to
+method.
+
+To be done before a shape is taken: the same with tiered compilation as a
+long-running program has it, and on the toolkit's own routines once the
+translator can write the shape.
 
 ## Measurements waiting for a benchmark project
 
