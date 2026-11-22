@@ -88,21 +88,6 @@ internal sealed partial class UnitEmitter
         _line = (table.Unit.Header ?? table.Unit.End).Source.Line;
     }
 
-    // Binding strength of a C# expression, weakest first, so that a part is
-    // put in parentheses exactly where the whole would otherwise regroup it.
-    private enum Level
-    {
-        Conditional,
-        Or,
-        And,
-        Equality,
-        Relational,
-        Additive,
-        Multiplicative,
-        Unary,
-        Primary,
-    }
-
     public EmittedUnit Emit()
     {
         var isFunction = _table.Unit.Header?.Statement switch
@@ -591,8 +576,26 @@ internal sealed partial class UnitEmitter
 
     // A piece of C# with what is needed to join it to another: the type of
     // its value, and how strongly it holds together.
-    private readonly record struct Code(string Text, DataType Type, Level Level, string? Length = null)
+    // A value on its way into the method being written: its expression in
+    // the program tree, the FORTRAN type it has, and for a character value
+    // its length beside its address.
+    private readonly record struct Code(TreeExpression Node, DataType Type, TreeExpression? LengthNode = null)
     {
-        public string At(Level needed) => Level >= needed ? Text : $"({Text})";
+        // For the parts of the emitter that still write text: the text
+        // travels in the tree as it is, with how strongly it binds. A
+        // length that comes as text says nothing of that, and is taken to
+        // bind least.
+        public Code(string text, DataType type, Level level, string? length = null)
+            : this(new TreeExpression.Raw(text, level), type, length is null ? null : new TreeExpression.Raw(length, Level.Conditional))
+        {
+        }
+
+        public string Text => CSharpExpressionWriter.Write(Node);
+
+        public Level Level => CSharpExpressionWriter.LevelOf(Node);
+
+        public string? Length => LengthNode is null ? null : CSharpExpressionWriter.Write(LengthNode);
+
+        public string At(Level needed) => CSharpExpressionWriter.WriteAt(Node, needed);
     }
 }

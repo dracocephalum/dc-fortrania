@@ -1,0 +1,107 @@
+using Dracocephalum.Fortrania.Analysis;
+
+namespace Dracocephalum.Fortrania.Emit;
+
+/// <summary>
+/// An expression of the program tree: what a FORTRAN expression has become
+/// once the emitter has decided where every value lies and how it is
+/// reached, with nothing of FORTRAN left in it. A writer turns one into
+/// source text and decides nothing but spelling and parentheses; a pass
+/// takes one and gives another.
+/// </summary>
+/// <remarks>
+/// <c>PENDING.md</c>, <em>A tree between the analysis and the writers</em>,
+/// has the plan this is the first piece of. The emitter is moved over to it
+/// a part at a time, and what has not been moved yet travels as
+/// <see cref="Raw"/>.
+/// </remarks>
+internal abstract record TreeExpression
+{
+    private TreeExpression()
+    {
+    }
+
+    /// <summary>What a <see cref="Unary"/> or a <see cref="Binary"/> does.</summary>
+    internal enum Operation
+    {
+        Negate,
+        Not,
+        Add,
+        Subtract,
+        Multiply,
+        Divide,
+        Equal,
+        NotEqual,
+        Less,
+        LessOrEqual,
+        Greater,
+        GreaterOrEqual,
+        And,
+        Or,
+    }
+
+    /// <summary>A whole number known when translating.</summary>
+    internal sealed record Integer(long Value) : TreeExpression;
+
+    /// <summary>A real, double precision or logical value known when translating.</summary>
+    internal sealed record Number(Constant Value) : TreeExpression;
+
+    /// <summary>A local or a parameter of the method, or a constant it declares, by its name.</summary>
+    internal sealed record Local(string Name) : TreeExpression;
+
+    /// <summary>The bytes of ASCII text, kept in the assembly.</summary>
+    internal sealed record Utf8(string Text) : TreeExpression;
+
+    /// <summary>What lies at an address.</summary>
+    internal sealed record Dereference(TreeExpression Address) : TreeExpression;
+
+    /// <summary>The element so many elements on from an address.</summary>
+    internal sealed record Indexed(TreeExpression Address, TreeExpression Offset) : TreeExpression;
+
+    /// <summary>An operator with one operand.</summary>
+    internal sealed record Unary(Operation Operator, TreeExpression Operand) : TreeExpression;
+
+    /// <summary>
+    /// An operator with two operands, grouped as it is here: the operands
+    /// are the program's own, whose order of evaluation is kept.
+    /// </summary>
+    internal sealed record Binary(Operation Operator, TreeExpression Left, TreeExpression Right) : TreeExpression;
+
+    /// <summary>
+    /// Terms added and subtracted, in arithmetic of the translator's own
+    /// making, an address or a length or a position, where the grouping
+    /// does not matter and none is written.
+    /// </summary>
+    internal sealed record Sum(IReadOnlyList<Term> Terms) : TreeExpression;
+
+    /// <summary>Factors multiplied, in arithmetic of the translator's own making.</summary>
+    internal sealed record Product(IReadOnlyList<TreeExpression> Factors) : TreeExpression;
+
+    /// <summary>One of two values, by a condition.</summary>
+    internal sealed record Conditional(TreeExpression Condition, TreeExpression WhenTrue, TreeExpression WhenFalse) : TreeExpression;
+
+    /// <summary>A value converted to a type of the target language, named as that language names it.</summary>
+    internal sealed record Converted(string Type, TreeExpression Operand) : TreeExpression;
+
+    /// <summary>A call of a method by its name, the runtime's or the framework's.</summary>
+    internal sealed record Call(string Method, IReadOnlyList<TreeExpression> Arguments) : TreeExpression;
+
+    /// <summary>
+    /// A value in parentheses that are to be written whatever stands
+    /// around it: the program's own, which fix how a real expression is
+    /// evaluated, or the translator's around a part of its arithmetic.
+    /// </summary>
+    internal sealed record Grouped(TreeExpression Inner) : TreeExpression;
+
+    /// <summary>
+    /// Source text written by a part of the emitter that has not been
+    /// moved to the tree, with how strongly it binds. Nothing can be known
+    /// of it but that; the tree is complete when none is left.
+    /// </summary>
+    internal sealed record Raw(string Text, Level Level) : TreeExpression;
+
+    /// <summary>A term of a <see cref="Sum"/>.</summary>
+    /// <param name="Value">The term.</param>
+    /// <param name="IsSubtracted">Whether it is taken away and not added.</param>
+    internal sealed record Term(TreeExpression Value, bool IsSubtracted = false);
+}
