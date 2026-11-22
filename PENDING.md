@@ -777,6 +777,42 @@ the emitter's own, 4,096 bytes; a place for joining that would be longer
 is refused. One library is to serve both a deep stack and a shallow one,
 by a choice of the context.
 
+**Decided, after the measurements at the end of this section:**
+
+- **One library, and the mode chosen when it runs.** A method that has
+  arrays or character variables tests its context's setting on entry; a
+  method with scalars alone has nothing to choose and tests nothing. The
+  test cost nothing that could be measured in a routine that works.
+- **Scalars stay ordinary locals on the stack in either mode.** They are
+  some 5 KB on the deepest chain of the reference sources, the compiler
+  can keep one in a register, which it cannot a place in the block, and
+  the code reads as it does now. So the heap mode leaves the stack the
+  scalars and what every call takes, an estimated 10 to 16 KB on that
+  chain against 85 to 90 KB in the stack mode.
+- **The context's setting has three values**: the stack, the block, and a
+  default, which is what a context has unless it is told. The default
+  means whatever the library was translated for, and the stack for a
+  library that serves both.
+- **A translation can be fixed to one mode, later.** A setting of the
+  translator's then writes each method in one shape, with no test on
+  entry, and the context's setting no longer chooses. A library fixed to
+  the stack needs the block only for what is over the limit.
+- **A context that asks for the mode a library was not translated for is
+  refused**, when the library is made over the context and not at a
+  call: each library checks for itself, so a context that asks for the
+  block fails as soon as a library that knows only the stack joins it.
+  Either mismatch throws, so that the setting never means something else
+  than it says.
+- **The block has a page that cannot be touched at each end**, so that
+  running off it faults at once; and under the setting that clears or
+  fills every local, a known value after each method's buffers, checked
+  when the method returns. The block is data, which a processor does not
+  run, and lies nowhere near a return address, so an overrun there cannot
+  turn a return aside as one on the stack can; what is lost is that the
+  stack's own check stops the program, where an overrun in the block
+  would spoil the next routine's buffer and show as a wrong answer. A
+  procedure's address is never kept in the block.
+
 **Two modes, chosen per context.** In the stack mode a method's buffers
 are on the stack, as now. In the heap mode they are at a fixed place in
 a block of working buffers that the context holds. Each method's buffers
@@ -977,10 +1013,69 @@ calls. So the stack mode fits the default stack of a .NET thread on
 desktop and server systems, a megabyte or more, with room to spare; the
 heap mode is for a thread that was given a small one, or a caller that is
 deep already, and leaves the thread's stack only the compiler's frames.
-Whether the heap mode is slower is for the benchmark project to say. It
-reuses its bytes as the stack does and fits in the second level of cache,
-and it clears nothing on entry, where `stackalloc` clears every buffer
-today: `EKFIND` clears 17,600 bytes on each call.
+**Measured, and the test on entry is what costs.** `tools/benchmarks` has
+the shapes written by hand, for a method that does next to nothing, which
+is where an entry weighs most, with a buffer of 64 bytes and one of 4,000.
+Against a method that takes its buffer from the stack and asks nothing:
+
+| Shape | 64 bytes | 4,000 bytes |
+|---|---|---|
+| tests the setting, takes from the stack | 11% to 35% slower | 28% slower |
+| tests the setting, takes from the block | 12% slower | 22% slower |
+| asks nothing, takes from the block | 11% to 21% faster | 12% faster |
+
+A figure repeats to a percent from run to run and moves by ten or twenty
+points with which other benchmarks are run beside it, since that decides
+where the compiled code lies; the ranges are what was seen, and only a
+direction that held throughout is taken from them. Two things follow:
+
+- **A `stackalloc` inside a branch is dearer than one at the top of a
+  method**, more than the test itself: the method that tests and then
+  takes from the stack is the slowest of the four. So one method body
+  serving both modes costs the stack mode a tenth to a third of a small
+  method's time, which is the mode nearly every caller would be in.
+- **The block alone is the fastest.** It takes nothing from the stack and
+  adjusts no stack pointer. If that holds for real routines, the choice
+  is worth fixing when translating, for a caller who wants the last of
+  it, since that leaves no test on entry.
+
+**And with a method that does some work**, the two shapes translated code
+has most and has largest, each against what is written today:
+
+| Shape | Against today's |
+|---|---|
+| a scalar passed on by its address, today an ordinary local and `&count`: in the block instead | 8% slower |
+| the same scalar as a `stackalloc` of one element | from 9% faster to 8% slower: not told apart |
+| ten arrays of 17,600 bytes together, the most a routine takes: one `stackalloc` and not ten | the same |
+| the same ten arrays in the block | 4% to 5% faster |
+| the ten arrays in a method that tests the setting, from the stack | the same |
+| the ten arrays in a method that tests the setting, from the block | the same, within 6% either way |
+
+- **A scalar stays an ordinary local in either mode.** It is what the
+  translator writes today, and the commonest shape there is; the block
+  was the slower place for it in every run.
+- **The block's lead cannot be seen once a method works**: some 5% for a
+  call that does a few tens of nanoseconds of work, which is less than
+  the figures move by themselves.
+- **Ten pieces or one makes no difference** to the time.
+- **The test on entry is lost in a method that works.** What cost a
+  method that does nothing a third of its time cannot be told from
+  nothing in one that does some fifty nanoseconds of work. So one library
+  that chooses when it runs costs nothing that was measured, provided
+  that only a method with arrays or character variables tests, and a
+  method with scalars alone has nothing to choose.
+
+So the stack remains the place for scalars in either mode, and what the
+block would hold is the arrays and character variables. A method in the
+block's mode still takes from the stack what every method does: its
+return address, the registers it saves, its scalars and the room for the
+arguments of what it calls, some tens of bytes that differ from method to
+method.
+
+Still to be measured, once the translator writes the shape: the same with
+tiered compilation as a long-running program has it, on the toolkit's own
+routines, and how deep the stack really goes in each mode, read at the
+bottom of the deepest chain.
 
 ## Measurements waiting for a benchmark project
 
@@ -990,18 +1085,6 @@ is written. These are the questions it is to answer first, each a change
 that is not to be made before it does. A question that is answered leaves
 this list, for `DESIGN.md` where the answer shaped the code.
 
-- **Short copies.** Character assignment and concatenation copy with the
-  framework's overlap-safe copy. Character values in FORTRAN are mostly
-  short, names and brief messages, and an earlier measurement of ours on an
-  older framework had a plain block copy 8% ahead at 20 bytes and slightly
-  behind at 100. Where the emitter knows two values cannot overlap, as when
-  joining into a place of its own, the plain copy could be written. A
-  first, disturbed measurement had it well ahead at most lengths from 4 to
-  100 bytes, with the candidate where it may have been compiled into the
-  benchmark; it is to be measured again against a control placed as it
-  is. It is worth a second entry in the runtime only where the translator
-  made the target itself, since two values that do overlap would then be
-  copied wrongly.
 - **Arguments by value.** Analysis says which arguments a procedure never
   writes; what passing those as values saves, against the pointer every
   argument is today, is not known.
@@ -1026,8 +1109,9 @@ this list, for `DESIGN.md` where the answer shaped the code.
   and the three like it, are loops over bytes in the runtime.
   `Span.IndexOf` and `SequenceCompareTo` are vectorized by .NET and give
   the same answers; whether that pays on values as short as FORTRAN's
-  mostly are is the question, beside *Short copies* above. The
-  comparisons and `INDEX` are on the framework's vectorized forms already.
+  mostly are was the question. The comparisons and `INDEX` are on the
+  framework's vectorized forms already, and `DESIGN.md` has what was
+  measured of copies and of equality.
 - **The toolkit's small vector and matrix routines.** `VDOT`, `MXV`,
   `MXM`, `VCRSS` and their like are the most called arithmetic of the
   toolkit, and the just-in-time compiler vectorizes no loop by itself.
