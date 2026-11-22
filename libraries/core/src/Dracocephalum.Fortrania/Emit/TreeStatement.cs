@@ -40,6 +40,9 @@ internal abstract record TreeStatement
     /// <summary>A value added to or taken from what an expression says, in place.</summary>
     internal sealed record Advance(TreeExpression Target, TreeExpression Amount, bool IsSubtracted = false) : TreeStatement;
 
+    /// <summary>One added to a local, in place.</summary>
+    internal sealed record Increment(TreeExpression Target) : TreeStatement;
+
     /// <summary>One taken from a local, in place.</summary>
     internal sealed record Decrement(TreeExpression Target) : TreeStatement;
 
@@ -58,8 +61,8 @@ internal abstract record TreeStatement
     /// <summary>
     /// A body repeated while a condition holds, with what is done once
     /// before, an <see cref="Assign"/> or a <see cref="Declare"/>, and
-    /// what is done after each turn, each an <see cref="Advance"/> or a
-    /// <see cref="Decrement"/>.
+    /// what is done after each turn, each an <see cref="Advance"/>, an
+    /// <see cref="Increment"/> or a <see cref="Decrement"/>.
     /// </summary>
     internal sealed record For(TreeStatement Start, TreeExpression Condition, IReadOnlyList<TreeStatement> Step, IReadOnlyList<TreeStatement> Body) : TreeStatement;
 

@@ -125,7 +125,7 @@ internal sealed partial class UnitEmitter
 
     // The bytes one element takes: for character data its length.
     private long ElementSize(Symbol symbol) => symbol.Type!.Type == DataType.Character
-        ? long.Parse(LengthOf(symbol), CultureInfo.InvariantCulture)
+        ? ConstantLengthOf(symbol)
         : symbol.Type.Type.GetStorageSize();
 
     private TreeStatement.Declare KeptDeclaration(Symbol symbol) => PlacedDeclaration(symbol, "_state", _offsets[symbol.Name]);
@@ -146,32 +146,32 @@ internal sealed partial class UnitEmitter
     // block out on the first call and stores the DATA values in it. The
     // method is kept out of line, so that every later call pays for a load
     // and a test and nothing more.
-    private void WriteState(CodeWriter file)
+    private TreeMember[] StateMembers()
     {
         if (_stateSize == 0)
         {
-            return;
+            return [];
         }
 
-        file.Line($"private byte* {StateField};");
-        file.Blank();
-        file.Line("[MethodImpl(MethodImplOptions.NoInlining)]");
-        file.Open($"private byte* {StateLoader}()");
-        file.Line(string.Create(CultureInfo.InvariantCulture, $"byte* _state = _memory.Allocate({_stateSize});"));
-
-        var data = new CodeWriter();
+        var state = new TreeExpression.Local("_state");
+        var data = new List<TreeStatement>();
         var named = new List<Symbol>();
         WriteData(data, named);
-        foreach (var symbol in named)
-        {
-            file.Line(CSharpStatementWriter.WriteLine(KeptDeclaration(symbol))!);
-        }
 
-        file.Lines(data);
-        file.Line($"{StateField} = _state;");
-        file.Line("return _state;");
-        file.Close();
-        file.Blank();
+        List<TreeStatement> body =
+        [
+            new TreeStatement.Declare("byte*", state.Name, new TreeExpression.Call("_memory.Allocate", [new TreeExpression.Integer(_stateSize)])),
+            .. named.Select(KeptDeclaration),
+            .. data,
+            new TreeStatement.Assign(new TreeExpression.Local(StateField), state),
+            new TreeStatement.Return(state),
+        ];
+
+        return
+        [
+            new TreeField("byte*", StateField),
+            new TreeMethod([], "byte*", StateLoader, [], [], [], body) { IsPublic = false, IsKeptOutOfLine = true },
+        ];
     }
 
     // The lines that open a method that names kept variables. A method that
@@ -199,7 +199,7 @@ internal sealed partial class UnitEmitter
     // One element, or part of one, that a DATA statement gives a value.
     private readonly record struct Initialized(Symbol Variable, long Element, int? First, int? Length, Constant Value);
 
-    private void WriteData(CodeWriter data, List<Symbol> named)
+    private void WriteData(List<TreeStatement> data, List<Symbol> named)
     {
         _line = (_table.Unit.Header ?? _table.Unit.End).Source.Line;
 
@@ -247,10 +247,10 @@ internal sealed partial class UnitEmitter
         && next.First is null
         && next.Value == last.Value;
 
-    private void WriteRun(CodeWriter data, Initialized first, int count, List<Symbol> named)
+    private void WriteRun(List<TreeStatement> data, Initialized first, int count, List<Symbol> named)
     {
         var type = first.Variable.Type!.Type;
-        var name = first.Variable.Name.ToCSharpLocal();
+        var name = new TreeExpression.Local(first.Variable.Name.ToCSharpLocal());
 
         // The block is zero when handed out, so a zero need not be stored.
         if (first.Value is Constant.Integer { Value: 0 } or Constant.Real { Value: 0f } or Constant.DoublePrecision { Value: 0.0 } or Constant.Logical { Value: false }
@@ -265,9 +265,6 @@ internal sealed partial class UnitEmitter
             named.Add(first.Variable);
         }
 
-        var element = first.Element.ToString(CultureInfo.InvariantCulture);
-        var times = count.ToString(CultureInfo.InvariantCulture);
-
         if (type == DataType.Character)
         {
             if (first.Value is not Constant.Character)
@@ -276,43 +273,50 @@ internal sealed partial class UnitEmitter
             }
 
             var value = Text(((Constant.Character)first.Value).Value);
-            var length = ElementSize(first.Variable).ToString(CultureInfo.InvariantCulture);
+            var size = ElementSize(first.Variable);
+            var length = new TreeExpression.Integer(size);
+
+            TreeStatement Stores(TreeExpression address, TreeExpression held) =>
+                new TreeStatement.Evaluate(Assigned(new Code(address, DataType.Character, held), value));
 
             if (first.First is { } position)
             {
-                var address = string.Create(CultureInfo.InvariantCulture, $"{name} + {(first.Element * ElementSize(first.Variable)) + position - 1}");
-                data.Line(string.Create(CultureInfo.InvariantCulture, $"{Runtime("Assign")}({address}, {first.Length}, {value.Text}, {value.Length});"));
+                var address = Add(Plus(name), Plus(new TreeExpression.Integer((first.Element * size) + position - 1)));
+                data.Add(Stores(address, new TreeExpression.Integer(first.Length!.Value)));
             }
             else if (count == 1)
             {
-                var address = first.Element == 0
-                    ? name
-                    : string.Create(CultureInfo.InvariantCulture, $"{name} + {first.Element * ElementSize(first.Variable)}");
-                data.Line($"{Runtime("Assign")}({address}, {length}, {value.Text}, {value.Length});");
+                data.Add(Stores(first.Element == 0 ? name : Add(Plus(name), Plus(new TreeExpression.Integer(first.Element * size))), length));
             }
             else
             {
-                data.Open(string.Create(CultureInfo.InvariantCulture, $"for (var _k = {first.Element}; _k < {first.Element + count}; _k++)"));
-                data.Line($"{Runtime("Assign")}({name} + _k * {length}, {length}, {value.Text}, {value.Length});");
-                data.Close();
+                // A run of elements that take one value: a loop over them.
+                var k = new TreeExpression.Local("_k");
+                var address = Add(Plus(name), Plus(new TreeExpression.Product([k, length])));
+                data.Add(new TreeStatement.For(
+                    new TreeStatement.Declare("var", k.Name, new TreeExpression.Integer(first.Element)),
+                    new TreeExpression.Binary(TreeExpression.Operation.Less, k, new TreeExpression.Integer(first.Element + count)),
+                    [new TreeStatement.Increment(k)],
+                    [Stores(address, length)]));
             }
 
             return;
         }
 
-        var stored = Initial(first.Value, type);
+        var stored = new TreeExpression.Number(Initial(first.Value, type));
         if (count < 4)
         {
             for (var index = 0; index < count; index++)
             {
-                data.Line(string.Create(CultureInfo.InvariantCulture, $"{name}[{first.Element + index}] = {stored};"));
+                data.Add(new TreeStatement.Assign(new TreeExpression.Indexed(name, new TreeExpression.Integer(first.Element + index)), stored));
             }
         }
         else
         {
-            var storage = type.ToCSharpStorageType();
-            var address = first.Element == 0 ? name : $"{name} + {element}";
-            data.Line($"new Span<{storage}>({address}, {times}).Fill({stored});");
+            // Longer runs are one fill.
+            TreeExpression address = first.Element == 0 ? name : Add(Plus(name), Plus(new TreeExpression.Integer(first.Element)));
+            var run = new TreeExpression.New($"Span<{type.ToCSharpStorageType()}>", [address, new TreeExpression.Integer(count)]);
+            data.Add(new TreeStatement.Evaluate(new TreeExpression.MemberCall(run, "Fill", [stored])));
         }
     }
 
@@ -325,9 +329,9 @@ internal sealed partial class UnitEmitter
 
     // A DATA value as it is stored in a variable of the given type, with
     // the conversion an assignment would make.
-    private string Initial(Constant value, DataType type)
+    private Constant Initial(Constant value, DataType type)
     {
-        Constant converted = (type, value) switch
+        return (type, value) switch
         {
             (DataType.Logical, Constant.Logical logical) => new Constant.Integer(logical.Value ? 1 : 0),
             (DataType.Integer, Constant.Integer) => value,
@@ -341,8 +345,6 @@ internal sealed partial class UnitEmitter
             (DataType.DoublePrecision, Constant.DoublePrecision) => value,
             _ => throw Unsupported("a DATA value of another type than its variable"),
         };
-
-        return converted.ToCSharpLiteral();
     }
 
     // Lists the elements a DATA statement names, in the order its values

@@ -6,43 +6,6 @@ namespace Dracocephalum.Fortrania.Emit;
 /// </summary>
 internal static class CSharpStatementWriter
 {
-    /// <summary>Writes methods one after another, a blank line apart.</summary>
-    public static void Write(CodeWriter text, IReadOnlyList<TreeMethod> methods)
-    {
-        for (var index = 0; index < methods.Count; index++)
-        {
-            if (index > 0)
-            {
-                text.Blank();
-            }
-
-            Write(text, methods[index]);
-        }
-    }
-
-    /// <summary>Writes a method, with the comments about it before it.</summary>
-    public static void Write(CodeWriter text, TreeMethod method)
-    {
-        Write(text, method.Comments);
-        text.Open($"public {method.ReturnType} {method.Name}({string.Join(", ", method.Parameters)})");
-        if (method.Preamble.Count > 0)
-        {
-            Write(text, method.Preamble);
-            text.Blank();
-        }
-
-        // Comments that open the code are a block of their own after what is
-        // declared, as anywhere else after code.
-        Write(text, method.Declarations);
-        if (method.Declarations.Count > 0 && method.Body is [TreeStatement.Comment, ..])
-        {
-            text.Blank();
-        }
-
-        Write(text, method.Body);
-        text.Close();
-    }
-
     /// <summary>Writes statements one after another, at the depth the text is at.</summary>
     public static void Write(CodeWriter text, IReadOnlyList<TreeStatement> statements)
     {
@@ -60,8 +23,8 @@ internal static class CSharpStatementWriter
         TreeStatement.Return { Value: null } => "return;",
         TreeStatement.Return returned => $"return {Expression(returned.Value!)};",
         TreeStatement.Throw thrown => $"throw {Expression(thrown.Exception)};",
-        TreeStatement.Evaluate or TreeStatement.Assign or TreeStatement.Declare or TreeStatement.Advance or TreeStatement.Decrement
-            => WriteInline(statement) + ";",
+        TreeStatement.Evaluate or TreeStatement.Assign or TreeStatement.Declare or TreeStatement.Advance
+            or TreeStatement.Increment or TreeStatement.Decrement => WriteInline(statement) + ";",
         _ => null,
     };
 
@@ -129,6 +92,7 @@ internal static class CSharpStatementWriter
         TreeStatement.Assign assigned => $"{Expression(assigned.Target)} = {Expression(assigned.Value)}",
         TreeStatement.Declare declared => $"{(declared.IsConstant ? "const " : string.Empty)}{declared.Type} {declared.Name} = {Expression(declared.Value)}",
         TreeStatement.Advance advanced => $"{Expression(advanced.Target)} {(advanced.IsSubtracted ? "-=" : "+=")} {Expression(advanced.Amount)}",
+        TreeStatement.Increment incremented => Expression(incremented.Target) + "++",
         TreeStatement.Decrement decremented => Expression(decremented.Target) + "--",
         _ => throw new ArgumentOutOfRangeException(nameof(statement)),
     };
