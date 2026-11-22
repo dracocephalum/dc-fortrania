@@ -107,6 +107,49 @@ public class CSharpExpressionWriterTests
     }
 
     [Fact]
+    public void Write_WhenAnAddressIsTakenAndCast_ShouldWriteTheCastBeforeTheAddress()
+    {
+        // Arrange
+        var element = new TreeExpression.Indexed(A, B);
+        var cast = new TreeExpression.Converted("double*", new TreeExpression.AddressOf(element));
+
+        // Act
+        var text = CSharpExpressionWriter.Write(cast);
+
+        // Assert
+        text.ShouldBe("(double*)&a[b]");
+    }
+
+    [Fact]
+    public void Write_WhenBitsAreCombined_ShouldGroupEachOperandThatIsAnOperation()
+    {
+        // Arrange
+        var sum = new TreeExpression.Binary(TreeExpression.Operation.Add, A, B);
+        var both = new TreeExpression.Binary(TreeExpression.Operation.BitAnd, sum, C);
+        var flipped = new TreeExpression.Unary(TreeExpression.Operation.Complement, both);
+
+        // Act & Assert
+        CSharpExpressionWriter.Write(both).ShouldBe("(a + b) & c");
+        CSharpExpressionWriter.Write(new TreeExpression.Binary(TreeExpression.Operation.BitXor, A, B)).ShouldBe("a ^ b");
+        CSharpExpressionWriter.Write(new TreeExpression.Binary(TreeExpression.Operation.BitOr, A, B)).ShouldBe("a | b");
+        CSharpExpressionWriter.Write(flipped).ShouldBe("~((a + b) & c)");
+    }
+
+    [Fact]
+    public void Write_WhenARemainderIsTakenOfARemainder_ShouldKeepTheRightOneGrouped()
+    {
+        // Arrange
+        var inner = new TreeExpression.Binary(TreeExpression.Operation.Remainder, B, C);
+        var remainder = new TreeExpression.Binary(TreeExpression.Operation.Remainder, A, inner);
+
+        // Act
+        var text = CSharpExpressionWriter.Write(remainder);
+
+        // Assert
+        text.ShouldBe("a % (b % c)");
+    }
+
+    [Fact]
     public void Write_WhenGivenConstants_ShouldWriteThemAsLiterals()
     {
         // Act & Assert

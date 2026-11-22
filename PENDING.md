@@ -739,13 +739,14 @@ expression with its FORTRAN type and for text its length, holds a tree
 where it held a string, and is written when a statement needs the text.
 What a FORTRAN expression is made of is built as tree: constants,
 variables, array elements and their offsets, substrings, the operators
-and powers. Three parts of the emitter still make text, which travels in
-the tree as a node that says only how strongly it binds: calls and
-intrinsic functions, 25 places; concatenation, 2; and a statement
-function's body, 1. Each is moved in a change of its own, and the
-expressions are done when no such node is made. The toolkit's 2,215
-translated files came out the same to the byte, and its translation took
-no longer.
+and powers, the intrinsic functions, and a call with its arguments. What
+still makes text travels in the tree as a node that says only how
+strongly it binds: concatenation and a character function's result, a
+statement function's body, a procedure passed as an argument, and a call
+through one. Each is moved in a change of its own, and the expressions
+are done when no such node is made. After each change the toolkit's
+2,215 translated files came out the same to the byte, and its
+translation took no longer.
 
 Two things the first piece settled:
 
