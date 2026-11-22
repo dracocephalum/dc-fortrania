@@ -857,6 +857,92 @@ public sealed class TranslatorTests : IDisposable
     }
 
     [Fact]
+    public void Run_WhenUnitsHaveCharacterConstants_ShouldKeepEachOnceInABlockOfTheLibrarysAndReachItThere()
+    {
+        // Arrange: a constant two units have, and one that holds what
+        // would end a note and what a literal has to escape, and that
+        // starts with a digit, which follows the zero bytes before it.
+        Put("core/text.f", """
+                  SUBROUTINE ONE ( S )
+                  CHARACTER*(*) S
+                  S = 'first'
+                  END
+
+                  SUBROUTINE TWO ( S, T )
+                  CHARACTER*(*) S, T
+                  S = 'first'
+                  T = '2*/"q'
+                  END
+
+                  INTEGER FUNCTION CHECK ( )
+                  CHARACTER*8 A, B, C
+                  CALL ONE ( A )
+                  CALL TWO ( B, C )
+                  CHECK = 0
+                  IF ( A .EQ. 'first' .AND. B .EQ. A ) CHECK = 1
+                  IF ( C .NE. '2*/"q' ) CHECK = 0
+                  END
+            """);
+        const string Driver =
+            """
+            using Dracocephalum.Fortrania.Runtime;
+
+            namespace Translated;
+
+            public static unsafe class Driver
+            {
+                public static int Check()
+                {
+                    using var context = new FortranContext();
+                    return context.Get<Example.Toolkit.Core>().CHECK();
+                }
+            }
+            """;
+
+        // Act
+        var result = Translator.Run(Settings(Project("Example.Toolkit", Source("Core", "core/*.f"))), _root);
+
+        // Assert: the units are given their places in the order of their
+        // files' names, CHECK before ONE before TWO.
+        result.Succeeded.ShouldBeTrue();
+        var one = Text("out/Example.Toolkit/Generated/Core/ONE.g.cs");
+        one.ShouldContain("byte* _text = _textBlock;");
+        one.ShouldContain("_text /* \"first\" */, 5);");
+        one.ShouldNotContain("u8");
+        Text("out/Example.Toolkit/Generated/Core/TWO.g.cs").ShouldContain("_text + 8 /* \"2* /\\\"q\" */, 5);");
+        Text("out/Example.Toolkit/Generated/Core/Core.Text.g.cs").ShouldContain("\"first\\0\\0\\02*/\\\"q\\0\\0\\0\"u8);");
+        Text("out/Example.Toolkit/Generated/Core/Core.g.cs").ShouldNotContain("_textBlock");
+
+        var compiled = TranslatedProgram.FromSources(
+            Directory.GetFiles(Path.Combine(_root, "out"), "*.cs", SearchOption.AllDirectories).Select(File.ReadAllText).Append(Driver));
+        compiled.Run<int>("Check").ShouldBe(1);
+    }
+
+    [Fact]
+    public void Run_WhenConstantsAreToBeWrittenWhereTheyAreUsed_ShouldWriteEachAsALiteralAndNoBlock()
+    {
+        // Arrange
+        Put("core/text.f", """
+                  SUBROUTINE ONE ( S )
+                  CHARACTER*(*) S
+                  S = 'first'
+                  END
+            """);
+        var settings = Settings(Project("Example.Toolkit", Source("Core", "core/*.f")));
+        settings.InlineTextConstants = true;
+
+        // Act
+        var result = Translator.Run(settings, _root);
+
+        // Assert
+        result.Succeeded.ShouldBeTrue();
+        var one = Text("out/Example.Toolkit/Generated/Core/ONE.g.cs");
+        one.ShouldContain("AddrOf(\"first\"u8), 5);");
+        one.ShouldNotContain("_text");
+        File.Exists(Path.Combine(_root, "out/Example.Toolkit/Generated/Core/Core.Text.g.cs")).ShouldBeFalse();
+    }
+
+    [Fact]
     public void Run_WhenAUnitHasEntryPoints_ShouldCountEachByWhatItsOwnStatementsTakeAndCall()
     {
         // Arrange: only KEEP names the array, and only PEEK calls LEAF.

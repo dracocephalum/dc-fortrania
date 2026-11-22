@@ -75,6 +75,9 @@ internal static class CSharpExpressionWriter
                 return $"{WriteAt(invoke.Target, Level.Primary)}({string.Join(", ", invoke.Arguments.Select(Write))})";
             case TreeExpression.Grouped grouped:
                 return $"({Write(grouped.Inner)})";
+            case TreeExpression.Noted noted:
+                // A note may hold anything but what would end it.
+                return $"{Write(noted.Inner)} /* {noted.Note.Replace("*/", "* /", StringComparison.Ordinal)} */";
 
             default:
                 throw new ArgumentOutOfRangeException(nameof(node));
@@ -106,6 +109,7 @@ internal static class CSharpExpressionWriter
         TreeExpression.Sum => Level.Additive,
         TreeExpression.Product => Level.Multiplicative,
         TreeExpression.Conditional => Level.Conditional,
+        TreeExpression.Noted noted => LevelOf(noted.Inner),
 
         _ => Level.Primary,
     };

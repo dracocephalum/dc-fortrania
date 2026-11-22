@@ -96,14 +96,15 @@ undecided adds it here rather than mentioning it once in a conversation.
       back when the outermost call returns. Close by: the bytes a
       level really uses measured over the reference sources' tests, and
       one of these taken if they are far below a block.
-- [ ] **A large method takes a large frame, whatever the setting for
-      working buffers.** Measured on the reference sources' test
-      program: a method of some 1,500 lines with 800 character constants
-      takes 68 KB of frame when optimized, and nine methods are past the
-      size at which the just-in-time compiler stops optimizing, which
-      leaves them frames of up to 130 KB and slow code. The library
-      itself has none such, its largest frame being 9 KB. Not found yet:
-      what in a translated statement leaves a slot of its own in the
-      frame, a constant's span or a value on its way to an argument.
-      Close by: finding that, and the translator writing it so that the
-      slots are shared, or parting a method past a size into several.
+- [ ] **A method too large for the just-in-time compiler to optimize
+      takes a large frame, whatever the setting for working buffers.**
+      Eight methods of the reference sources' test program are past the
+      size at which that compiler stops optimizing, which leaves them
+      slow code and frames of up to 25 KB; the library itself has none
+      such. There were nine, with frames of up to 130 KB, before a
+      library kept its character constants in one block. Not done
+      either: a method reaches another library of its program through a
+      property at each call, which is a call where the compiler's
+      allowance for writing in line is used up. Close by: parting a
+      method past a size into several, and the library taken once into
+      a local.

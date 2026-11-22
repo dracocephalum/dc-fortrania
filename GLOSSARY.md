@@ -35,6 +35,7 @@ where the code leans on it. Why something is as it is belongs in
 | Region | The part of a context's block that the procedures of one translated project keep their working buffers in, each at its place. |
 | Level | One block of a context's working memory. A procedure called through an argument runs at the next level, so that it meets no buffer of the chain that led to it. |
 | Program tree | A program unit once the emitter has decided how everything in it is done, with nothing of FORTRAN's left in it: a file of members, methods of statements, statements of expressions. It lies between the analysis and a writer. |
+| Text block | The character constants of one translated library, each once, as bytes its class keeps in the assembly. A method reaches a constant by where it starts in the block. |
 | Pass | A step that takes a program tree and gives one, an optimization or a lowering for a writer. |
 | Writer | What walks a program tree and writes one language's source, choosing only spelling and layout. |
 | Summary | What one program unit shows to the others: how it is called, and what it calls. Units are checked against each other by summaries, never by syntax trees. |

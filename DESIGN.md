@@ -253,6 +253,34 @@ it never set is wrong in FORTRAN as well, and gets whatever the stack
 held, which may differ from one call to the next. What a unit keeps
 between calls is not touched by this, and is still handed out zeroed.
 
+**A library keeps its character constants in one block.** A constant
+written where it is used, as a literal of bytes whose address is taken,
+is several calls for the just-in-time compiler to write in line, and
+that compiler writes only so many in line in one method. A method with
+some hundreds of constants uses the allowance up; from there on each
+constant is a call with a slot of its own in the method's frame, and
+every other small procedure of the runtime the method uses is a call
+too. Measured on the reference sources' test program, a method of 1,500
+lines took 68 KB of frame that way. So a pass gives each constant a
+place in a block that the library's class keeps, in a file of its own,
+and a method takes the block's address once and adds a number to it,
+with the constant written beside the number as a note:
+`_text + 310 /* "thu w" */`. The same method then takes 456 bytes.
+
+- **One block for a library, each constant once.** Units share a
+  constant they both have. The price is that a constant added to one
+  unit moves those after it, and the files of the units that use them
+  are written again.
+- **Each constant ends in a zero byte and the next starts on a multiple
+  of eight.** Nothing needs the zero, a length being passed with every
+  address; it keeps a read past the end from giving the next constant.
+- **The bytes are in the assembly**, as a literal's are, so nothing is
+  made when a program starts, and a procedure that stores into a
+  constant it was passed fails as it did.
+- **A setting writes them the old way**, `inlineTextConstants`: each
+  constant where it is used, as the FORTRAN has it, for a small program
+  or for whoever reads the translation.
+
 **Where a method keeps its working buffers is the context's to say.** The
 stack is the fastest place and needs a thread whose stack is deep enough,
 some 90 KB for the reference sources beside what the just-in-time

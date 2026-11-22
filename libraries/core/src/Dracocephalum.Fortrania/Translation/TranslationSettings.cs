@@ -24,6 +24,17 @@ public sealed class TranslationSettings
     public RuntimeSettings Runtime { get; set; } = new();
 
     /// <summary>
+    /// Gets or sets a value indicating whether each character constant is
+    /// written where it is used, as a literal of its own. Unless set, a
+    /// library keeps its constants in one block and a method reaches each
+    /// by its place there, with the constant beside it as a note. That is
+    /// what keeps a method with hundreds of constants fast and its frame
+    /// small; written where they are used, the constants read as the
+    /// FORTRAN does, which suits a small program.
+    /// </summary>
+    public bool InlineTextConstants { get; set; }
+
+    /// <summary>
     /// Gets or sets the variables a path may name as <c>$(Name)</c>, names
     /// compared without regard to case. Their values are the last of three
     /// places a value is looked for: the local settings file beside this
