@@ -754,7 +754,8 @@ knows which runtime a translation runs on. A component that is versioned
 apart carries a file of its own, found first; none does yet.
 
 What follows the number is not written anywhere. A build is one of three
-kinds, and says which: on a developer's machine, `0.1.0-dev`; the
+kinds, and says which: one that is published nowhere, on a developer's
+machine or for a pull request, `0.1.0-dev`; the
 pipeline's build of the default branch, `0.1.0-ci.42`, with the pipeline's
 own counter; a release, `0.1.0` and nothing after it. So no commit exists
 only to change a version for a build, and a version cannot be told what it
@@ -769,9 +770,15 @@ limited. Releases go to nuget.org and nothing else does: a version there
 is permanent, and whoever reads it should be able to take it for
 finished.
 
-**The pipeline is two jobs.** *Build and test* restores from the lock
-files, builds, runs the unit tests and packs; *Deploy* publishes exactly
-the packages the first job tested, and runs for the default branch only.
-Neither is given a secret: the registry beside the repository takes the
-run's own token, which may write this repository's packages and is gone
-when the run ends.
+**A pipeline for each kind, and they share their steps.** `dev` runs for
+a pull request: it restores from the lock files, builds and runs the
+unit tests, and has nothing that publishes, so nothing a pull request
+starts can reach a registry. `ci` runs for the default branch: the same
+steps, then it packs, and *Deploy* publishes exactly the packages that
+run tested. The steps are written once and both call them. Each names
+what it is started by: `dev` everything a build reads, `ci` what a
+package is built from, so a change to the tools or to tests alone is
+built and tested as a pull request and publishes nothing when it is
+merged. Neither is given a secret: the registry beside the repository
+takes the run's own token, which may write this repository's packages
+and is gone when the run ends.
