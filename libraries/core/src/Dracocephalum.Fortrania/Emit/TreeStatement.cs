@@ -24,8 +24,18 @@ internal abstract record TreeStatement
     /// <summary>A value stored where an expression says.</summary>
     internal sealed record Assign(TreeExpression Target, TreeExpression Value) : TreeStatement;
 
-    /// <summary>A local of the method declared, of a type the target language names, with its first value.</summary>
-    internal sealed record Declare(string Type, string Name, TreeExpression Value) : TreeStatement;
+    /// <summary>
+    /// A local of the method declared, of a type the target language names,
+    /// with its first value; or a constant, which keeps that value.
+    /// </summary>
+    internal sealed record Declare(string Type, string Name, TreeExpression Value, bool IsConstant = false) : TreeStatement;
+
+    /// <summary>
+    /// A function of the method's own, which a statement function becomes.
+    /// One that is static takes nothing of the instance. Each parameter is
+    /// its type and its name, as the target language declares one.
+    /// </summary>
+    internal sealed record LocalFunction(bool IsStatic, string ReturnType, string Name, IReadOnlyList<string> Parameters, IReadOnlyList<TreeStatement> Body) : TreeStatement;
 
     /// <summary>A value added to or taken from what an expression says, in place.</summary>
     internal sealed record Advance(TreeExpression Target, TreeExpression Amount, bool IsSubtracted = false) : TreeStatement;

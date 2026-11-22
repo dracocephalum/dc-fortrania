@@ -410,12 +410,16 @@ internal sealed partial class UnitEmitter
         }
     }
 
-    private void WriteDeclarations(CodeWriter file)
+    // What stands at the top of a method, before its statements: the
+    // constants it names, its kept variables, its locals and what it takes
+    // from the stack, and the local functions it refers to.
+    private void WriteDeclarations(CodeWriter text)
     {
+        var file = new List<TreeStatement>();
         foreach (var constant in _constantsUsed)
         {
             var type = ValueType(constant.Type!.Type);
-            file.Line($"const {type} {constant.Name.ToCSharpLocal()} = {_evaluator.ValueOf(constant).ToCSharpLiteral()};");
+            file.Add(new TreeStatement.Declare(type, constant.Name.ToCSharpLocal(), new TreeExpression.Number(_evaluator.ValueOf(constant)), IsConstant: true));
         }
 
         WriteStateAccess(file);
@@ -443,7 +447,7 @@ internal sealed partial class UnitEmitter
             var isText = symbol.Type.Type == DataType.Character;
             if (!symbol.IsArray && !isText)
             {
-                file.Line($"{type} {name} = 0;");
+                file.Add(new TreeStatement.Declare(type, name, Zero));
                 continue;
             }
 
@@ -455,32 +459,30 @@ internal sealed partial class UnitEmitter
                 count *= ConstantExtent(bound) ?? throw Unsupported("a local array whose size is not constant");
             }
 
-            file.Line($"{type}* {name} = {TakeFromStack(type, count, ElementCount(symbol) * ElementSize(symbol))};");
+            file.Add(new TreeStatement.Declare(type + "*", name, TakeFromStack(type, count, ElementCount(symbol) * ElementSize(symbol))));
         }
 
         WriteScratch(file);
-
-        foreach (var function in _localFunctions)
-        {
-            file.Lines(function);
-        }
+        file.AddRange(_localFunctions);
+        CSharpStatementWriter.Write(text, file);
     }
 
     // The places for made character values and the locals for passing
     // values that the statements of a method, or the expression of a
     // statement function, have taken.
-    private void WriteScratch(CodeWriter file)
+    private void WriteScratch(List<TreeStatement> file)
     {
         for (var number = 1; number <= _buffers.Count; number++)
         {
-            file.Line(string.Create(CultureInfo.InvariantCulture, $"byte* _s{number} = {TakeFromStack("byte", _buffers[number - 1], _buffers[number - 1])};"));
+            var name = string.Create(CultureInfo.InvariantCulture, $"_s{number}");
+            file.Add(new TreeStatement.Declare("byte*", name, TakeFromStack("byte", _buffers[number - 1], _buffers[number - 1])));
         }
 
         foreach (var (type, (_, most)) in _slots.OrderBy(slot => slot.Key))
         {
             for (var number = 1; number <= most; number++)
             {
-                file.Line($"{type.ToCSharpStorageType()} {Slot(type, number)} = 0;");
+                file.Add(new TreeStatement.Declare(type.ToCSharpStorageType(), Slot(type, number), Zero));
             }
         }
     }
@@ -490,43 +492,46 @@ internal sealed partial class UnitEmitter
     // is no address at all. The statement
     // that names it then does something harmless, where the original would
     // follow an address nobody set.
-    private void WriteStray(CodeWriter file, Symbol symbol)
+    private void WriteStray(List<TreeStatement> file, Symbol symbol)
     {
         var name = symbol.Name.ToCSharpLocal();
         if (IsProcedure(symbol))
         {
-            file.Line($"{OwnProcedureType(symbol)} {name} = null;");
+            file.Add(new TreeStatement.Declare(OwnProcedureType(symbol), name, new TreeExpression.Null()));
             return;
         }
 
         if (symbol.Type!.Type != DataType.Character)
         {
             var type = symbol.Type.Type.ToCSharpStorageType();
-            file.Line($"{type}* {name} = {TakeFromStack(type, 1, symbol.Type.Type.GetStorageSize())} {{ 0 }};");
+            file.Add(new TreeStatement.Declare(type + "*", name, TakeFromStack(type, 1, symbol.Type.Type.GetStorageSize(), isZeroed: true)));
             return;
         }
 
-        var length = "1";
+        var length = One;
         if (symbol.Type.Length is { IsAssumed: true })
         {
-            file.Line($"int {LengthName(symbol)} = 1;");
+            file.Add(new TreeStatement.Declare("int", LengthName(symbol), One));
         }
         else
         {
-            length = LengthOf(symbol);
+            length = LengthNodeOf(symbol);
         }
 
-        var bytes = long.Parse(length, CultureInfo.InvariantCulture);
-        file.Line($"byte* {name} = {TakeFromStack("byte", bytes, bytes)};");
-        file.Line($"new Span<byte>({name}, {length}).Fill((byte)' ');");
+        var bytes = ((TreeExpression.Integer)length).Value;
+        file.Add(new TreeStatement.Declare("byte*", name, TakeFromStack("byte", bytes, bytes)));
+
+        var whole = new TreeExpression.New("Span<byte>", [new TreeExpression.Local(name), length]);
+        var blank = new TreeExpression.Converted("byte", new TreeExpression.Character(' '));
+        file.Add(new TreeStatement.Evaluate(new TreeExpression.MemberCall(whole, "Fill", [blank])));
     }
 
     // Takes so many elements of a type from the stack for the method being
     // written, and counts their bytes against it.
-    private string TakeFromStack(string type, long count, long bytes)
+    private TreeExpression.StackAllocation TakeFromStack(string type, long count, long bytes, bool isZeroed = false)
     {
         _stackBytes += bytes;
-        return string.Create(CultureInfo.InvariantCulture, $"stackalloc {type}[{count}]");
+        return new TreeExpression.StackAllocation(type, count, isZeroed);
     }
 
     private static string Slot(DataType type, int number) => type switch

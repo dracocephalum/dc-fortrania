@@ -109,6 +109,74 @@ public class CSharpStatementWriterTests
     }
 
     [Fact]
+    public void Write_WhenGivenWhatStandsAtTheTopOfAMethod_ShouldDeclareEachAsCSharpDoes()
+    {
+        // Arrange
+        var state = new TreeExpression.Local("_state");
+        var place = new TreeExpression.Sum([new(state), new(new TreeExpression.Integer(16))]);
+        IReadOnlyList<TreeStatement> statements =
+        [
+            new TreeStatement.Declare("int", "limit", new TreeExpression.Integer(8), IsConstant: true),
+            new TreeStatement.Declare("byte*", "_state", new TreeExpression.Local("_state_SUB")),
+            new TreeStatement.Declare("double*", "kept", new TreeExpression.Converted("double*", new TreeExpression.Grouped(place))),
+            new TreeStatement.Declare("double*", "work", new TreeExpression.StackAllocation("double", 3)),
+            new TreeStatement.Declare("int*", "stray", new TreeExpression.StackAllocation("int", 1, IsZeroed: true)),
+            new TreeStatement.Declare("delegate*<void>", "passed", new TreeExpression.Null()),
+            new TreeStatement.Evaluate(new TreeExpression.MemberCall(
+                new TreeExpression.New("Span<byte>", [new TreeExpression.Local("text"), One]),
+                "Fill",
+                [new TreeExpression.Converted("byte", new TreeExpression.Character(' '))])),
+        ];
+
+        // Act
+        var text = Written(statements);
+
+        // Assert
+        text.ShouldBe(
+            """
+            const int limit = 8;
+            byte* _state = _state_SUB;
+            double* kept = (double*)(_state + 16);
+            double* work = stackalloc double[3];
+            int* stray = stackalloc int[1] { 0 };
+            delegate*<void> passed = null;
+            new Span<byte>(text, 1).Fill((byte)' ');
+
+            """,
+            StringCompareShould.IgnoreLineEndings);
+    }
+
+    [Fact]
+    public void Write_WhenALocalFunctionOnlyGivesAValue_ShouldWriteItAsThatValueAndOtherwiseAsABlock()
+    {
+        // Arrange
+        var sum = new TreeExpression.Binary(TreeExpression.Operation.Add, I, N);
+        var plain = new TreeStatement.LocalFunction(true, "int", "f", ["int i", "int n"], [new TreeStatement.Return(sum)]);
+        var withLocal = new TreeStatement.LocalFunction(
+            false,
+            "int",
+            "g",
+            ["int i"],
+            [new TreeStatement.Declare("int", "_i1", new TreeExpression.Integer(0)), new TreeStatement.Return(I)]);
+
+        // Act
+        var text = Written([plain, withLocal]);
+
+        // Assert
+        text.ShouldBe(
+            """
+            static int f(int i, int n) => i + n;
+            int g(int i)
+            {
+                int _i1 = 0;
+                return i;
+            }
+
+            """,
+            StringCompareShould.IgnoreLineEndings);
+    }
+
+    [Fact]
     public void Write_WhenGivenTextOfAPartNotMoved_ShouldWriteItAsItStands()
     {
         // Arrange

@@ -21,7 +21,7 @@ internal sealed partial class UnitEmitter
     // Those the method being written refers to, in the order they have to
     // be declared, each with the variables of the unit it is passed.
     private readonly Dictionary<string, List<Symbol>> _passed = new(StringComparer.Ordinal);
-    private readonly List<CodeWriter> _localFunctions = [];
+    private readonly List<TreeStatement> _localFunctions = [];
     private readonly HashSet<string> _beingWritten = new(StringComparer.Ordinal);
 
     // While a statement function's expression is written: the names of its
@@ -139,21 +139,10 @@ internal sealed partial class UnitEmitter
         // One that calls no procedure of the program needs nothing of the
         // instance, and says so, which also has the compiler refuse a
         // capture written by mistake.
-        var modifier = _callsProcedure ? string.Empty : "static ";
-        var heading = $"{modifier}{ValueType(function.Type.Type)} {function.Name.ToCSharpLocal()}({string.Join(", ", parameters)})";
-
-        var text = new CodeWriter();
-        if (_slots.Count == 0 && _buffers.Count == 0)
-        {
-            text.Line($"{heading} => {value.Text};");
-        }
-        else
-        {
-            text.Open(heading);
-            WriteScratch(text);
-            text.Line($"return {value.Text};");
-            text.Close();
-        }
+        var body = new List<TreeStatement>();
+        WriteScratch(body);
+        body.Add(new TreeStatement.Return(value.Node));
+        var text = new TreeStatement.LocalFunction(!_callsProcedure, ValueType(function.Type.Type), function.Name.ToCSharpLocal(), parameters, body);
 
         var callsProcedure = _callsProcedure;
         (_ownArguments, _met, _callsProcedure, _slots, _buffers, _buffersInUse) = outer;

@@ -131,7 +131,7 @@ internal sealed partial class UnitEmitter
     // The lines of a method for the sets that lie on the stack: the bytes
     // of each set the method names a variable of, and a pointer for each
     // variable named.
-    private void WriteOverlays(CodeWriter file)
+    private void WriteOverlays(List<TreeStatement> file)
     {
         foreach (var overlay in _overlays.Where(overlay => !overlay.IsKept))
         {
@@ -141,11 +141,8 @@ internal sealed partial class UnitEmitter
                 continue;
             }
 
-            file.Line($"byte* {overlay.Block} = {TakeFromStack("byte", overlay.Size, overlay.Size)};");
-            foreach (var symbol in named)
-            {
-                file.Line(PlacedDeclaration(symbol, overlay.Block, overlay.Starts[symbol]));
-            }
+            file.Add(new TreeStatement.Declare("byte*", overlay.Block, TakeFromStack("byte", overlay.Size, overlay.Size)));
+            file.AddRange(named.Select(symbol => PlacedDeclaration(symbol, overlay.Block, overlay.Starts[symbol])));
         }
     }
 
