@@ -304,21 +304,21 @@ internal sealed partial class UnitEmitter
     // A value as it is stored in a place of the given type. Numbers convert
     // as assignment converts them, a real value to an integer by dropping
     // its fraction, which is what the cast does.
-    private static string Stored(Code value, DataType type)
+    private static string Stored(Code value, DataType type) => CSharpExpressionWriter.Write(StoredNode(value, type));
+
+    private static TreeExpression StoredNode(Code value, DataType type)
     {
         if (type == DataType.Logical)
         {
             return value.Text switch
             {
-                "true" => "1",
-                "false" => "0",
-                _ => CSharpExpressionWriter.Write(new TreeExpression.Conditional(value.Node, One, Zero)),
+                "true" => One,
+                "false" => Zero,
+                _ => new TreeExpression.Conditional(value.Node, One, Zero),
             };
         }
 
-        return value.Type <= type
-            ? value.Text
-            : CSharpExpressionWriter.Write(new TreeExpression.Converted(type.ToCSharpStorageType(), value.Node));
+        return value.Type <= type ? value.Node : new TreeExpression.Converted(type.ToCSharpStorageType(), value.Node);
     }
 
     // The position of an element counted from the array's first, with the

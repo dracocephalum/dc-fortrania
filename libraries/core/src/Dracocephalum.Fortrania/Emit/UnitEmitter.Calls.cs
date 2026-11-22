@@ -3,7 +3,10 @@ using Dracocephalum.Fortrania.Syntax;
 
 namespace Dracocephalum.Fortrania.Emit;
 
-/// <content>Writes calls of subroutines and references to functions, the language's own included.</content>
+/// <content>
+/// Turns calls of subroutines and references to functions, the language's
+/// own included, into the program tree.
+/// </content>
 internal sealed partial class UnitEmitter
 {
     // A reference to a function of the program, as a value.
@@ -17,19 +20,22 @@ internal sealed partial class UnitEmitter
             return TextCall(function, arguments);
         }
 
-        var invocation = Invocation(function.Name, arguments);
+        var invocation = InvocationNode(function.Name, arguments);
 
         return type == DataType.Logical && _options.Convention.ReturnsLogicalAsInteger
-            ? new Code($"{invocation} != 0", type, Level.Equality)
-            : new Code(invocation, type, Level.Primary);
+            ? new Code(new TreeExpression.Binary(TreeExpression.Operation.NotEqual, invocation, Zero), type)
+            : new Code(invocation, type);
     }
+
+    private string Invocation(string name, IReadOnlyList<Expression> arguments, IEnumerable<string>? leading = null) =>
+        CSharpExpressionWriter.Write(InvocationNode(name, arguments, leading));
 
     // A call of a procedure of the program. Each argument is an address;
     // where the procedure declares another type than the caller passes,
     // the pointer is cast, which is what passing by address amounts to. A
     // character argument is an address and a length, and the convention
     // says where the length goes.
-    private string Invocation(string name, IReadOnlyList<Expression> arguments, IEnumerable<string>? leading = null)
+    private TreeExpression InvocationNode(string name, IReadOnlyList<Expression> arguments, IEnumerable<string>? leading = null)
     {
         _callsProcedure = true;
 
@@ -42,8 +48,11 @@ internal sealed partial class UnitEmitter
         // each length straight after its address whatever the convention.
         var system = through ? null : SystemMethod(name);
         var procedure = through ? null : system is null ? FindAnywhere(name) : SystemProcedures[name].Interface;
-        var addresses = new List<string>(leading ?? []);
-        var lengths = new List<string>();
+
+        // What the caller puts in front is text of a part not yet moved to
+        // the tree; as an argument it is written as it stands.
+        var addresses = new List<TreeExpression>((leading ?? []).Select(text => new TreeExpression.Raw(text, Level.Conditional)));
+        var lengths = new List<TreeExpression>();
         var lengthsComeLast = system is null && _options.Convention.TextLengthsComeLast;
         var passes = new List<string>();
         var passesOnArgument = false;
@@ -62,7 +71,7 @@ internal sealed partial class UnitEmitter
                     passes.Add(passed.Name);
                 }
 
-                addresses.Add(PassedProcedure(passed, dummy));
+                addresses.Add(new TreeExpression.Raw(PassedProcedure(passed, dummy), Level.Conditional));
                 continue;
             }
 
@@ -80,7 +89,7 @@ internal sealed partial class UnitEmitter
                 _widened.Add(new WidenedArgument(variable.Name, name, index + 1, _line));
             }
 
-            var (address, length) = Argument(arguments[index], dummy?.Type);
+            var (address, length) = ArgumentNode(arguments[index], dummy?.Type);
             addresses.Add(address);
             if (length is not null)
             {
@@ -91,12 +100,14 @@ internal sealed partial class UnitEmitter
         if (through)
         {
             _callsThroughArgument = true;
-            return CallThrough(called!, arguments, addresses.Concat(lengths));
+            return new TreeExpression.Raw(
+                CallThrough(called!, arguments, addresses.Concat(lengths).Select(CSharpExpressionWriter.Write)),
+                Level.Primary);
         }
 
         if (system is not null)
         {
-            return $"_context.{system}({string.Join(", ", addresses)})";
+            return new TreeExpression.Call($"_context.{system}", addresses);
         }
 
         RecordCall(name, passes, passesOnArgument);
@@ -104,7 +115,7 @@ internal sealed partial class UnitEmitter
         // A procedure of another library is called on that library's
         // instance, which this one finds in the context they share.
         var owner = OwnerOf(name) is { } other ? other.Accessor + "." : string.Empty;
-        return $"{owner}{_options.Convention.ProcedureName(name)}({string.Join(", ", addresses.Concat(lengths))})";
+        return new TreeExpression.Call($"{owner}{_options.Convention.ProcedureName(name)}", [.. addresses, .. lengths]);
     }
 
     // Adds a call to what the method being written calls, joined with the
@@ -122,12 +133,18 @@ internal sealed partial class UnitEmitter
 
     private (string Address, string? Length) Argument(Expression argument, DataType? expected)
     {
+        var (address, length) = ArgumentNode(argument, expected);
+        return (CSharpExpressionWriter.Write(address), length is null ? null : CSharpExpressionWriter.Write(length));
+    }
+
+    private (TreeExpression Address, TreeExpression? Length) ArgumentNode(Expression argument, DataType? expected)
+    {
         switch (argument)
         {
             // A character variable or a whole character array is its own
             // address already, with the length of one element.
             case Expression.Name name when _table.Find(name.Identifier) is { Kind: SymbolKind.Variable, Type.Type: DataType.Character } text:
-                return (IsOwnArgument(text) ? text.Name.ToCSharpLocal() : Local(text), LengthOf(text));
+                return (new TreeExpression.Local(IsOwnArgument(text) ? text.Name.ToCSharpLocal() : Local(text)), LengthNodeOf(text));
 
             // An argument of a statement function is a value of the local
             // function's own, and has an address there.
@@ -137,11 +154,11 @@ internal sealed partial class UnitEmitter
                     throw Unsupported("a logical argument of a statement function passed on to a procedure");
                 }
 
-                return (Cast($"&{own.Name.ToCSharpLocal()}", own.Type.Type, expected), null);
+                return (Cast(new TreeExpression.AddressOf(new TreeExpression.Local(own.Name.ToCSharpLocal())), own.Type.Type, expected), null);
 
             case Expression.Name name when _table.Find(name.Identifier) is { Kind: SymbolKind.Variable } variable:
-                var local = Local(variable);
-                var address = variable.IsArray || variable.IsDummyArgument || IsPlaced(variable) ? local : $"&{local}";
+                TreeExpression local = new TreeExpression.Local(Local(variable));
+                var address = variable.IsArray || variable.IsDummyArgument || IsPlaced(variable) ? local : new TreeExpression.AddressOf(local);
                 return (Cast(address, variable.Type!.Type, expected), null);
 
             case Expression.Name name when _table.Find(name.Identifier)!.Kind != SymbolKind.Constant:
@@ -150,12 +167,12 @@ internal sealed partial class UnitEmitter
             case Expression.Reference reference when _table.Find(reference.Identifier) is { Kind: SymbolKind.Variable } array:
                 var element = Element(array, reference.Arguments);
                 return element.Type == DataType.Character
-                    ? (element.Text, element.Length)
-                    : (Cast($"&{element.Text}", element.Type, expected), null);
+                    ? (element.Node, element.LengthNode)
+                    : (Cast(new TreeExpression.AddressOf(element.Node), element.Type, expected), null);
 
             default:
                 var value = Value(argument);
-                return value.Type == DataType.Character ? (value.Text, value.Length) : (Passed(value, expected), null);
+                return value.Type == DataType.Character ? (value.Node, value.LengthNode) : (Passed(value, expected), null);
         }
     }
 
@@ -169,23 +186,26 @@ internal sealed partial class UnitEmitter
         _ => null,
     };
 
-    private static string Cast(string address, DataType actual, DataType? expected) =>
+    private static TreeExpression Cast(TreeExpression address, DataType actual, DataType? expected) =>
         expected is { } type && type != DataType.Character && type.ToCSharpStorageType() != actual.ToCSharpStorageType()
-            ? $"({type.ToCSharpStorageType()}*){address}"
+            ? new TreeExpression.Converted($"{type.ToCSharpStorageType()}*", address)
             : address;
 
     // A value with no address of its own is stored in a local set aside
     // for it and that local's address passed. The local is as large as the
     // larger of what is passed and what the procedure declares, so that
     // the procedure reads and writes inside it whichever it takes it for.
-    private string Passed(Code value, DataType? expected)
+    private TreeExpression Passed(Code value, DataType? expected)
     {
         var actual = value.Type == DataType.Logical ? DataType.Integer : value.Type;
         var declared = expected is null or DataType.Character or DataType.Complex ? actual : expected.Value;
         var slot = TakeSlot(declared.GetStorageSize() > actual.GetStorageSize() ? declared : actual);
 
-        var address = Cast($"&{slot}", declared.GetStorageSize() > actual.GetStorageSize() ? declared : actual, actual);
-        var stored = $"{Runtime("Arg")}({address}, {Stored(value, value.Type)})";
+        var address = Cast(
+            new TreeExpression.AddressOf(new TreeExpression.Local(slot)),
+            declared.GetStorageSize() > actual.GetStorageSize() ? declared : actual,
+            actual);
+        var stored = new TreeExpression.Call(Runtime("Arg"), [address, StoredNode(value, value.Type)]);
         return Cast(stored, actual, declared);
     }
 
@@ -199,22 +219,22 @@ internal sealed partial class UnitEmitter
         {
             // Nor is a concatenation joined to be measured.
             var length = reference.Arguments[0] is Expression.Name name && _table.Find(name.Identifier) is { Kind: SymbolKind.Variable } measured
-                ? LengthOf(measured)
+                ? LengthNodeOf(measured)
                 : IsConcatenation(reference.Arguments[0])
-                    ? JoinedLength(reference.Arguments[0])
-                    : Value(reference.Arguments[0]).Length!;
-            return new Code(Grouped(length), DataType.Integer, Level.Primary);
+                    ? new TreeExpression.Raw(JoinedLength(reference.Arguments[0]), Level.Conditional)
+                    : Value(reference.Arguments[0]).LengthNode!;
+            return new Code(Group(length), DataType.Integer);
         }
 
         var arguments = reference.Arguments.Select(Value).ToList();
         var first = arguments[0];
         var library = first.Type == DataType.Real ? "MathF" : "Math";
-        var list = string.Join(", ", arguments.Select(argument => argument.Text));
+        TreeExpression[] list = [.. arguments.Select(argument => argument.Node)];
 
         switch (reference.Identifier)
         {
             case "ABS" or "IABS" or "DABS":
-                return new Code($"{(first.Type == DataType.Integer ? "Math" : library)}.Abs({list})", first.Type, Level.Primary);
+                return Called($"{(first.Type == DataType.Integer ? "Math" : library)}.Abs", first.Type, list);
 
             case "SQRT" or "DSQRT":
                 return Library("Sqrt");
@@ -247,10 +267,10 @@ internal sealed partial class UnitEmitter
             case "AINT" or "DINT":
                 return Library("Truncate");
             case "ANINT" or "DNINT":
-                return new Code($"{library}.Round({first.Text}, MidpointRounding.AwayFromZero)", first.Type, Level.Primary);
+                return Called($"{library}.Round", first.Type, first.Node, new TreeExpression.Local("MidpointRounding.AwayFromZero"));
 
             case "NINT" or "IDNINT":
-                return new Code($"{Runtime("Nint")}({first.Text})", DataType.Integer, Level.Primary);
+                return Called(Runtime("Nint"), DataType.Integer, first.Node);
 
             case "MAX" or "MAX0" or "AMAX1" or "DMAX1":
                 return Extreme("Max", first.Type);
@@ -266,24 +286,20 @@ internal sealed partial class UnitEmitter
                 return Converted(Extreme("Min", DataType.Real), DataType.Integer);
 
             case "MOD" or "AMOD" or "DMOD":
-                return new Code(
-                    $"{first.At(Level.Multiplicative)} % {arguments[1].At(Level.Unary)}",
-                    first.Type,
-                    Level.Multiplicative);
+                return new Code(new TreeExpression.Binary(TreeExpression.Operation.Remainder, first.Node, arguments[1].Node), first.Type);
 
             case "SIGN" or "ISIGN" or "DSIGN":
                 return first.Type == DataType.Integer
-                    ? new Code($"{Runtime("Sign")}({list})", first.Type, Level.Primary)
-                    : new Code($"{library}.CopySign({list})", first.Type, Level.Primary);
+                    ? Called(Runtime("Sign"), first.Type, list)
+                    : Called($"{library}.CopySign", first.Type, list);
 
             case "DIM" or "IDIM" or "DDIM":
-                return new Code($"{Runtime("Dim")}({list})", first.Type, Level.Primary);
+                return Called(Runtime("Dim"), first.Type, list);
 
             case "DPROD":
                 return new Code(
-                    $"(double){first.At(Level.Unary)} * {arguments[1].At(Level.Unary)}",
-                    DataType.DoublePrecision,
-                    Level.Multiplicative);
+                    new TreeExpression.Binary(TreeExpression.Operation.Multiply, new TreeExpression.Converted("double", first.Node), arguments[1].Node),
+                    DataType.DoublePrecision);
 
             case "INT" or "IFIX" or "IDINT":
                 return Converted(first, DataType.Integer);
@@ -293,15 +309,15 @@ internal sealed partial class UnitEmitter
                 return Converted(first, DataType.DoublePrecision);
 
             case "IAND":
-                return new Code($"({first.At(Level.Unary)} & {arguments[1].At(Level.Unary)})", DataType.Integer, Level.Primary);
+                return Bits(TreeExpression.Operation.BitAnd);
             case "IOR":
-                return new Code($"({first.At(Level.Unary)} | {arguments[1].At(Level.Unary)})", DataType.Integer, Level.Primary);
+                return Bits(TreeExpression.Operation.BitOr);
             case "IEOR":
-                return new Code($"({first.At(Level.Unary)} ^ {arguments[1].At(Level.Unary)})", DataType.Integer, Level.Primary);
+                return Bits(TreeExpression.Operation.BitXor);
             case "ISHFT":
-                return new Code($"{Runtime("Ishft")}({first.Text}, {arguments[1].Text})", DataType.Integer, Level.Primary);
+                return Called(Runtime("Ishft"), DataType.Integer, first.Node, arguments[1].Node);
             case "NOT":
-                return new Code($"~{first.At(Level.Unary)}", DataType.Integer, Level.Unary);
+                return new Code(new TreeExpression.Unary(TreeExpression.Operation.Complement, first.Node), DataType.Integer);
 
             // The code of a character is its byte, and the character of a
             // code is one byte put where it has an address. The byte is
@@ -309,49 +325,57 @@ internal sealed partial class UnitEmitter
             // an integer whatever it is: C# widens it in arithmetic, and
             // not where it chooses between overloads.
             case "ICHAR":
-                return new Code($"(int){first.At(Level.Primary)}[0]", DataType.Integer, Level.Unary);
+                return new Code(new TreeExpression.Converted("int", new TreeExpression.Indexed(first.Node, Zero)), DataType.Integer);
             case "CHAR":
-                return new Code($"{Runtime("Arg")}(&{TakeSlot(DataType.Character)}, {first.Text})", DataType.Character, Level.Primary, "1");
+                var arg = Runtime("Arg");
+                var slot = new TreeExpression.AddressOf(new TreeExpression.Local(TakeSlot(DataType.Character)));
+                return new Code(new TreeExpression.Call(arg, [slot, first.Node]), DataType.Character, One);
 
             case "INDEX":
-                return new Code(
-                    $"{Runtime("Index")}({first.Text}, {first.Length}, {arguments[1].Text}, {arguments[1].Length})",
-                    DataType.Integer,
-                    Level.Primary);
+                return Called(Runtime("Index"), DataType.Integer, first.Node, first.LengthNode!, arguments[1].Node, arguments[1].LengthNode!);
 
             // The collating sequence these four ask for is ASCII, which is
             // the order of the bytes.
             case "LGE":
-                return new Code($"{Compared(first, arguments[1])} >= 0", DataType.Logical, Level.Relational);
+                return Ordered(TreeExpression.Operation.GreaterOrEqual);
             case "LGT":
-                return new Code($"{Compared(first, arguments[1])} > 0", DataType.Logical, Level.Relational);
+                return Ordered(TreeExpression.Operation.Greater);
             case "LLE":
-                return new Code($"{Compared(first, arguments[1])} <= 0", DataType.Logical, Level.Relational);
+                return Ordered(TreeExpression.Operation.LessOrEqual);
             case "LLT":
-                return new Code($"{Compared(first, arguments[1])} < 0", DataType.Logical, Level.Relational);
+                return Ordered(TreeExpression.Operation.Less);
 
             default:
                 throw Unsupported($"the intrinsic function {reference.Identifier}");
         }
 
-        Code Library(string method) => new($"{library}.{method}({list})", first.Type, Level.Primary);
+        Code Library(string method) => Called($"{library}.{method}", first.Type, list);
+
+        Code Bits(TreeExpression.Operation operation) =>
+            new(new TreeExpression.Grouped(new TreeExpression.Binary(operation, first.Node, arguments[1].Node)), DataType.Integer);
+
+        Code Ordered(TreeExpression.Operation operation) =>
+            new(new TreeExpression.Binary(operation, ComparedNode(first, arguments[1]), Zero), DataType.Logical);
 
         // The greatest or least of two or more, taken a pair at a time.
         Code Extreme(string method, DataType type)
         {
-            var text = arguments[0].Text;
+            var extreme = arguments[0].Node;
             foreach (var argument in arguments.Skip(1))
             {
-                text = $"Math.{method}({text}, {argument.Text})";
+                extreme = new TreeExpression.Call($"Math.{method}", [extreme, argument.Node]);
             }
 
-            return new Code(text, type, Level.Primary);
+            return new Code(extreme, type);
         }
     }
+
+    private static Code Called(string method, DataType type, params TreeExpression[] arguments) =>
+        new(new TreeExpression.Call(method, arguments), type);
 
     // A value converted to another numeric type, as INT, REAL and DBLE do.
     // To an integer the fraction is dropped, which is what the cast does.
     private static Code Converted(Code value, DataType type) => value.Type == type
         ? value
-        : new Code($"({type.ToCSharpStorageType()}){value.At(Level.Unary)}", type, Level.Unary);
+        : new Code(new TreeExpression.Converted(type.ToCSharpStorageType(), value.Node), type);
 }

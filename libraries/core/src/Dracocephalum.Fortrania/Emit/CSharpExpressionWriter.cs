@@ -23,16 +23,25 @@ internal static class CSharpExpressionWriter
                 return local.Name;
             case TreeExpression.Utf8 text:
                 return text.Text.ToUtf8Literal();
+            case TreeExpression.AddressOf address:
+                return "&" + WriteAt(address.Operand, Level.Unary);
             case TreeExpression.Dereference dereference:
                 return "*" + WriteAt(dereference.Address, Level.Unary);
             case TreeExpression.Indexed indexed:
                 return $"{WriteAt(indexed.Address, Level.Primary)}[{Write(indexed.Offset)}]";
             case TreeExpression.Unary { Operator: TreeExpression.Operation.Not } not:
                 return "!" + WriteAt(not.Operand, Level.Unary);
+            case TreeExpression.Unary { Operator: TreeExpression.Operation.Complement } complement:
+                return "~" + WriteAt(complement.Operand, Level.Unary);
             case TreeExpression.Unary negation:
                 // Two minus signs side by side would read as a decrement.
                 var negated = WriteAt(negation.Operand, Level.Unary);
                 return negated.StartsWith('-') ? $"-({negated})" : "-" + negated;
+            case TreeExpression.Binary { Operator: TreeExpression.Operation.BitAnd or TreeExpression.Operation.BitOr or TreeExpression.Operation.BitXor } bits:
+                // Where these bind among the other operators is seldom
+                // remembered rightly, so each operand that is itself an
+                // operation is put in parentheses.
+                return $"{WriteAt(bits.Left, Level.Unary)} {Spell(bits.Operator)} {WriteAt(bits.Right, Level.Unary)}";
             case TreeExpression.Binary binary:
                 // The right side is held one level tighter, so that what
                 // the tree groups to the right stays grouped: a - (b - c).
@@ -65,13 +74,17 @@ internal static class CSharpExpressionWriter
     {
         // A negative number is written with its sign, which is an operator.
         TreeExpression.Integer { Value: < 0 } => Level.Unary,
-        TreeExpression.Dereference or TreeExpression.Unary or TreeExpression.Converted => Level.Unary,
+        TreeExpression.AddressOf or TreeExpression.Dereference or TreeExpression.Unary or TreeExpression.Converted => Level.Unary,
         TreeExpression.Binary binary => binary.Operator switch
         {
-            TreeExpression.Operation.Multiply or TreeExpression.Operation.Divide => Level.Multiplicative,
+            TreeExpression.Operation.Multiply or TreeExpression.Operation.Divide or TreeExpression.Operation.Remainder => Level.Multiplicative,
             TreeExpression.Operation.Add or TreeExpression.Operation.Subtract => Level.Additive,
             TreeExpression.Operation.Equal or TreeExpression.Operation.NotEqual => Level.Equality,
             TreeExpression.Operation.And => Level.And,
+
+            // They bind more strongly than the conditional operators and
+            // less than a comparison; the weaker of the two is safe.
+            TreeExpression.Operation.BitAnd or TreeExpression.Operation.BitOr or TreeExpression.Operation.BitXor => Level.And,
             TreeExpression.Operation.Or => Level.Or,
             _ => Level.Relational,
         },
@@ -102,6 +115,10 @@ internal static class CSharpExpressionWriter
         TreeExpression.Operation.Subtract => "-",
         TreeExpression.Operation.Multiply => "*",
         TreeExpression.Operation.Divide => "/",
+        TreeExpression.Operation.Remainder => "%",
+        TreeExpression.Operation.BitAnd => "&",
+        TreeExpression.Operation.BitOr => "|",
+        TreeExpression.Operation.BitXor => "^",
         TreeExpression.Operation.Equal => "==",
         TreeExpression.Operation.NotEqual => "!=",
         TreeExpression.Operation.Less => "<",

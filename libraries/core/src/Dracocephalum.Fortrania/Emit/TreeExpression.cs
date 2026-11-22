@@ -26,10 +26,15 @@ internal abstract record TreeExpression
     {
         Negate,
         Not,
+        Complement,
         Add,
         Subtract,
         Multiply,
         Divide,
+        Remainder,
+        BitAnd,
+        BitOr,
+        BitXor,
         Equal,
         NotEqual,
         Less,
@@ -46,11 +51,14 @@ internal abstract record TreeExpression
     /// <summary>A real, double precision or logical value known when translating.</summary>
     internal sealed record Number(Constant Value) : TreeExpression;
 
-    /// <summary>A local or a parameter of the method, or a constant it declares, by its name.</summary>
+    /// <summary>A local or a parameter of the method, a constant it declares, or a member of the framework named in full, by its name.</summary>
     internal sealed record Local(string Name) : TreeExpression;
 
     /// <summary>The bytes of ASCII text, kept in the assembly.</summary>
     internal sealed record Utf8(string Text) : TreeExpression;
+
+    /// <summary>The address of a variable or of an element.</summary>
+    internal sealed record AddressOf(TreeExpression Operand) : TreeExpression;
 
     /// <summary>What lies at an address.</summary>
     internal sealed record Dereference(TreeExpression Address) : TreeExpression;
