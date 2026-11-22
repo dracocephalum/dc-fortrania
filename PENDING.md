@@ -1010,6 +1010,8 @@ has most and has largest, each against what is written today:
 | the same scalar in the block | 4% slower, 25% in one run of three |
 | ten arrays of 17,600 bytes together, the most a routine takes: one `stackalloc` and not ten | the same |
 | the same ten arrays in the block | 4% to 5% faster |
+| the ten arrays in a method that tests the setting, from the stack | the same |
+| the ten arrays in a method that tests the setting, from the block | the same, within 6% either way |
 
 - **A scalar that is passed on is better an ordinary local**, whatever
   the mode: today it is a `stackalloc` of one element, which gives the
@@ -1019,6 +1021,12 @@ has most and has largest, each against what is written today:
   that does a few tens of nanoseconds of work, and a scalar is slower
   there than on the stack.
 - **Ten pieces or one makes no difference** to the time.
+- **The test on entry is lost in a method that works.** What cost a
+  method that does nothing a third of its time cannot be told from
+  nothing in one that does some fifty nanoseconds of work. So one library
+  that chooses when it runs costs nothing that was measured, provided
+  that only a method with arrays or character variables tests, and a
+  method with scalars alone has nothing to choose.
 
 So the stack remains the place for scalars in either mode, and what the
 block would hold is the arrays and character variables. A method in the

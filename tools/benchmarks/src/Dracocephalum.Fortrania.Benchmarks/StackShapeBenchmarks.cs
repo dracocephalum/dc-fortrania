@@ -31,12 +31,21 @@ public unsafe class StackShapeBenchmarks
     private const int ArraysSize = (2 * TextSize) + (2 * RealCount * sizeof(double)) + (6 * IntegerCount * sizeof(int));
 
     private FrameChoice _frames = null!;
+    private FrameChoice _stack = null!;
 
     [GlobalSetup]
-    public void Allocate() => _frames = new FrameChoice(localsOnStack: false);
+    public void Allocate()
+    {
+        _frames = new FrameChoice(localsOnStack: false);
+        _stack = new FrameChoice(localsOnStack: true);
+    }
 
     [GlobalCleanup]
-    public void Free() => _frames.Release();
+    public void Free()
+    {
+        _frames.Release();
+        _stack.Release();
+    }
 
     // A benchmark is an instance method, which is what the library that
     // runs it looks for, whether or not it reads anything of its instance.
@@ -120,6 +129,32 @@ public unsafe class StackShapeBenchmarks
         return sum;
     }
 
+    [Benchmark(OperationsPerInvoke = BenchmarkConfig.Repeats)]
+    [BenchmarkCategory(ArraysCategory)]
+    public double ChooseAndTakeTenArraysFromStack()
+    {
+        var sum = 0.0;
+        for (var repeat = 0; repeat < BenchmarkConfig.Repeats; repeat++)
+        {
+            sum += ArraysChosen(_stack, repeat);
+        }
+
+        return sum;
+    }
+
+    [Benchmark(OperationsPerInvoke = BenchmarkConfig.Repeats)]
+    [BenchmarkCategory(ArraysCategory)]
+    public double ChooseAndTakeTenArraysFromFrames()
+    {
+        var sum = 0.0;
+        for (var repeat = 0; repeat < BenchmarkConfig.Repeats; repeat++)
+        {
+            sum += ArraysChosen(_frames, repeat);
+        }
+
+        return sum;
+    }
+
 #pragma warning restore CA1822
 
     // As the translator writes it today: a place of one element, set to zero.
@@ -174,6 +209,24 @@ public unsafe class StackShapeBenchmarks
     private static double ArraysAsOneOnStack(int value)
     {
         byte* locals = stackalloc byte[ArraysSize];
+        return WorkIn(locals, value);
+    }
+
+    // One method for both modes, which tests its context's setting on entry.
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static double ArraysChosen(FrameChoice context, int value)
+    {
+        byte* locals;
+        if (context.LocalsOnStack)
+        {
+            byte* onStack = stackalloc byte[ArraysSize];
+            locals = onStack;
+        }
+        else
+        {
+            locals = context.Frames + PlaceInFrames;
+        }
+
         return WorkIn(locals, value);
     }
 
