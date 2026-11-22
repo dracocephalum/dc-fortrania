@@ -153,6 +153,7 @@ public static partial class Translator
                 : new TranslationResult(_messages, _written, _removed, _sources.Sum(source => source.Units.Count))
                 {
                     StackUse = _stackUse,
+                    WorkingRegions = _workingRegions,
                     UnalignedPlaces = _unaligned,
                     WidenedPlaces = _widened,
                 };

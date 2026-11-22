@@ -723,6 +723,25 @@ public sealed class TranslatorTests : IDisposable
 
         result.StackUse.Single(use => use.Procedure == "MID").DeepestChain.ShouldBe(["MID", "LEAF"]);
         result.StackUse.ShouldAllBe(use => use.Project == "Example.Toolkit" && use.Source == "Core");
+
+        // In the project's region, each starts where the buffers of its
+        // deepest caller by name end: MID has none of its own and still
+        // pushes nothing down; LEAF and SMALL, called one after the other,
+        // share their place. F is called by name by nothing: INNER calls
+        // it through an argument, which the runtime gives a region of its
+        // own, so F starts at the top of that.
+        var places = new Dictionary<string, long?>
+        {
+            ["TOP"] = 0,
+            ["MID"] = 16,
+            ["LEAF"] = 16,
+            ["SMALL"] = 16,
+            ["RUNF"] = 16,
+            ["INNER"] = 16 + 1600,
+            ["F"] = 0,
+        };
+        result.StackUse.ToDictionary(use => use.Procedure, use => use.Place).ShouldBe(places, ignoreOrder: true);
+        result.WorkingRegions.ShouldBe([new WorkingRegion("Example.Toolkit", 16 + 1600 + 80, 16 + 1600 + 80)]);
     }
 
     [Fact]
@@ -781,6 +800,12 @@ public sealed class TranslatorTests : IDisposable
         tool.DeepestBytes.ShouldBe(32);
         tool.DeepestChain.ShouldBe(["TOOL", "LEAF"]);
         result.StackUse.Select(use => use.Project).ShouldBe(["Example.Tool", "Example.Toolkit"]);
+
+        // Each project has a region of its own, and the tool's reach is its
+        // own and, after it, the library's it calls into. Each procedure's
+        // place is within its own project's.
+        result.StackUse.ShouldAllBe(use => use.Place == 0);
+        result.WorkingRegions.ShouldBe([new WorkingRegion("Example.Tool", 0, 32), new WorkingRegion("Example.Toolkit", 32, 32)]);
     }
 
     [Fact]
@@ -796,6 +821,11 @@ public sealed class TranslatorTests : IDisposable
         result.Succeeded.ShouldBeTrue();
         var one = result.StackUse.Single(use => use.Procedure == "ONE");
         one.IsRecursive.ShouldBeTrue();
+
+        // Procedures that call each other in a circle have no place in a
+        // region, since neither can lie after the other.
+        result.StackUse.ShouldAllBe(use => use.Place == null);
+        result.WorkingRegions.ShouldHaveSingleItem().OwnBytes.ShouldBe(0);
         one.DeepestBytes.ShouldBe(8);
         one.DeepestChain.ShouldBe(["ONE", "TWO"]);
     }
