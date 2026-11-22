@@ -1260,6 +1260,43 @@ written across continuation lines is one text to translate.
 - **The language is the context's**, as its files and its console are,
   and not the thread's.
 
+**Who decides what is a message, and when.** The decision is made while
+the translator still has the FORTRAN expression and its names, and the
+program tree carries the outcome: a node of its own for a message, with
+its number and the constant, which a writer turns into the call that
+asks. By the time an expression is tree, a constant is an address and a
+length and nothing says what it was for.
+
+- **A classifier first.** One question, put for each character constant
+  with a small account of its use: its text, its program unit, and what
+  it is there as, the argument of which procedure in which position, the
+  value given to which variable, a format, one side of a comparison. The
+  answer is whether it is a message. The one that comes with the
+  translator goes by rules in the settings; another can be given in its
+  place, and may know what no rule says.
+- **Passes of a user's own later**, when the tree is public, as *A tree
+  between the analysis and the writers* has it. A classifier shows a
+  caller one small record; a pass shows the whole tree, and every node
+  shown is a promise.
+- **A message that goes by way of a variable** is not seen where it is
+  passed: `MSG = '...'` and, lines later, `CALL SETMSG ( MSG )`. To be
+  counted in the reference sources before anything is built for it. A
+  rule for a constant assigned to a variable that the same unit then
+  passes as a message may be enough, without following values about.
+- **Every constant is listed**, in the file the numbers go to, with its
+  use and whether it was taken for a message, so that what the rules
+  missed can be found by reading.
+
+**A first trial is to take little.** Only what is passed whole to a
+procedure that shows it or stores it as one message, an error message
+above all, and nothing a program takes apart. Where a procedure wraps
+what it shows, it wraps by the byte and at a width in bytes; for a
+language whose characters are several bytes, or whose words are not
+parted by blanks, the runtime would have to offer the wrapping, by
+characters and at the boundaries of words, and the program be made to
+use it. That is a change to a program's own routines and not to its
+constants, and is not part of a first trial.
+
 ## Back ends beyond C# source
 
 The emitter writes C# source text directly from the analysed program, with
