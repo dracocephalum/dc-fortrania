@@ -85,13 +85,7 @@ undecided adds it here rather than mentioning it once in a conversation.
       comparison measured in several processes of its own, the order of
       compiling varied, and the range of their ratios reported in place
       of one.
-- [ ] **What starts the pipeline is to be looked at again.** A change
-      under `tools/` alone builds, tests and then publishes a new `ci`
-      version of packages it did not touch, since one list of paths
-      serves the building and the publishing. Wanted: a tool's change
-      builds and tests and publishes nothing. Close by: the deploy
-      looking at whether anything under `libraries/` or the root's build
-      files changed, or a list of its own.
+
 - [ ] **The block of working memory has nothing around it.** The runtime
       has the block, `WorkingMemory`, with its regions and its levels; no
       translated code uses it yet. A page that cannot be touched at each
