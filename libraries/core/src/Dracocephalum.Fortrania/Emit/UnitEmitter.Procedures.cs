@@ -87,7 +87,7 @@ internal sealed partial class UnitEmitter
     // unit as it came, any other as the address of a forwarder to it. The
     // pointer is cast where the procedure called takes it as another type
     // than it has here, which costs nothing when the program runs.
-    private string PassedProcedure(Symbol procedure, DummyArgument? dummy)
+    private TreeExpression PassedProcedure(Symbol procedure, DummyArgument? dummy)
     {
         if (_ownArguments is not null)
         {
@@ -98,8 +98,8 @@ internal sealed partial class UnitEmitter
 
         if (procedure.IsDummyArgument)
         {
-            var name = Local(procedure);
-            return OwnProcedureType(procedure) == wanted ? name : $"({wanted}){name}";
+            var name = new TreeExpression.Local(Local(procedure));
+            return OwnProcedureType(procedure) == wanted ? name : new TreeExpression.Converted(wanted, name);
         }
 
         if (procedure.Kind == SymbolKind.IntrinsicFunction)
@@ -111,7 +111,10 @@ internal sealed partial class UnitEmitter
             ?? throw Unsupported("a procedure as an argument that the program does not define");
 
         var forwarder = Forwarder(target);
-        return forwarder.Type == wanted ? $"&{forwarder.Name}" : $"({wanted})({forwarder.Type})&{forwarder.Name}";
+        var address = new TreeExpression.AddressOf(new TreeExpression.Local(forwarder.Name));
+        return forwarder.Type == wanted
+            ? address
+            : new TreeExpression.Converted(wanted, new TreeExpression.Converted(forwarder.Type, address));
     }
 
     private (string Name, string Type) Forwarder(ProcedureInterface target)
@@ -168,7 +171,7 @@ internal sealed partial class UnitEmitter
     // A call of a dummy procedure: through the pointer, with the context
     // first. The pointer is taken as what this call needs it to be, and
     // cast where the method's parameter does not say so already.
-    private string CallThrough(Symbol dummy, IReadOnlyList<Expression> arguments, IEnumerable<string> passed)
+    private TreeExpression.Invoke CallThrough(Symbol dummy, IReadOnlyList<Expression> arguments, IEnumerable<TreeExpression> passed)
     {
         if (_ownArguments is not null)
         {
@@ -182,8 +185,8 @@ internal sealed partial class UnitEmitter
             [.. arguments.Select(argument => _typer.TypeOfArgument(argument, at))]);
 
         var needed = ProcedureType(shape);
-        var name = Local(dummy);
-        var pointer = OwnProcedureType(dummy) == needed ? name : $"(({needed}){name})";
-        return $"{pointer}({string.Join(", ", passed.Prepend("_context"))})";
+        TreeExpression name = new TreeExpression.Local(Local(dummy));
+        var pointer = OwnProcedureType(dummy) == needed ? name : new TreeExpression.Converted(needed, name);
+        return new TreeExpression.Invoke(pointer, [new TreeExpression.Local("_context"), .. passed]);
     }
 }

@@ -27,15 +27,15 @@ internal sealed partial class UnitEmitter
             : new Code(invocation, type);
     }
 
-    private string Invocation(string name, IReadOnlyList<Expression> arguments, IEnumerable<string>? leading = null) =>
-        CSharpExpressionWriter.Write(InvocationNode(name, arguments, leading));
+    private string Invocation(string name, IReadOnlyList<Expression> arguments) =>
+        CSharpExpressionWriter.Write(InvocationNode(name, arguments));
 
     // A call of a procedure of the program. Each argument is an address;
     // where the procedure declares another type than the caller passes,
     // the pointer is cast, which is what passing by address amounts to. A
     // character argument is an address and a length, and the convention
     // says where the length goes.
-    private TreeExpression InvocationNode(string name, IReadOnlyList<Expression> arguments, IEnumerable<string>? leading = null)
+    private TreeExpression InvocationNode(string name, IReadOnlyList<Expression> arguments, IEnumerable<TreeExpression>? leading = null)
     {
         _callsProcedure = true;
 
@@ -49,9 +49,7 @@ internal sealed partial class UnitEmitter
         var system = through ? null : SystemMethod(name);
         var procedure = through ? null : system is null ? FindAnywhere(name) : SystemProcedures[name].Interface;
 
-        // What the caller puts in front is text of a part not yet moved to
-        // the tree; as an argument it is written as it stands.
-        var addresses = new List<TreeExpression>((leading ?? []).Select(text => new TreeExpression.Raw(text, Level.Conditional)));
+        var addresses = new List<TreeExpression>(leading ?? []);
         var lengths = new List<TreeExpression>();
         var lengthsComeLast = system is null && _options.Convention.TextLengthsComeLast;
         var passes = new List<string>();
@@ -71,7 +69,7 @@ internal sealed partial class UnitEmitter
                     passes.Add(passed.Name);
                 }
 
-                addresses.Add(new TreeExpression.Raw(PassedProcedure(passed, dummy), Level.Conditional));
+                addresses.Add(PassedProcedure(passed, dummy));
                 continue;
             }
 
@@ -100,9 +98,7 @@ internal sealed partial class UnitEmitter
         if (through)
         {
             _callsThroughArgument = true;
-            return new TreeExpression.Raw(
-                CallThrough(called!, arguments, addresses.Concat(lengths).Select(CSharpExpressionWriter.Write)),
-                Level.Primary);
+            return CallThrough(called!, arguments, addresses.Concat(lengths));
         }
 
         if (system is not null)
@@ -221,7 +217,7 @@ internal sealed partial class UnitEmitter
             var length = reference.Arguments[0] is Expression.Name name && _table.Find(name.Identifier) is { Kind: SymbolKind.Variable } measured
                 ? LengthNodeOf(measured)
                 : IsConcatenation(reference.Arguments[0])
-                    ? new TreeExpression.Raw(JoinedLength(reference.Arguments[0]), Level.Conditional)
+                    ? JoinedLength(reference.Arguments[0])
                     : Value(reference.Arguments[0]).LengthNode!;
             return new Code(Group(length), DataType.Integer);
         }

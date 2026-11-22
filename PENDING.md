@@ -733,18 +733,14 @@ before it, over the toolkit's whole translation, so each step is checked
 by comparing two folders before any test is run, and the translation's
 time is measured before and after.
 
-**How far it is.** The tree has its expressions, `TreeExpression`, and a
-writer for them, `CSharpExpressionWriter`. The emitter's own value, an
-expression with its FORTRAN type and for text its length, holds a tree
-where it held a string, and is written when a statement needs the text.
-What a FORTRAN expression is made of is built as tree: constants,
-variables, array elements and their offsets, substrings, the operators
-and powers, the intrinsic functions, and a call with its arguments. What
-still makes text travels in the tree as a node that says only how
-strongly it binds: concatenation and a character function's result, a
-statement function's body, a procedure passed as an argument, and a call
-through one. Each is moved in a change of its own, and the expressions
-are done when no such node is made. After each change the toolkit's
+**How far it is.** Expressions are done, and `DESIGN.md` has them under
+*An expression is a tree before it is text*. Statements are next: an
+assignment, a call, a loop, a branch and a jump, the declarations of a
+method's locals, and the comments between them, which are to be nodes of
+their own. Until then a statement is written as text around the
+expressions it holds, and three places of the emitter still spell a
+piece of an expression themselves, in input and output, where a list's
+count is worked out. After each change so far the toolkit's
 2,215 translated files came out the same to the byte, and its
 translation took no longer.
 

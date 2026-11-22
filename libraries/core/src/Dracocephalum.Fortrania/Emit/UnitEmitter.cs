@@ -581,15 +581,6 @@ internal sealed partial class UnitEmitter
     // its length beside its address.
     private readonly record struct Code(TreeExpression Node, DataType Type, TreeExpression? LengthNode = null)
     {
-        // For the parts of the emitter that still write text: the text
-        // travels in the tree as it is, with how strongly it binds. A
-        // length that comes as text says nothing of that, and is taken to
-        // bind least.
-        public Code(string text, DataType type, Level level, string? length = null)
-            : this(new TreeExpression.Raw(text, level), type, length is null ? null : new TreeExpression.Raw(length, Level.Conditional))
-        {
-        }
-
         public string Text => CSharpExpressionWriter.Write(Node);
 
         public Level Level => CSharpExpressionWriter.LevelOf(Node);

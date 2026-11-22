@@ -62,26 +62,26 @@ internal sealed partial class UnitEmitter
         }
 
         var definition = _definitions[function.Name];
-        var values = new List<string>();
+        var values = new List<TreeExpression>();
         for (var index = 0; index < arguments.Count; index++)
         {
             // A character argument is the address of its first byte; its
             // length is the one the function's own declaration gives.
             var type = _table.Find(definition.Arguments[index])!.Type!.Type;
             var value = Value(arguments[index]);
-            values.Add(type == DataType.Character ? value.Text : Converted(value, type).Text);
+            values.Add(type == DataType.Character ? value.Node : Converted(value, type).Node);
         }
 
         foreach (var symbol in passed)
         {
-            values.Add(Local(symbol));
+            values.Add(new TreeExpression.Local(Local(symbol)));
             if (symbol.Type!.Length is { IsAssumed: true })
             {
-                values.Add(LengthName(symbol));
+                values.Add(new TreeExpression.Local(LengthName(symbol)));
             }
         }
 
-        return new Code($"{function.Name.ToCSharpLocal()}({string.Join(", ", values)})", function.Type!.Type, Level.Primary);
+        return new Code(new TreeExpression.Call(function.Name.ToCSharpLocal(), values), function.Type!.Type);
     }
 
     private List<Symbol> WriteLocalFunction(Symbol function)
