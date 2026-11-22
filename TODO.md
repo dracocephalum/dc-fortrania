@@ -106,3 +106,12 @@ undecided adds it here rather than mentioning it once in a conversation.
       back when the outermost call returns. Close by: the bytes a
       level really uses measured over the reference sources' tests, and
       one of these taken if they are far below a block.
+- [ ] **The `ci` packages follow the repository when it is made public.**
+      Each takes its access from the repository, so both become readable
+      by anyone the day it does, and a package made public cannot be made
+      private again. They are builds on the way to a release, removed
+      after the newest twenty, and are not for others to build on.
+      Decided: they stay private. Close by: before the repository is made
+      public, the setting that takes access from the repository turned
+      off on each package's page, which is the owner's to do, and the
+      repositories that read them given access by name as now.
