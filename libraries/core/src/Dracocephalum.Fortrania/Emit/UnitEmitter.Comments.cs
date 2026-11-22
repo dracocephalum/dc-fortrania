@@ -23,18 +23,18 @@ internal sealed partial class UnitEmitter
 {
     // The comments of what comes before the first executable statement of
     // the method being written, and whether that statement has been met.
-    private CodeWriter _preamble = new();
+    private StatementBuilder _preamble = new();
     private bool _isInPreamble;
 
     // Writes comment lines as they were read, blank lines among them. A
     // blank line that would open what the writer holds, or follow an opening
     // brace or another blank line, is left out; a block of comments that
     // follows code has one before it.
-    private static void WriteComments(ILineWriter writer, IEnumerable<string> lines)
+    private static void WriteComments(StatementBuilder writer, IEnumerable<string> lines)
     {
         // The text after the comment character, or null for a blank line.
         var texts = lines.Select(line => IsBlankComment(line) ? null : line[1..].TrimEnd()).ToList();
-        var isBlankNeedless = writer.IsEmpty || writer.LastLine is "" or "{";
+        var isBlankNeedless = writer.IsBlankNeedless;
         var start = 0;
         while (start < texts.Count)
         {
@@ -50,7 +50,7 @@ internal sealed partial class UnitEmitter
                 continue;
             }
 
-            if (!isBlankNeedless && !writer.LastLine.StartsWith("//", StringComparison.Ordinal))
+            if (!isBlankNeedless && !writer.EndsOnComment)
             {
                 writer.Blank();
             }
@@ -70,7 +70,7 @@ internal sealed partial class UnitEmitter
     // Writes a block of comment lines with the indentation they share taken
     // off, which in the source stood for the code's own; what is lined up
     // within the block stays lined up.
-    private static void WriteBlock(ILineWriter writer, List<string> texts)
+    private static void WriteBlock(StatementBuilder writer, List<string> texts)
     {
         var shared = texts.Where(text => text.Length > 0)
             .Select(text => text.Length - text.TrimStart(' ').Length)
@@ -78,7 +78,7 @@ internal sealed partial class UnitEmitter
             .Min();
         foreach (var text in texts)
         {
-            writer.Line(text.Length == 0 ? "//" : "// " + text[shared..]);
+            writer.Comment(text.Length == 0 ? string.Empty : text[shared..]);
         }
     }
 

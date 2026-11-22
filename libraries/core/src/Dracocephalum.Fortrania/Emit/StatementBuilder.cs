@@ -1,13 +1,12 @@
 namespace Dracocephalum.Fortrania.Emit;
 
 /// <summary>
-/// Collects the statements of a method as they are made, block within
-/// block. A part of the emitter that has been moved to the tree adds
-/// nodes, and takes a block's statements back to put them in the node the
-/// block belongs to. Comments have not been moved, and are written as
-/// lines, as they were when this was source text.
+/// Collects statements as they are made, block within block: the emitter
+/// adds nodes, and takes a block's statements back to put them in the node
+/// the block is the body of. It also says what the last thing added was,
+/// which is what decides whether a blank line goes before a comment.
 /// </summary>
-internal sealed class StatementBuilder : ILineWriter
+internal sealed class StatementBuilder
 {
     // The block being filled is the last; the first is the method's own.
     private readonly List<List<TreeStatement>> _blocks = [[]];
@@ -17,22 +16,18 @@ internal sealed class StatementBuilder : ILineWriter
         ? _blocks[0]
         : throw new InvalidOperationException("A block is still open.");
 
-    /// <inheritdoc/>
+    /// <summary>Gets a value indicating whether nothing has been added and no block begun.</summary>
     public bool IsEmpty => _blocks.Count == 1 && Current.Count == 0;
 
-    /// <inheritdoc/>
-    public string LastLine => Current.Count == 0
-        ? (_blocks.Count == 1 ? string.Empty : "{")
-        : Current[^1] switch
-        {
-            TreeStatement.Blank => string.Empty,
-            TreeStatement.If or TreeStatement.While or TreeStatement.For => "}",
-            var statement => CSharpStatementWriter.WriteLine(statement)!.TrimStart(),
-        };
+    /// <summary>
+    /// Gets a value indicating whether a blank line here would be one too
+    /// many: at the very start, straight after a block is begun, or after
+    /// another blank line.
+    /// </summary>
+    public bool IsBlankNeedless => Current.Count == 0 || Current[^1] is TreeStatement.Blank;
 
-    /// <summary>Gets a value indicating whether the first thing in the method is a comment.</summary>
-    public bool StartsWithComment =>
-        _blocks[0] is [TreeStatement.Text first, ..] && first.Line.TrimStart().StartsWith("//", StringComparison.Ordinal);
+    /// <summary>Gets a value indicating whether the last thing added is a line of comment.</summary>
+    public bool EndsOnComment => Current is [.., TreeStatement.Comment];
 
     private List<TreeStatement> Current => _blocks[^1];
 
@@ -54,9 +49,7 @@ internal sealed class StatementBuilder : ILineWriter
         return statements;
     }
 
-    /// <inheritdoc/>
-    public void Line(string line) => Add(new TreeStatement.Text(line));
+    public void Comment(string text) => Add(new TreeStatement.Comment(text));
 
-    /// <inheritdoc/>
     public void Blank() => Add(new TreeStatement.Blank());
 }

@@ -7,9 +7,10 @@ namespace Dracocephalum.Fortrania.Emit;
 /// into source text and decides nothing but spelling and layout.
 /// </summary>
 /// <remarks>
-/// Every statement of a method is one of these. Its comments still come as
-/// lines of text, <see cref="Text"/> and <see cref="Blank"/>, until the
-/// tree has a node that says what a comment is about.
+/// Every statement of a method is one of these, and so is each line of
+/// comment that stood among the FORTRAN's and each blank line kept
+/// between them. Where a blank line goes is decided as the comments are
+/// added, from what stands before them.
 /// </remarks>
 internal abstract record TreeStatement
 {
@@ -62,8 +63,8 @@ internal abstract record TreeStatement
     /// </summary>
     internal sealed record For(TreeStatement Start, TreeExpression Condition, IReadOnlyList<TreeStatement> Step, IReadOnlyList<TreeStatement> Body) : TreeStatement;
 
-    /// <summary>A line of source text: a line of comment, as it is to be written.</summary>
-    internal sealed record Text(string Line) : TreeStatement;
+    /// <summary>A line of comment: its text, with nothing of how a language marks one.</summary>
+    internal sealed record Comment(string Text) : TreeStatement;
 
     /// <summary>A blank line, between comments or before them.</summary>
     internal sealed record Blank : TreeStatement;

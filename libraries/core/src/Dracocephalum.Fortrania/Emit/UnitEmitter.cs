@@ -100,7 +100,7 @@ internal sealed partial class UnitEmitter
         RefuseWhatIsNotTranslatedYet();
         LayOutState();
 
-        var methods = new CodeWriter();
+        var methods = new List<TreeMethod>();
         if (_table.EntryPoints.Count > 1)
         {
             // Each entry point is a method of its own, holding the statements
@@ -145,19 +145,19 @@ internal sealed partial class UnitEmitter
         file.Blank();
         file.Open($"public unsafe partial class {_options.ClassName}");
 
+        WriteState(file);
+        file.Append(_forwarderText);
+        CSharpStatementWriter.Write(file, methods);
+
         // What a file says after its last unit, an appendix say, follows
         // the unit's last method.
         if (_table.Unit.TrailingComments.Any(line => !IsBlankComment(line)))
         {
-            methods.Blank();
-            var trailing = new CodeWriter();
+            file.Blank();
+            var trailing = new StatementBuilder();
             WriteComments(trailing, WithoutTrailingBlanks(_table.Unit.TrailingComments));
-            methods.Append(trailing);
+            CSharpStatementWriter.Write(file, trailing.Statements);
         }
-
-        WriteState(file);
-        file.Append(_forwarderText);
-        file.Append(methods);
 
         file.Close();
 
@@ -170,7 +170,7 @@ internal sealed partial class UnitEmitter
     // comments before it; the last method of the unit is given those before
     // its END.
     private void WriteMethod(
-        CodeWriter methods,
+        List<TreeMethod> methods,
         ParsedStatement? heading,
         string name,
         IReadOnlyList<string> parameters,
@@ -179,7 +179,7 @@ internal sealed partial class UnitEmitter
         bool isLast)
     {
         _body = new StatementBuilder();
-        _preamble = new CodeWriter();
+        _preamble = new StatementBuilder();
         _stackBytes = 0;
         _calls.Clear();
         _callsThroughArgument = false;
@@ -207,43 +207,32 @@ internal sealed partial class UnitEmitter
             _body.Add(ReturnOf(_result));
         }
 
-        if (!methods.IsEmpty)
-        {
-            methods.Blank();
-        }
-
         // Methods are a blank line apart already, and a comment before one
         // is about it, so blank lines around such comments are left out.
+        var comments = new StatementBuilder();
         if (heading is not null)
         {
-            var comments = new CodeWriter();
             WriteComments(comments, WithoutTrailingBlanks(CommentsOf(heading)));
-            methods.Append(comments);
         }
 
+        // The parameters are named before what stands at the top is worked
+        // out, since naming one records that the method uses it.
         var returns = _result is null ? "void" : ResultType(_result.Type!.Type);
-        methods.Open($"public {returns} {_options.Convention.ProcedureName(name)}({string.Join(", ", Parameters(parameters, _result))})");
-        if (!_preamble.IsEmpty)
-        {
-            methods.Append(_preamble);
-            methods.Blank();
-        }
-
-        // Comments that open the code are a block of their own after what is
-        // declared, as anywhere else after code.
-        WriteDeclarations(methods);
+        string[] signature = [.. Parameters(parameters, _result)];
+        var declarations = Declarations();
+        methods.Add(new TreeMethod(
+            comments.Statements,
+            returns,
+            _options.Convention.ProcedureName(name),
+            signature,
+            _preamble.Statements,
+            declarations,
+            _body.Statements));
         _methods.Add(new EmittedMethod(
             name,
             _stackBytes,
             [.. _calls.Select(call => new EmittedCall(call.Key, [.. call.Value.Passes], call.Value.PassesOnArgument))],
             _callsThroughArgument));
-        if (methods.LastLine is not ("" or "{") && _body.StartsWithComment)
-        {
-            methods.Blank();
-        }
-
-        CSharpStatementWriter.Write(methods, _body.Statements);
-        methods.Close();
     }
 
     // Records that the method being written names a variable, and gives the
@@ -413,7 +402,7 @@ internal sealed partial class UnitEmitter
     // What stands at the top of a method, before its statements: the
     // constants it names, its kept variables, its locals and what it takes
     // from the stack, and the local functions it refers to.
-    private void WriteDeclarations(CodeWriter text)
+    private List<TreeStatement> Declarations()
     {
         var file = new List<TreeStatement>();
         foreach (var constant in _constantsUsed)
@@ -464,7 +453,7 @@ internal sealed partial class UnitEmitter
 
         WriteScratch(file);
         file.AddRange(_localFunctions);
-        CSharpStatementWriter.Write(text, file);
+        return file;
     }
 
     // The places for made character values and the locals for passing
