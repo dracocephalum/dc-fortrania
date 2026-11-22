@@ -733,6 +733,31 @@ before it, over the toolkit's whole translation, so each step is checked
 by comparing two folders before any test is run, and the translation's
 time is measured before and after.
 
+**How far it is.** The tree has its expressions, `TreeExpression`, and a
+writer for them, `CSharpExpressionWriter`. The emitter's own value, an
+expression with its FORTRAN type and for text its length, holds a tree
+where it held a string, and is written when a statement needs the text.
+What a FORTRAN expression is made of is built as tree: constants,
+variables, array elements and their offsets, substrings, the operators
+and powers. Three parts of the emitter still make text, which travels in
+the tree as a node that says only how strongly it binds: calls and
+intrinsic functions, 25 places; concatenation, 2; and a statement
+function's body, 1. Each is moved in a change of its own, and the
+expressions are done when no such node is made. The toolkit's 2,215
+translated files came out the same to the byte, and its translation took
+no longer.
+
+Two things the first piece settled:
+
+- **The translator's own arithmetic is a node of its own.** An address, a
+  length or a position is a sum or a product of whole numbers that the
+  translator made up, where grouping does not matter and none is written;
+  the program's own operators keep theirs. A pass may fold the first kind
+  freely and the second not at all.
+- **Parentheses that must be written are in the tree**, the program's own
+  among them, since they fix how a real expression is evaluated. All
+  others are the writer's, from how strongly each node binds.
+
 **Opened to others last.** Once the tree has settled under the C# writer,
 it is the published interface for tools of others: its types public in
 the translator's package, so that a .NET tool takes and gives trees in

@@ -4,16 +4,54 @@ using Dracocephalum.Fortrania.Syntax;
 
 namespace Dracocephalum.Fortrania.Emit;
 
-/// <content>Writes expressions, and the variables and array elements they are made of.</content>
+/// <content>
+/// Turns expressions, and the variables and array elements they are made
+/// of, into the program tree.
+/// </content>
 internal sealed partial class UnitEmitter
 {
+    private static readonly TreeExpression Zero = new TreeExpression.Integer(0);
+    private static readonly TreeExpression One = new TreeExpression.Integer(1);
+
     private static DataType Wider(DataType left, DataType right) => left > right ? left : right;
 
     // A length or a position is put in parentheses before it joins an
     // expression, unless it is a single name or number.
-    private static string Grouped(string text) => text.All(character => char.IsLetterOrDigit(character) || character == '_')
-        ? text
-        : $"({text})";
+    private static string Grouped(string text) => IsNameOrNumber(text) ? text : $"({text})";
+
+    private static TreeExpression Group(TreeExpression node)
+    {
+        var text = CSharpExpressionWriter.Write(node);
+        if (!IsNameOrNumber(text))
+        {
+            return new TreeExpression.Grouped(node);
+        }
+
+        // Text that is a name or a number binds as one, whatever the part
+        // of the emitter that wrote it could say of it.
+        return node is TreeExpression.Raw ? new TreeExpression.Raw(text, Level.Primary) : node;
+    }
+
+    private static TreeExpression AtLeast(TreeExpression node, Level needed) =>
+        CSharpExpressionWriter.LevelOf(node) >= needed ? node : new TreeExpression.Grouped(node);
+
+    private static bool IsNameOrNumber(string text) => text.All(character => char.IsLetterOrDigit(character) || character == '_');
+
+    // The number a length or a position is, where it is known when
+    // translating. One that came as text from a part of the emitter not yet
+    // moved to the tree is read from its digits.
+    private static int? KnownNumber(TreeExpression? node) => node switch
+    {
+        TreeExpression.Integer { Value: >= 0 and <= int.MaxValue } integer => (int)integer.Value,
+        TreeExpression.Raw raw when int.TryParse(raw.Text, NumberStyles.None, CultureInfo.InvariantCulture, out var number) => number,
+        _ => null,
+    };
+
+    private static TreeExpression.Sum Add(params TreeExpression.Term[] terms) => new TreeExpression.Sum(terms);
+
+    private static TreeExpression.Term Plus(TreeExpression value) => new(value);
+
+    private static TreeExpression.Term Minus(TreeExpression value) => new(value, IsSubtracted: true);
 
     // The value of an expression. A logical value is a C# bool here; it
     // becomes an integer only where it is stored. A character value is
@@ -51,7 +89,7 @@ internal sealed partial class UnitEmitter
 
             case Expression.Parenthesized parenthesized:
                 var inner = Value(parenthesized.Inner);
-                return new Code($"({inner.Text})", inner.Type, Level.Primary, inner.Length);
+                return new Code(new TreeExpression.Grouped(inner.Node), inner.Type, inner.LengthNode);
 
             case Expression.Unary unary:
                 return Unary(unary);
@@ -71,10 +109,12 @@ internal sealed partial class UnitEmitter
             throw Unsupported("a complex constant");
         }
 
-        var value = _evaluator.TryEvaluate(literal, _line)!;
-        return value is Constant.Character text
-            ? Text(text.Value)
-            : new Code(value.ToCSharpLiteral(), literal.Type, Level.Primary);
+        return _evaluator.TryEvaluate(literal, _line)! switch
+        {
+            Constant.Character text => Text(text.Value),
+            Constant.Integer integer => new Code(new TreeExpression.Integer(integer.Value), literal.Type),
+            var value => new Code(new TreeExpression.Number(value), literal.Type),
+        };
     }
 
     private Code Named(Symbol constant)
@@ -96,7 +136,7 @@ internal sealed partial class UnitEmitter
             _constantsUsed.Add(constant);
         }
 
-        return new Code(constant.Name.ToCSharpLocal(), constant.Type.Type, Level.Primary);
+        return new Code(new TreeExpression.Local(constant.Name.ToCSharpLocal()), constant.Type.Type);
     }
 
     // A character constant: the address of a literal the compiler keeps in
@@ -109,10 +149,9 @@ internal sealed partial class UnitEmitter
         }
 
         return new Code(
-            $"{Runtime("AddrOf")}({value.ToUtf8Literal()})",
+            new TreeExpression.Call(Runtime("AddrOf"), [new TreeExpression.Utf8(value)]),
             DataType.Character,
-            Level.Primary,
-            value.Length.ToString(CultureInfo.InvariantCulture));
+            new TreeExpression.Integer(value.Length));
     }
 
     // Where a variable that is not an array is kept: a local of the method,
@@ -127,52 +166,56 @@ internal sealed partial class UnitEmitter
 
         if (IsOwnArgument(symbol))
         {
-            var length = symbol.Type!.Type == DataType.Character ? LengthOf(symbol) : null;
-            return new Code(symbol.Name.ToCSharpLocal(), symbol.Type.Type, Level.Primary, length);
+            var length = symbol.Type!.Type == DataType.Character ? LengthNodeOf(symbol) : null;
+            return new Code(new TreeExpression.Local(symbol.Name.ToCSharpLocal()), symbol.Type.Type, length);
         }
 
-        var name = Local(symbol);
+        var name = new TreeExpression.Local(Local(symbol));
         if (symbol.Type!.Type == DataType.Character)
         {
-            return new Code(name, DataType.Character, Level.Primary, LengthOf(symbol));
+            return new Code(name, DataType.Character, LengthNodeOf(symbol));
         }
 
         return symbol.IsDummyArgument || IsPlaced(symbol)
-            ? new Code($"*{name}", symbol.Type.Type, Level.Unary)
-            : new Code(name, symbol.Type.Type, Level.Primary);
+            ? new Code(new TreeExpression.Dereference(name), symbol.Type.Type)
+            : new Code(name, symbol.Type.Type);
     }
 
     private Code Element(Symbol array, IReadOnlyList<Expression> subscripts)
     {
-        var name = Local(array);
+        var name = new TreeExpression.Local(Local(array));
         var offset = Offset(array, subscripts);
 
         if (array.Type!.Type != DataType.Character)
         {
-            return new Code($"{name}[{offset}]", array.Type.Type, Level.Primary);
+            return new Code(new TreeExpression.Indexed(name, offset), array.Type.Type);
         }
 
         // Elements of a character array lie end to end, each of the
         // array's length.
-        var length = LengthOf(array);
-        if (offset == "0")
+        var length = LengthNodeOf(array);
+        if (offset is TreeExpression.Integer { Value: 0 })
         {
-            return new Code(name, DataType.Character, Level.Primary, length);
+            return new Code(name, DataType.Character, length);
         }
 
-        var distance = length == "1" ? Grouped(offset) : $"{Grouped(offset)} * {Grouped(length)}";
-        return new Code($"{name} + {distance}", DataType.Character, Level.Additive, length);
+        var distance = length is TreeExpression.Integer { Value: 1 }
+            ? Group(offset)
+            : new TreeExpression.Product([Group(offset), Group(length)]);
+        return new Code(Add(Plus(name), Plus(distance)), DataType.Character, length);
     }
 
     // The length of a character variable or array element: the one its
     // declaration gives, or for a dummy argument of assumed length, the one
     // the caller passed.
-    private string LengthOf(Symbol symbol)
+    private string LengthOf(Symbol symbol) => CSharpExpressionWriter.Write(LengthNodeOf(symbol));
+
+    private TreeExpression LengthNodeOf(Symbol symbol)
     {
         var length = symbol.Type!.Length;
         if (length is null)
         {
-            return "1";
+            return One;
         }
 
         if (length.IsAssumed)
@@ -180,12 +223,12 @@ internal sealed partial class UnitEmitter
             // Of assumed length are a dummy argument and, inside a character
             // function, its result; the caller passes the length of both.
             return symbol.IsDummyArgument || symbol.IsEntryPoint
-                ? LengthName(symbol)
+                ? new TreeExpression.Local(LengthName(symbol))
                 : throw Unsupported("a CHARACTER length that is not constant");
         }
 
         return _evaluator.TryEvaluate(length.Value!, _line) is Constant.Integer constant
-            ? constant.Value.ToString(CultureInfo.InvariantCulture)
+            ? new TreeExpression.Integer(constant.Value)
             : throw Unsupported("a CHARACTER length that is not constant");
     }
 
@@ -205,45 +248,40 @@ internal sealed partial class UnitEmitter
     private Code Substring(Expression.Substring substring)
     {
         var whole = Value(substring.Target);
-        var first = substring.First is null ? new Code("1", DataType.Integer, Level.Primary) : Value(substring.First);
-        var last = substring.Last is null ? new Code(Grouped(whole.Length!), DataType.Integer, Level.Primary) : Value(substring.Last);
+        var first = substring.First is null ? One : Value(substring.First).Node;
+        var last = substring.Last is null ? Group(whole.LengthNode!) : Value(substring.Last).Node;
 
         // Where the positions are known when translating, the address and
         // the length come out as plain numbers.
         var firstKnown = substring.First is null ? 1 : Known(substring.First);
-        var lastKnown = substring.Last is not null
-            ? Known(substring.Last)
-            : int.TryParse(whole.Length, NumberStyles.None, CultureInfo.InvariantCulture, out var wholeLength) ? wholeLength : null;
+        var lastKnown = substring.Last is not null ? Known(substring.Last) : KnownNumber(whole.LengthNode);
 
         var address = firstKnown switch
         {
-            1 => whole,
-            { } position => new Code(
-                string.Create(CultureInfo.InvariantCulture, $"{whole.At(Level.Additive)} + {position - 1}"),
-                DataType.Character,
-                Level.Additive),
-            null => new Code($"{whole.At(Level.Additive)} + {first.At(Level.Additive)} - 1", DataType.Character, Level.Additive),
+            1 => whole.Node,
+            { } position => Add(Plus(whole.Node), Plus(new TreeExpression.Integer(position - 1))),
+            null => Add(Plus(whole.Node), Plus(first), Minus(One)),
         };
 
-        string length;
+        TreeExpression length;
         if (firstKnown is { } start && lastKnown is { } end)
         {
-            length = (end - start + 1).ToString(CultureInfo.InvariantCulture);
+            length = new TreeExpression.Integer(end - start + 1);
         }
         else if (firstKnown == 1)
         {
-            length = last.Text;
+            length = last;
         }
         else if (firstKnown is { } known)
         {
-            length = string.Create(CultureInfo.InvariantCulture, $"{last.At(Level.Additive)} - {known - 1}");
+            length = Add(Plus(last), Minus(new TreeExpression.Integer(known - 1)));
         }
         else
         {
-            length = $"{last.At(Level.Additive)} - {first.At(Level.Multiplicative)} + 1";
+            length = Add(Plus(last), Minus(first), Plus(One));
         }
 
-        return new Code(address.Text, DataType.Character, address.Level, length);
+        return new Code(address, DataType.Character, length);
     }
 
     private int? Known(Expression expression) => (_evaluator.TryEvaluate(expression, _line) as Constant.Integer)?.Value;
@@ -251,7 +289,7 @@ internal sealed partial class UnitEmitter
     // What a stored value is in an expression: itself, or for a logical
     // one, whether it is not zero.
     private static Code Loaded(Code storage) => storage.Type == DataType.Logical
-        ? new Code($"{storage.At(Level.Relational)} != 0", DataType.Logical, Level.Equality)
+        ? new Code(new TreeExpression.Binary(TreeExpression.Operation.NotEqual, storage.Node, Zero), DataType.Logical)
         : storage;
 
     // The variable, array element or substring an assignment stores into.
@@ -274,21 +312,23 @@ internal sealed partial class UnitEmitter
             {
                 "true" => "1",
                 "false" => "0",
-                _ => $"{value.At(Level.Or)} ? 1 : 0",
+                _ => CSharpExpressionWriter.Write(new TreeExpression.Conditional(value.Node, One, Zero)),
             };
         }
 
-        return value.Type <= type ? value.Text : $"({type.ToCSharpStorageType()}){value.At(Level.Unary)}";
+        return value.Type <= type
+            ? value.Text
+            : CSharpExpressionWriter.Write(new TreeExpression.Converted(type.ToCSharpStorageType(), value.Node));
     }
 
     // The position of an element counted from the array's first, with the
     // first subscript running fastest, as the language lays arrays out.
-    private string Offset(Symbol array, IReadOnlyList<Expression> subscripts)
+    private TreeExpression Offset(Symbol array, IReadOnlyList<Expression> subscripts)
     {
         long constant = 0;
-        var terms = new List<string>();
+        var terms = new List<TreeExpression.Term>();
         long stride = 1;
-        string? strideText = null;
+        List<TreeExpression>? strideFactors = null;
 
         for (var dimension = 0; dimension < subscripts.Count; dimension++)
         {
@@ -296,45 +336,40 @@ internal sealed partial class UnitEmitter
             var lower = ConstantBound(bound.Lower, 1);
             var subscript = _evaluator.TryEvaluate(subscripts[dimension], _line) as Constant.Integer;
 
-            if (strideText is null && lower is { } low && subscript is not null)
+            if (strideFactors is null && lower is { } low && subscript is not null)
             {
                 constant += (subscript.Value - low) * stride;
             }
             else
             {
-                var position = Value(subscripts[dimension]);
-                var text = position.Text;
-                var level = position.Level;
+                var position = Value(subscripts[dimension]).Node;
 
                 if (lower is null)
                 {
-                    text = $"{position.At(Level.Additive)} - {Value(bound.Lower!).At(Level.Multiplicative)}";
-                    level = Level.Additive;
+                    position = Add(Plus(position), Minus(Value(bound.Lower!).Node));
                 }
-                else if (strideText is null)
+                else if (strideFactors is null)
                 {
                     // A constant lower bound joins the one constant term.
                     constant -= (long)lower.Value * stride;
                 }
                 else if (lower.Value != 0)
                 {
-                    var shift = Math.Abs((long)lower.Value).ToString(CultureInfo.InvariantCulture);
-                    text = $"{position.At(Level.Additive)} {(lower.Value > 0 ? "-" : "+")} {shift}";
-                    level = Level.Additive;
+                    var shift = new TreeExpression.Integer(Math.Abs((long)lower.Value));
+                    position = Add(Plus(position), lower.Value > 0 ? Minus(shift) : Plus(shift));
                 }
 
-                var term = new Code(text, DataType.Integer, level);
-                if (strideText is not null)
+                if (strideFactors is not null)
                 {
-                    terms.Add($"{term.At(Level.Multiplicative)} * {strideText}");
+                    terms.Add(Plus(new TreeExpression.Product([position, .. strideFactors])));
                 }
                 else if (stride != 1)
                 {
-                    terms.Add(string.Create(CultureInfo.InvariantCulture, $"{term.At(Level.Multiplicative)} * {stride}"));
+                    terms.Add(Plus(new TreeExpression.Product([position, new TreeExpression.Integer(stride)])));
                 }
                 else
                 {
-                    terms.Add(term.At(Level.Additive));
+                    terms.Add(Plus(position));
                 }
             }
 
@@ -345,60 +380,61 @@ internal sealed partial class UnitEmitter
                 break;
             }
 
-            if (strideText is null && ConstantExtent(bound) is { } extent)
+            if (strideFactors is null && ConstantExtent(bound) is { } extent)
             {
                 stride *= extent;
             }
             else
             {
                 var size = Extent(bound);
-                strideText = strideText is null
-                    ? (stride == 1 ? size : string.Create(CultureInfo.InvariantCulture, $"{stride} * {size}"))
-                    : $"{strideText} * {size}";
+                strideFactors = strideFactors is null
+                    ? (stride == 1 ? [size] : [new TreeExpression.Integer(stride), size])
+                    : [.. strideFactors, size];
             }
         }
 
-        var sum = string.Join(" + ", terms);
         if (terms.Count == 0)
         {
-            return constant.ToString(CultureInfo.InvariantCulture);
+            return new TreeExpression.Integer(constant);
         }
 
-        return constant switch
+        switch (constant)
         {
-            0 => sum,
-            > 0 => string.Create(CultureInfo.InvariantCulture, $"{sum} + {constant}"),
-            _ => string.Create(CultureInfo.InvariantCulture, $"{sum} - {-constant}"),
-        };
+            case 0:
+                break;
+            case > 0:
+                terms.Add(Plus(new TreeExpression.Integer(constant)));
+                break;
+            default:
+                terms.Add(Minus(new TreeExpression.Integer(-constant)));
+                break;
+        }
+
+        return terms.Count == 1 ? AtLeast(terms[0].Value, Level.Additive) : new TreeExpression.Sum(terms);
     }
 
     // The number of elements along a dimension whose bounds are not both
     // constant, which only a dummy argument's array can have.
-    private string Extent(DimensionBound bound)
+    private TreeExpression Extent(DimensionBound bound)
     {
-        var upper = Value(bound.Upper ?? throw Unsupported("an assumed size in a dimension that is not the last"));
+        var upper = Value(bound.Upper ?? throw Unsupported("an assumed size in a dimension that is not the last")).Node;
         return ConstantBound(bound.Lower, 1) switch
         {
-            1 => upper.At(Level.Primary),
-            { } lower => string.Create(CultureInfo.InvariantCulture, $"({upper.At(Level.Additive)} - {lower} + 1)"),
-            null => $"({upper.At(Level.Additive)} - {Value(bound.Lower!).At(Level.Multiplicative)} + 1)",
+            1 => AtLeast(upper, Level.Primary),
+            { } lower => new TreeExpression.Grouped(Add(Plus(upper), Minus(new TreeExpression.Integer(lower)), Plus(One))),
+            null => new TreeExpression.Grouped(Add(Plus(upper), Minus(Value(bound.Lower!).Node), Plus(One))),
         };
     }
 
     private Code Unary(Expression.Unary unary)
     {
         var operand = Value(unary.Operand);
-        switch (unary.Operator)
+        return unary.Operator switch
         {
-            case UnaryOperator.Plus:
-                return operand;
-            case UnaryOperator.Not:
-                return new Code($"!{operand.At(Level.Unary)}", DataType.Logical, Level.Unary);
-            default:
-                // Two minus signs side by side would read as a decrement.
-                var text = operand.At(Level.Unary);
-                return new Code(text.StartsWith('-') ? $"-({text})" : $"-{text}", operand.Type, Level.Unary);
-        }
+            UnaryOperator.Plus => operand,
+            UnaryOperator.Not => new Code(new TreeExpression.Unary(TreeExpression.Operation.Not, operand.Node), DataType.Logical),
+            _ => new Code(new TreeExpression.Unary(TreeExpression.Operation.Negate, operand.Node), operand.Type),
+        };
     }
 
     private Code Binary(Expression.Binary binary)
@@ -416,39 +452,40 @@ internal sealed partial class UnitEmitter
         var left = Value(binary.Left);
         var right = Value(binary.Right);
 
-        var (symbol, level, isLogical) = binary.Operator switch
+        var (@operator, isLogical) = binary.Operator switch
         {
-            BinaryOperator.Add => ("+", Level.Additive, false),
-            BinaryOperator.Subtract => ("-", Level.Additive, false),
-            BinaryOperator.Multiply => ("*", Level.Multiplicative, false),
-            BinaryOperator.Divide => ("/", Level.Multiplicative, false),
-            BinaryOperator.Equal => ("==", Level.Equality, true),
-            BinaryOperator.NotEqual => ("!=", Level.Equality, true),
-            BinaryOperator.LessThan => ("<", Level.Relational, true),
-            BinaryOperator.LessOrEqual => ("<=", Level.Relational, true),
-            BinaryOperator.GreaterThan => (">", Level.Relational, true),
-            BinaryOperator.GreaterOrEqual => (">=", Level.Relational, true),
-            BinaryOperator.And => ("&&", Level.And, true),
-            BinaryOperator.Or => ("||", Level.Or, true),
-            BinaryOperator.Equivalent => ("==", Level.Equality, true),
-            _ => ("!=", Level.Equality, true),
+            BinaryOperator.Add => (TreeExpression.Operation.Add, false),
+            BinaryOperator.Subtract => (TreeExpression.Operation.Subtract, false),
+            BinaryOperator.Multiply => (TreeExpression.Operation.Multiply, false),
+            BinaryOperator.Divide => (TreeExpression.Operation.Divide, false),
+            BinaryOperator.Equal => (TreeExpression.Operation.Equal, true),
+            BinaryOperator.NotEqual => (TreeExpression.Operation.NotEqual, true),
+            BinaryOperator.LessThan => (TreeExpression.Operation.Less, true),
+            BinaryOperator.LessOrEqual => (TreeExpression.Operation.LessOrEqual, true),
+            BinaryOperator.GreaterThan => (TreeExpression.Operation.Greater, true),
+            BinaryOperator.GreaterOrEqual => (TreeExpression.Operation.GreaterOrEqual, true),
+            BinaryOperator.And => (TreeExpression.Operation.And, true),
+            BinaryOperator.Or => (TreeExpression.Operation.Or, true),
+            BinaryOperator.Equivalent => (TreeExpression.Operation.Equal, true),
+            _ => (TreeExpression.Operation.NotEqual, true),
         };
 
         // Character values are set in order by the runtime, and the
         // operator then asks how that came out.
         if (left.Type == DataType.Character)
         {
-            return new Code($"{Compared(left, right)} {symbol} 0", DataType.Logical, level);
+            return new Code(new TreeExpression.Binary(@operator, ComparedNode(left, right), Zero), DataType.Logical);
         }
 
-        // The right side is held one level tighter, so that what the source
-        // grouped to the right stays grouped: a - (b - c).
-        var text = $"{left.At(level)} {symbol} {right.At(level + 1)}";
-        return new Code(text, isLogical ? DataType.Logical : Wider(left.Type, right.Type), level);
+        return new Code(
+            new TreeExpression.Binary(@operator, left.Node, right.Node),
+            isLogical ? DataType.Logical : Wider(left.Type, right.Type));
     }
 
-    private string Compared(Code left, Code right) =>
-        $"{Runtime("Compare")}({left.Text}, {left.Length}, {right.Text}, {right.Length})";
+    private string Compared(Code left, Code right) => CSharpExpressionWriter.Write(ComparedNode(left, right));
+
+    private TreeExpression.Call ComparedNode(Code left, Code right) =>
+        new TreeExpression.Call(Runtime("Compare"), [left.Node, left.LengthNode!, right.Node, right.LengthNode!]);
 
     // An integer exponent multiplies; any other is a call to the library.
     private Code Power(Expression.Binary power)
@@ -460,7 +497,7 @@ internal sealed partial class UnitEmitter
         {
             var type = Wider(value.Type, exponent.Type);
             var library = type == DataType.Real ? "MathF" : "Math";
-            return new Code($"{library}.Pow({value.Text}, {exponent.Text})", type, Level.Primary);
+            return new Code(new TreeExpression.Call($"{library}.Pow", [value.Node, exponent.Node]), type);
         }
 
         var isSquare = _evaluator.TryEvaluate(power.Right, _line) is Constant.Integer { Value: 2 };
@@ -468,9 +505,9 @@ internal sealed partial class UnitEmitter
             || (power.Left is Expression.Name name && _table.Find(name.Identifier) is { IsArray: false });
         if (isSquare && isSimple)
         {
-            return new Code($"{value.At(Level.Unary)} * {value.At(Level.Unary)}", value.Type, Level.Multiplicative);
+            return new Code(new TreeExpression.Binary(TreeExpression.Operation.Multiply, value.Node, value.Node), value.Type);
         }
 
-        return new Code($"{Runtime("Pow")}({value.Text}, {exponent.Text})", value.Type, Level.Primary);
+        return new Code(new TreeExpression.Call(Runtime("Pow"), [value.Node, exponent.Node]), value.Type);
     }
 }
