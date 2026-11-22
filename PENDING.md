@@ -737,17 +737,20 @@ time is measured before and after.
 *An expression is a tree before it is text*. Of statements, the body of a
 method is built as `TreeStatement` and written by `CSharpStatementWriter`:
 an assignment, a call, the branches of an `IF`, both kinds of loop, a
-return, a stop, and the statements of input and output. Only comments
-and blank lines are still made as text, and carried in the tree as
-lines of it. What stands at the top of a method is tree
+return, a stop, the statements of input and output, and each line of
+comment with the blank lines kept between them. What stands at the top
+of a method is tree
 too: the constants it names, the access to its kept variables, its
 locals, what it takes from the stack, each a node that says so, and the
 local functions that statement functions become. That is what the layout
 of *How much goes on the stack is a setting* has to rewrite, and it can
-now be done as a pass. Not in the tree at all yet: the method itself,
-with its name and parameters, and what a class has beside its methods,
-the loader of a unit's kept variables with its `DATA` values and the
-forwarders for procedures passed. After each change so far the toolkit's
+now be done as a pass. A method is a node, `TreeMethod`, with its name
+and parameters, the comments about it, and those three parts. Not in the
+tree yet: what a class has beside its methods, the loader of a unit's
+kept variables with its `DATA` values and the forwarders for procedures
+passed, and the file around the class. Where a blank line goes among
+comments is still decided as they are added, from what stands before
+them, and not by the writer. After each change so far the toolkit's
 2,215 translated files came out the same to the byte, and its
 translation took no longer.
 

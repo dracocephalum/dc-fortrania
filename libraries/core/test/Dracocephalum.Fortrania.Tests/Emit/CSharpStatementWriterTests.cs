@@ -186,7 +186,8 @@ public class CSharpStatementWriterTests
             [N, new TreeExpression.NamedArgument("file", name), new TreeExpression.NamedArgument("status", new TreeExpression.Utf8("OLD"))]);
         IReadOnlyList<TreeStatement> statements =
         [
-            new TreeStatement.Text("// A comment."),
+            new TreeStatement.Comment("A comment."),
+            new TreeStatement.Comment(string.Empty),
             new TreeStatement.Blank(),
             new TreeStatement.Evaluate(new TreeExpression.Call("_io.Require", [opened])),
         ];
@@ -198,8 +199,51 @@ public class CSharpStatementWriterTests
         text.ShouldBe(
             """
             // A comment.
+            //
 
             _io.Require(_io.Open(n, file: new(name, name_len), status: "OLD"u8));
+
+            """,
+            StringCompareShould.IgnoreLineEndings);
+    }
+
+    [Fact]
+    public void Write_WhenGivenMethods_ShouldSetThemABlankLineApartEachWithItsCommentsAndItsParts()
+    {
+        // Arrange
+        var first = new TreeMethod(
+            [new TreeStatement.Comment("About the first.")],
+            "void",
+            "FIRST",
+            ["int* n"],
+            [new TreeStatement.Comment("Among its declarations.")],
+            [new TreeStatement.Declare("int", "i", new TreeExpression.Integer(0))],
+            [new TreeStatement.Comment("Before its code."), new TreeStatement.Assign(I, N)]);
+        var second = new TreeMethod([], "int", "SECOND", [], [], [], [new TreeStatement.Comment("All it has."), new TreeStatement.Return(One)]);
+
+        // Act
+        var text = new CodeWriter();
+        CSharpStatementWriter.Write(text, [first, second]);
+
+        // Assert
+        text.ToString().ShouldBe(
+            """
+            // About the first.
+            public void FIRST(int* n)
+            {
+                // Among its declarations.
+
+                int i = 0;
+
+                // Before its code.
+                i = n;
+            }
+
+            public int SECOND()
+            {
+                // All it has.
+                return 1;
+            }
 
             """,
             StringCompareShould.IgnoreLineEndings);

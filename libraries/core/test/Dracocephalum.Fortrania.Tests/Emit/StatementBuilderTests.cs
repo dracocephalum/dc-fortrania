@@ -16,60 +16,44 @@ public class StatementBuilderTests
 
         // Act
         sut.Begin();
-        sut.Line("// Inside.");
+        sut.Comment("Inside.");
         var inner = sut.End();
         sut.Add(new TreeStatement.While(new TreeExpression.Local("more"), inner));
 
         // Assert
-        inner.ShouldBe([new TreeStatement.Text("// Inside.")]);
+        inner.ShouldBe([new TreeStatement.Comment("Inside.")]);
         sut.Statements.Count.ShouldBe(2);
         sut.Statements[1].ShouldBeOfType<TreeStatement.While>().Body.ShouldBeSameAs(inner);
     }
 
     [Fact]
-    public void LastLine_WhenAskedAsStatementsAreAdded_ShouldSayWhatSourceTextWouldEndOn()
+    public void IsBlankNeedless_WhenAskedAsStatementsAreAdded_ShouldHoldAtAStartAndAfterABlankLine()
     {
         // Arrange
         var sut = new StatementBuilder();
 
         // Act & Assert
         sut.IsEmpty.ShouldBeTrue();
-        sut.LastLine.ShouldBe(string.Empty);
+        sut.IsBlankNeedless.ShouldBeTrue();
 
         sut.Begin();
         sut.IsEmpty.ShouldBeFalse();
-        sut.LastLine.ShouldBe("{");
+        sut.IsBlankNeedless.ShouldBeTrue();
 
-        sut.Line("// A comment.");
-        sut.LastLine.ShouldBe("// A comment.");
+        sut.Comment("A comment.");
+        sut.IsBlankNeedless.ShouldBeFalse();
+        sut.EndsOnComment.ShouldBeTrue();
 
         sut.Blank();
-        sut.LastLine.ShouldBe(string.Empty);
+        sut.IsBlankNeedless.ShouldBeTrue();
+        sut.EndsOnComment.ShouldBeFalse();
 
         sut.Add(Returned);
-        sut.LastLine.ShouldBe("return;");
+        sut.IsBlankNeedless.ShouldBeFalse();
+        sut.EndsOnComment.ShouldBeFalse();
 
         sut.Add(new TreeStatement.If([new TreeStatement.Branch(null, sut.End())]));
-        sut.LastLine.ShouldBe("}");
-    }
-
-    [Fact]
-    public void StartsWithComment_WhenTheFirstThingIsAComment_ShouldSaySo()
-    {
-        // Arrange
-        var commented = new StatementBuilder();
-        var plain = new StatementBuilder();
-
-        // Act
-        commented.Line("// First.");
-        commented.Add(Returned);
-        plain.Add(Returned);
-        plain.Line("// Last.");
-
-        // Assert
-        commented.StartsWithComment.ShouldBeTrue();
-        plain.StartsWithComment.ShouldBeFalse();
-        new StatementBuilder().StartsWithComment.ShouldBeFalse();
+        sut.IsBlankNeedless.ShouldBeFalse();
     }
 
     [Fact]
