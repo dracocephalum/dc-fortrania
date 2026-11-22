@@ -229,6 +229,12 @@ public sealed class CSharpEmitter
         file.Open($"public unsafe partial class {_options.ClassName}");
         file.Line("// Every character constant of the library, each once, followed by zero bytes up to a multiple");
         file.Line("// of eight. A method reaches one by where it starts, and writes the constant beside the number.");
+        file.Line("//");
+        file.Line("// They are kept here, and not each where it is used, for speed: a constant written as a literal");
+        file.Line("// of its own costs the just-in-time compiler several calls to write in line, and a method with");
+        file.Line("// hundreds of them uses up what that compiler allows one method, which leaves it slow and with a");
+        file.Line("// large frame. To have each constant written where it is used instead, as the FORTRAN has it,");
+        file.Line("// set \"inlineTextConstants\": true in the translation's settings and translate again.");
         file.Line($"private static readonly byte* {TextBlockPass.BlockField} = global::Dracocephalum.Fortrania.Runtime.Fortran.AddrOf(");
         for (var index = 0; index < literals.Count; index++)
         {
