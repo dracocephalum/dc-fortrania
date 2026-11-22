@@ -134,25 +134,26 @@ internal sealed partial class UnitEmitter
 
     private Code Joined(Expression concatenation, int capacity)
     {
-        var buffer = TakeBuffer(capacity);
-        var length = TakeSlot(DataType.Integer);
-        var capacityText = capacity.ToString(CultureInfo.InvariantCulture);
+        var buffer = new TreeExpression.Local(TakeBuffer(capacity));
+        var length = new TreeExpression.Local(TakeSlot(DataType.Integer));
+        var joining = Joining(buffer, new TreeExpression.Integer(capacity), concatenation);
         return new Code(
-            $"{Joining(buffer, capacityText, concatenation)}.End(&{length})",
+            new TreeExpression.MemberCall(joining, "End", [new TreeExpression.AddressOf(length)]),
             DataType.Character,
-            Level.Primary,
             length);
     }
 
-    private string Joining(string target, string capacity, Expression concatenation)
+    // The joining itself: a start at the place the value is to lie, and
+    // each piece added to what came before.
+    private TreeExpression Joining(TreeExpression target, TreeExpression capacity, Expression concatenation)
     {
-        var text = $"{Runtime("Concat")}({target}, {capacity})";
+        TreeExpression joining = new TreeExpression.Call(Runtime("Concat"), [target, capacity]);
         foreach (var piece in JoinedPieces(concatenation))
         {
-            text += $".Add({piece.Text}, {piece.Length})";
+            joining = new TreeExpression.MemberCall(joining, "Add", [piece.Node, piece.LengthNode!]);
         }
 
-        return text;
+        return joining;
     }
 
     // The values a concatenation joins, with each run of constants side by
@@ -189,10 +190,10 @@ internal sealed partial class UnitEmitter
     }
 
     // The sum of the lengths of what a concatenation joins, without joining.
-    private string JoinedLength(Expression concatenation) =>
+    private TreeExpression JoinedLength(Expression concatenation) =>
         TryFold(concatenation, out var folded)
-            ? folded.Length.ToString(CultureInfo.InvariantCulture)
-            : string.Join(" + ", JoinedPieces(concatenation).Select(piece => Grouped(piece.Length!)));
+            ? new TreeExpression.Integer(folded.Length)
+            : new TreeExpression.Sum([.. JoinedPieces(concatenation).Select(piece => Plus(Group(piece.LengthNode!)))]);
 
     // An assignment to a character variable, element or substring.
     private void AssignText(Code target, Statement.Assignment assignment)
@@ -201,7 +202,7 @@ internal sealed partial class UnitEmitter
         if (!IsConcatenation(assignment.Value) || TryFold(assignment.Value, out _))
         {
             var value = Value(assignment.Value);
-            _body.Line($"{Runtime("Assign")}({target.Text}, {target.Length}, {value.Text}, {value.Length});");
+            _body.Line($"{CSharpExpressionWriter.Write(Assigned(target, value))};");
             return;
         }
 
@@ -214,17 +215,22 @@ internal sealed partial class UnitEmitter
         var overlaps = Pieces(assignment.Value).SelectMany(NameWalker.NamesIn).Contains(root, StringComparer.Ordinal);
         if (!overlaps)
         {
-            _body.Line($"{Joining(target.Text, target.Length!, assignment.Value)}.Pad();");
+            var padded = new TreeExpression.MemberCall(Joining(target.Node, target.LengthNode!, assignment.Value), "Pad", []);
+            _body.Line($"{CSharpExpressionWriter.Write(padded)};");
             return;
         }
 
-        var capacity = int.TryParse(target.Length, NumberStyles.None, CultureInfo.InvariantCulture, out var held)
-            ? held
-            : Bound(assignment.Value)
-                ?? throw Unsupported("a concatenation of assumed length assigned to part of itself");
+        var capacity = KnownNumber(target.LengthNode)
+            ?? Bound(assignment.Value)
+            ?? throw Unsupported("a concatenation of assumed length assigned to part of itself");
         var joined = Joined(assignment.Value, capacity);
-        _body.Line($"{Runtime("Assign")}({target.Text}, {target.Length}, {joined.Text}, {joined.Length});");
+        _body.Line($"{CSharpExpressionWriter.Write(Assigned(target, joined))};");
     }
+
+    // One character value copied to another by the runtime, padded or cut
+    // to the length of where it goes.
+    private TreeExpression.Call Assigned(Code target, Code value) =>
+        new(Runtime("Assign"), [target.Node, target.LengthNode!, value.Node, value.LengthNode!]);
 
     private static string Root(Expression target) => target switch
     {
@@ -242,9 +248,9 @@ internal sealed partial class UnitEmitter
     {
         var length = DeclaredLength(function)
             ?? throw Unsupported("a CHARACTER function whose length the calling unit does not fix");
-        var lengthText = length.ToString(CultureInfo.InvariantCulture);
-        var buffer = TakeBuffer(length);
+        var held = new TreeExpression.Integer(length);
+        var buffer = new TreeExpression.Local(TakeBuffer(length));
 
-        return new Code(Invocation(function.Name, arguments, [buffer, lengthText]), DataType.Character, Level.Primary, lengthText);
+        return new Code(InvocationNode(function.Name, arguments, [buffer, held]), DataType.Character, held);
     }
 }

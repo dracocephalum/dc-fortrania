@@ -19,33 +19,18 @@ internal sealed partial class UnitEmitter
     // expression, unless it is a single name or number.
     private static string Grouped(string text) => IsNameOrNumber(text) ? text : $"({text})";
 
-    private static TreeExpression Group(TreeExpression node)
-    {
-        var text = CSharpExpressionWriter.Write(node);
-        if (!IsNameOrNumber(text))
-        {
-            return new TreeExpression.Grouped(node);
-        }
-
-        // Text that is a name or a number binds as one, whatever the part
-        // of the emitter that wrote it could say of it.
-        return node is TreeExpression.Raw ? new TreeExpression.Raw(text, Level.Primary) : node;
-    }
+    private static TreeExpression Group(TreeExpression node) => node is TreeExpression.Local or TreeExpression.Integer { Value: >= 0 }
+        ? node
+        : new TreeExpression.Grouped(node);
 
     private static TreeExpression AtLeast(TreeExpression node, Level needed) =>
         CSharpExpressionWriter.LevelOf(node) >= needed ? node : new TreeExpression.Grouped(node);
 
     private static bool IsNameOrNumber(string text) => text.All(character => char.IsLetterOrDigit(character) || character == '_');
 
-    // The number a length or a position is, where it is known when
-    // translating. One that came as text from a part of the emitter not yet
-    // moved to the tree is read from its digits.
-    private static int? KnownNumber(TreeExpression? node) => node switch
-    {
-        TreeExpression.Integer { Value: >= 0 and <= int.MaxValue } integer => (int)integer.Value,
-        TreeExpression.Raw raw when int.TryParse(raw.Text, NumberStyles.None, CultureInfo.InvariantCulture, out var number) => number,
-        _ => null,
-    };
+    // The number a length is, where it is known when translating.
+    private static int? KnownNumber(TreeExpression? node) =>
+        node is TreeExpression.Integer { Value: >= 0 and <= int.MaxValue } integer ? (int)integer.Value : null;
 
     private static TreeExpression.Sum Add(params TreeExpression.Term[] terms) => new TreeExpression.Sum(terms);
 
@@ -310,12 +295,9 @@ internal sealed partial class UnitEmitter
     {
         if (type == DataType.Logical)
         {
-            return value.Text switch
-            {
-                "true" => One,
-                "false" => Zero,
-                _ => new TreeExpression.Conditional(value.Node, One, Zero),
-            };
+            return value.Node is TreeExpression.Number { Value: Constant.Logical known }
+                ? (known.Value ? One : Zero)
+                : new TreeExpression.Conditional(value.Node, One, Zero);
         }
 
         return value.Type <= type ? value.Node : new TreeExpression.Converted(type.ToCSharpStorageType(), value.Node);

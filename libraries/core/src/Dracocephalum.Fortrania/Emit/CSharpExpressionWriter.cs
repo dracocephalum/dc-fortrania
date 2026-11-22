@@ -57,10 +57,13 @@ internal static class CSharpExpressionWriter
                 return $"({converted.Type}){WriteAt(converted.Operand, Level.Unary)}";
             case TreeExpression.Call call:
                 return $"{call.Method}({string.Join(", ", call.Arguments.Select(Write))})";
+            case TreeExpression.MemberCall member:
+                return $"{WriteAt(member.Target, Level.Primary)}.{member.Method}({string.Join(", ", member.Arguments.Select(Write))})";
+            case TreeExpression.Invoke invoke:
+                return $"{WriteAt(invoke.Target, Level.Primary)}({string.Join(", ", invoke.Arguments.Select(Write))})";
             case TreeExpression.Grouped grouped:
                 return $"({Write(grouped.Inner)})";
-            case TreeExpression.Raw raw:
-                return raw.Text;
+
             default:
                 throw new ArgumentOutOfRangeException(nameof(node));
         }
@@ -91,7 +94,7 @@ internal static class CSharpExpressionWriter
         TreeExpression.Sum => Level.Additive,
         TreeExpression.Product => Level.Multiplicative,
         TreeExpression.Conditional => Level.Conditional,
-        TreeExpression.Raw raw => raw.Level,
+
         _ => Level.Primary,
     };
 

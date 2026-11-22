@@ -187,6 +187,23 @@ does not grow the stack. A character function is handed the place for its
 result, of the length the calling unit declares for it, and gives the
 address back, which makes a reference to it a value like any other.
 
+**An expression is a tree before it is text.** The emitter does not write
+an expression: it builds one, of nodes that say what is computed and from
+where, a local, what lies at an address, an element so far on from one, an
+operator, a call, a conversion, and a writer turns the finished tree into
+C#. The writer chooses spelling and parentheses and nothing else, from how
+strongly each node binds, so the emitter never asks where parentheses go
+and never reads its own text back to find out what it wrote. Two things
+are told apart in the tree that look alike in the text. The program's own
+arithmetic keeps the grouping the source gave it, since the order in which
+real numbers are added changes the last digit; the translator's own, an
+address or a length or a position, is whole numbers that it made up, where
+grouping does not matter, and has nodes of its own that a pass may fold.
+And parentheses the source wrote are a node, because they fix how an
+expression is evaluated; every other pair is the writer's. It is the first
+part of the program tree that `PENDING.md` plans; statements are still
+text.
+
 **Constants are joined when translating.** The values of literals and
 named constants are known then, so a concatenation of them alone is
 written as one literal, however it is grouped, and needs no place at all;

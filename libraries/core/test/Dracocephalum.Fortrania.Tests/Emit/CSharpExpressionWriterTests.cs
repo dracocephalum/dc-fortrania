@@ -159,14 +159,27 @@ public class CSharpExpressionWriterTests
     }
 
     [Fact]
-    public void WriteAt_WhenTextOfAnotherPartBindsLessThanNeeded_ShouldPutItInParentheses()
+    public void WriteAt_WhenAnExpressionBindsLessThanNeeded_ShouldPutItInParentheses()
     {
         // Arrange
-        var raw = new TreeExpression.Raw("x ? y : z", Level.Conditional);
+        var choice = new TreeExpression.Conditional(A, B, C);
 
         // Act & Assert
-        CSharpExpressionWriter.WriteAt(raw, Level.Additive).ShouldBe("(x ? y : z)");
-        CSharpExpressionWriter.WriteAt(new TreeExpression.Grouped(raw), Level.Primary).ShouldBe("(x ? y : z)");
+        CSharpExpressionWriter.WriteAt(choice, Level.Additive).ShouldBe("(a ? b : c)");
+        CSharpExpressionWriter.WriteAt(new TreeExpression.Grouped(choice), Level.Primary).ShouldBe("(a ? b : c)");
         CSharpExpressionWriter.WriteAt(A, Level.Primary).ShouldBe("a");
+    }
+
+    [Fact]
+    public void Write_WhenAMethodOfAValueOrAnAddressIsCalled_ShouldWriteTheCallAfterIt()
+    {
+        // Arrange
+        var joining = new TreeExpression.MemberCall(new TreeExpression.Call("Concat", [A, B]), "Add", [C, new TreeExpression.Integer(4)]);
+        var through = new TreeExpression.Invoke(new TreeExpression.Converted("delegate*<int*, void>", A), [B]);
+
+        // Act & Assert
+        CSharpExpressionWriter.Write(new TreeExpression.MemberCall(joining, "Pad", [])).ShouldBe("Concat(a, b).Add(c, 4).Pad()");
+        CSharpExpressionWriter.Write(through).ShouldBe("((delegate*<int*, void>)a)(b)");
+        CSharpExpressionWriter.Write(new TreeExpression.Invoke(A, [B, C])).ShouldBe("a(b, c)");
     }
 }

@@ -11,9 +11,8 @@ namespace Dracocephalum.Fortrania.Emit;
 /// </summary>
 /// <remarks>
 /// <c>PENDING.md</c>, <em>A tree between the analysis and the writers</em>,
-/// has the plan this is the first piece of. The emitter is moved over to it
-/// a part at a time, and what has not been moved yet travels as
-/// <see cref="Raw"/>.
+/// has the plan this is the first piece of: every expression the emitter
+/// makes is one of these, and statements are still written as text.
 /// </remarks>
 internal abstract record TreeExpression
 {
@@ -91,8 +90,14 @@ internal abstract record TreeExpression
     /// <summary>A value converted to a type of the target language, named as that language names it.</summary>
     internal sealed record Converted(string Type, TreeExpression Operand) : TreeExpression;
 
-    /// <summary>A call of a method by its name, the runtime's or the framework's.</summary>
+    /// <summary>A call of a method by its name: the runtime's, the framework's, or one of the program's own.</summary>
     internal sealed record Call(string Method, IReadOnlyList<TreeExpression> Arguments) : TreeExpression;
+
+    /// <summary>A call of a method of a value, as each step of a concatenation is of the one before.</summary>
+    internal sealed record MemberCall(TreeExpression Target, string Method, IReadOnlyList<TreeExpression> Arguments) : TreeExpression;
+
+    /// <summary>A call through the address of a procedure.</summary>
+    internal sealed record Invoke(TreeExpression Target, IReadOnlyList<TreeExpression> Arguments) : TreeExpression;
 
     /// <summary>
     /// A value in parentheses that are to be written whatever stands
@@ -100,13 +105,6 @@ internal abstract record TreeExpression
     /// evaluated, or the translator's around a part of its arithmetic.
     /// </summary>
     internal sealed record Grouped(TreeExpression Inner) : TreeExpression;
-
-    /// <summary>
-    /// Source text written by a part of the emitter that has not been
-    /// moved to the tree, with how strongly it binds. Nothing can be known
-    /// of it but that; the tree is complete when none is left.
-    /// </summary>
-    internal sealed record Raw(string Text, Level Level) : TreeExpression;
 
     /// <summary>A term of a <see cref="Sum"/>.</summary>
     /// <param name="Value">The term.</param>
