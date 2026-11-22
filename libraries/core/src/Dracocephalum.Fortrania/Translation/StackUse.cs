@@ -39,11 +39,11 @@ public sealed record StackUse(
     bool IsRecursive)
 {
     /// <summary>
-    /// Gets where the procedure's working buffers would start in one block
-    /// that the whole translation shares, in place of the stack: after the
-    /// buffers of every procedure that can be running when it is called.
-    /// Nothing for a procedure on a chain that comes back to itself, or
-    /// beneath one, which can be given no such place.
+    /// Gets where the procedure's working buffers would start in a region
+    /// of its project's own, in place of the stack: after the buffers of
+    /// every procedure of the project that calls it by name, directly or
+    /// by way of others. Nothing for a procedure on a chain that comes
+    /// back to itself, or beneath one, which can be given no such place.
     /// </summary>
     public long? Place { get; init; }
 }

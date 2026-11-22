@@ -847,25 +847,41 @@ by a choice of the context.
   procedure's address is never kept in the block.
 
 **Built so far: the places.** A translation works out where each
-procedure's buffers would start in one block, `StackUse.Place`, and how
-large the block is, `TranslationResult.WorkingBlockBytes`; nothing is
-emitted from them yet. A procedure starts where the buffers of its
-deepest caller end. One passed as an argument is taken to be called
-wherever the procedure it was passed to, or one that passed it on, calls
-any argument, which is coarser than the stack report's walk and could in
-principle put a procedure further down than it need be. For the
-reference sources it does not: with their test program the block is
-90,824 bytes, exactly that program's deepest chain, and every one of
-2,761 procedures has a place. A procedure on a chain that comes back to
-itself gets none and keeps the stack.
+procedure's buffers would start in a region of its project's own,
+`StackUse.Place`, and what each project needs,
+`TranslationResult.WorkingRegions`; nothing is emitted from them yet. A
+procedure starts where the buffers of its deepest caller by name in its
+own project end; one on a chain that comes back to itself gets no place
+and keeps the stack. For the reference sources every one of 2,761
+procedures has a place: the toolkit's region is 73,056 bytes and its
+test program's 40,472, so a context that runs the test program needs
+113,528 for each level.
 
-The places are those of one translation taken whole, every project in
-it, and not a region for each library as *Regions* below has it: a
-library's places then depend on what it was translated beside, the
-toolkit's being 14 KB further down with its test program than alone.
-That is right for a program translated in one run. Libraries translated
-apart need the regions, and a procedure the host passes needs the levels
-of *A callback that calls back in*; neither is built.
+**How the rest is to go, which changes three things below.**
+
+- **A project's places are its own**, worked out from that project
+  alone, so that a library is translated once and used by any program,
+  one translated apart from it among them. A call into another project
+  leaves the region for that project's.
+- **The context lays the regions out**, as libraries are made over it: a
+  project's region starts after those of every project that can call
+  into it. A project says what it needs for itself and what it reaches,
+  its own and the deepest chain of projects it refers to, and the
+  context has that much before any procedure runs, since the first
+  library made is the one called first. The block then grows only
+  between calls, with nothing to copy, since working buffers hold
+  nothing from one call to the next.
+- **Every call through a procedure argument takes the next level**, and
+  not only one from the host. Translated code reaches a passed procedure
+  through a forwarder, so the forwarder moves the context to the next
+  level's block and back. A procedure passed down from one library may
+  call that library again while its chain is running, which no layout
+  of one project alone can see; at a level of its own it meets nothing.
+  That is why only calls by name count for a place. It costs a few
+  loads and stores at each such call, and a block for each level
+  reached, taken the first time.
+- **How deep the levels may go is the host's to set**, 16 unless told
+  otherwise.
 
 **Two modes, chosen per context.** In the stack mode a method's buffers
 are on the stack, as now. In the heap mode they are at a fixed place in
