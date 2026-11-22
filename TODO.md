@@ -9,15 +9,6 @@ undecided adds it here rather than mentioning it once in a conversation.
 
 ## Decisions pending
 
-- [ ] **The default branch has no server-side protection.** The repository
-      is private, and the host refuses the shipped ruleset on a private
-      repository under its free plan. The merge settings are applied:
-      squash only, branch deleted on merge. Until this is closed, the only
-      thing keeping changes off `main` is the rule never to commit there.
-      The options: a paid plan, making the repository public, or accepting
-      no gate. Close by: one of the first two, then
-      `gh api repos/<owner>/<name>/rulesets --input .github/rulesets/protect-main.json`.
-
 - [ ] **The local rules still speak as the translated library's
       repository did.** `docs/rules/performance.md` and
       `docs/rules/portability.md` were written when the translator, the
@@ -106,12 +97,13 @@ undecided adds it here rather than mentioning it once in a conversation.
       back when the outermost call returns. Close by: the bytes a
       level really uses measured over the reference sources' tests, and
       one of these taken if they are far below a block.
-- [ ] **The `ci` packages follow the repository when it is made public.**
-      Each takes its access from the repository, so both become readable
-      by anyone the day it does, and a package made public cannot be made
-      private again. They are builds on the way to a release, removed
-      after the newest twenty, and are not for others to build on.
-      Decided: they stay private. Close by: before the repository is made
-      public, the setting that takes access from the repository turned
-      off on each package's page, which is the owner's to do, and the
-      repositories that read them given access by name as now.
+- [ ] **A package added later is public from its first version.** The
+      repository is public and its two `ci` packages are private, each
+      told not to take its access from the repository; a visitor finds
+      neither. A package the pipeline publishes for the first time has
+      that setting on, and is readable by anyone until it is turned off
+      on the package's page, which is the owner's to do, with this
+      repository given write access there and those that read it given
+      theirs. Close by: nothing, while packages are added; do it the day
+      one is, before the change that adds it is merged if the host
+      allows a package to be made beforehand, straight after if not.
