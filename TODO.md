@@ -92,3 +92,11 @@ undecided adds it here rather than mentioning it once in a conversation.
       builds and tests and publishes nothing. Close by: the deploy
       looking at whether anything under `libraries/` or the root's build
       files changed, or a list of its own.
+- [ ] **The block of working memory has nothing around it.** The runtime
+      has the block, `WorkingMemory`, with its regions and its levels; no
+      translated code uses it yet. A page that cannot be touched at each
+      end of a block is decided and not built: it needs the operating
+      system's own calls to protect memory, one way on Windows and
+      another elsewhere, which the runtime has none of so far. Close by:
+      the two pages, with a platform that has neither call left as it is
+      now, and `docs/rules/portability.md` saying so.

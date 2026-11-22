@@ -20,6 +20,9 @@ public
 #endif
 sealed class FortranContextOptions
 {
+    /// <summary>How many calls through a procedure argument may run one inside another, unless a host says otherwise.</summary>
+    public const int DefaultCallbackDepth = 16;
+
     /// <summary>
     /// Gets what a FORTRAN program run on its own has: the console for its
     /// screen and keyboard, the process's command line for its own, and
@@ -52,4 +55,23 @@ sealed class FortranContextOptions
 
     /// <summary>Gets or sets what ends a record written as text; the running platform's line ending when left <see langword="null"/>.</summary>
     public string? NewLine { get; set; }
+
+    /// <summary>
+    /// Gets or sets where the program's procedures keep their working
+    /// buffers. Left as it is, each library keeps them where it was
+    /// translated to, and one that serves both on the stack. A library
+    /// translated for one place alone refuses a context that asks for the
+    /// other.
+    /// </summary>
+    public WorkingBuffers WorkingBuffers { get; set; }
+
+    /// <summary>
+    /// Gets or sets how many calls through a procedure argument may run one
+    /// inside another: a search that calls a function it was given, which
+    /// starts a search that calls one it was given. Each takes a block of
+    /// working memory of its own the first time that depth is reached,
+    /// where buffers are kept in a block, so the limit is on memory and on
+    /// a program that never stops calling back. It is the host's to raise.
+    /// </summary>
+    public int CallbackDepth { get; set; } = DefaultCallbackDepth;
 }
