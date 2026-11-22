@@ -60,6 +60,7 @@ sealed partial class FortranContext : IDisposable
     {
         IO = new FortranIO(provider);
         Memory = new StateMemory();
+        Working = new WorkingMemory(WorkingBuffers.Default, FortranContextOptions.DefaultCallbackDepth);
     }
 
     /// <summary>Initializes a new instance of the <see cref="FortranContext"/> class as a host has decided it.</summary>
@@ -81,6 +82,8 @@ sealed partial class FortranContext : IDisposable
         CommandLine = options.CommandLine;
         AllowsCommands = options.AllowsCommands;
         Clock = options.Clock ?? TimeProvider.System;
+        ArgumentOutOfRangeException.ThrowIfNegative(options.CallbackDepth, nameof(options));
+        Working = new WorkingMemory(options.WorkingBuffers, options.CallbackDepth);
     }
 
     /// <summary>Gets the program's input and output: its units, files, screen and keyboard.</summary>
@@ -88,6 +91,9 @@ sealed partial class FortranContext : IDisposable
 
     /// <summary>Gets the memory the program's libraries keep their variables in between calls.</summary>
     public StateMemory Memory { get; }
+
+    /// <summary>Gets the memory the program's procedures keep their working buffers in when those are not on the stack.</summary>
+    public WorkingMemory Working { get; }
 
     /// <summary>
     /// Gets a value that stands for the context where an object cannot be
@@ -231,6 +237,7 @@ sealed partial class FortranContext : IDisposable
 
         IO.Dispose();
         Memory.Dispose();
+        Working.Dispose();
         Array.Clear(_libraries);
     }
 
