@@ -22,6 +22,13 @@ public sealed record TranslationResult(
     public IReadOnlyList<StackUse> StackUse { get; init; } = [];
 
     /// <summary>
+    /// Gets the size of the one block that would hold the working buffers
+    /// of every procedure translated, each at its <see cref="Translation.StackUse.Place"/>;
+    /// zero when the translation was not done.
+    /// </summary>
+    public long WorkingBlockBytes { get; init; }
+
+    /// <summary>
     /// Gets the variables translated that lie off their type's alignment,
     /// by project, source and unit in ordinal order; empty when there are
     /// none or the translation was not done.

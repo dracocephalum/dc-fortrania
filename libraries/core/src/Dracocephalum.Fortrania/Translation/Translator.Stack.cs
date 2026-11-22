@@ -22,6 +22,7 @@ public static partial class Translator
 
         private void WorkOutStackUse()
         {
+            WorkOutPlaces();
             foreach (var source in _sources)
             {
                 foreach (var (name, (unit, method)) in source.Methods)
@@ -38,7 +39,10 @@ public static partial class Translator
                         depth.Bytes,
                         depth.Chain,
                         takesProcedures,
-                        depth.IsRecursive));
+                        depth.IsRecursive)
+                    {
+                        Place = _places.TryGetValue((source, name), out var place) ? place : null,
+                    });
                 }
             }
 

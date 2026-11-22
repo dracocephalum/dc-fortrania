@@ -723,6 +723,24 @@ public sealed class TranslatorTests : IDisposable
 
         result.StackUse.Single(use => use.Procedure == "MID").DeepestChain.ShouldBe(["MID", "LEAF"]);
         result.StackUse.ShouldAllBe(use => use.Project == "Example.Toolkit" && use.Source == "Core");
+
+        // In one block, each starts where its deepest caller's buffers end:
+        // MID has none of its own and still pushes nothing down; LEAF and
+        // SMALL, called one after the other, share their place; F is put
+        // beneath INNER, where it is called, and not beneath TOP, which
+        // only names it.
+        var places = new Dictionary<string, long?>
+        {
+            ["TOP"] = 0,
+            ["MID"] = 16,
+            ["LEAF"] = 16,
+            ["SMALL"] = 16,
+            ["RUNF"] = 16,
+            ["INNER"] = 16 + 1600,
+            ["F"] = 16 + 1600 + 80,
+        };
+        result.StackUse.ToDictionary(use => use.Procedure, use => use.Place).ShouldBe(places, ignoreOrder: true);
+        result.WorkingBlockBytes.ShouldBe(16 + 1600 + 80 + 400);
     }
 
     [Fact]
@@ -796,6 +814,11 @@ public sealed class TranslatorTests : IDisposable
         result.Succeeded.ShouldBeTrue();
         var one = result.StackUse.Single(use => use.Procedure == "ONE");
         one.IsRecursive.ShouldBeTrue();
+
+        // Procedures that call each other in a circle have no place in a
+        // block, since neither can lie after the other.
+        result.StackUse.ShouldAllBe(use => use.Place == null);
+        result.WorkingBlockBytes.ShouldBe(0);
         one.DeepestBytes.ShouldBe(8);
         one.DeepestChain.ShouldBe(["ONE", "TWO"]);
     }

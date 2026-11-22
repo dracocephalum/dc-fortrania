@@ -846,6 +846,27 @@ by a choice of the context.
   would spoil the next routine's buffer and show as a wrong answer. A
   procedure's address is never kept in the block.
 
+**Built so far: the places.** A translation works out where each
+procedure's buffers would start in one block, `StackUse.Place`, and how
+large the block is, `TranslationResult.WorkingBlockBytes`; nothing is
+emitted from them yet. A procedure starts where the buffers of its
+deepest caller end. One passed as an argument is taken to be called
+wherever the procedure it was passed to, or one that passed it on, calls
+any argument, which is coarser than the stack report's walk and could in
+principle put a procedure further down than it need be. For the
+reference sources it does not: with their test program the block is
+90,824 bytes, exactly that program's deepest chain, and every one of
+2,761 procedures has a place. A procedure on a chain that comes back to
+itself gets none and keeps the stack.
+
+The places are those of one translation taken whole, every project in
+it, and not a region for each library as *Regions* below has it: a
+library's places then depend on what it was translated beside, the
+toolkit's being 14 KB further down with its test program than alone.
+That is right for a program translated in one run. Libraries translated
+apart need the regions, and a procedure the host passes needs the levels
+of *A callback that calls back in*; neither is built.
+
 **Two modes, chosen per context.** In the stack mode a method's buffers
 are on the stack, as now. In the heap mode they are at a fixed place in
 a block of working buffers that the context holds. Each method's buffers

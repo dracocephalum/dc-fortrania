@@ -36,4 +36,14 @@ public sealed record StackUse(
     long DeepestBytes,
     IReadOnlyList<string> DeepestChain,
     bool TakesProcedures,
-    bool IsRecursive);
+    bool IsRecursive)
+{
+    /// <summary>
+    /// Gets where the procedure's working buffers would start in one block
+    /// that the whole translation shares, in place of the stack: after the
+    /// buffers of every procedure that can be running when it is called.
+    /// Nothing for a procedure on a chain that comes back to itself, or
+    /// beneath one, which can be given no such place.
+    /// </summary>
+    public long? Place { get; init; }
+}
