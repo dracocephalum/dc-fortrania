@@ -94,3 +94,15 @@ undecided adds it here rather than mentioning it once in a conversation.
       another elsewhere, which the runtime has none of so far. Close by:
       the two pages, with a platform that has neither call left as it is
       now, and `docs/rules/portability.md` saying so.
+- [ ] **A call through an argument takes a whole block.** Each level of
+      such calls has a block as large as the first, every region in it,
+      113,528 bytes for the reference sources with their test program,
+      though the procedure called and what it reaches mostly need a
+      small part. Ways to take less, each with more code behind it: a
+      level sized by what the procedure called can reach, which the
+      translator knows for one of its own; levels that share one block
+      and start where the chain that led to the call ends, which needs
+      that end known when the call is made; or a level's block given
+      back when the outermost call returns. Close by: the bytes a
+      level really uses measured over the reference sources' tests, and
+      one of these taken if they are far below a block.
