@@ -87,6 +87,10 @@ public static partial class Translator
         // The text of each file to write, by its name.
         public Dictionary<string, string> Files { get; } = new(StringComparer.OrdinalIgnoreCase);
 
+        // Each unit as it was emitted, by the name of its file, to be
+        // written again once every procedure has its place.
+        public Dictionary<string, EmittedUnit> Emitted { get; } = new(StringComparer.OrdinalIgnoreCase);
+
         // Each method written, by the name it is called by, with its unit.
         public Dictionary<string, (Unit Unit, EmittedMethod Method)> Methods { get; } = new(StringComparer.Ordinal);
     }
@@ -136,6 +140,7 @@ public static partial class Translator
             if (!HasErrors)
             {
                 WorkOutStackUse();
+                WriteWithPlaces();
             }
 
             if (!HasErrors)
@@ -576,6 +581,7 @@ public static partial class Translator
 
                         var emitted = emitter.EmitUnit(unit.Table, unit.File);
                         source.Files[name] = emitted.Text;
+                        source.Emitted[name] = emitted;
                         foreach (var method in emitted.Methods)
                         {
                             source.Methods[method.Name] = (unit, method);
@@ -593,6 +599,33 @@ public static partial class Translator
                 }
 
                 source.Files[FileName(source.ClassName)] = emitter.EmitClass();
+            }
+        }
+
+        // Each unit again with its procedures' buffers where a context says,
+        // now that every procedure has its place, and each class with what
+        // it asks of its context for them.
+        private void WriteWithPlaces()
+        {
+            foreach (var source in _sources)
+            {
+                foreach (var (name, emitted) in source.Emitted)
+                {
+                    source.Files[name] = CSharpEmitter.WriteWithPlaces(
+                        emitted,
+                        procedure => _places.TryGetValue((source, procedure), out var place) ? place : null);
+                }
+
+                var region = _workingRegions.Single(region => region.Project == source.Project.Name);
+                var options = new EmitOptions(source.Namespace, source.ClassName)
+                {
+                    References = [.. Used(source).Select(other => new LibraryReference(other.Namespace, other.ClassName, other.Catalogue.Find))],
+                };
+                source.Files[FileName(source.ClassName)] = new CSharpEmitter(options, source.Catalogue.Find).EmitClass(new LibraryRegion(
+                    region.Project,
+                    region.OwnBytes,
+                    region.ReachBytes,
+                    [.. _references.GetValueOrDefault(source.Project, []).Select(project => project.Name)]));
             }
         }
 

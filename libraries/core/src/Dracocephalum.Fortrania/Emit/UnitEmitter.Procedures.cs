@@ -171,11 +171,19 @@ internal sealed partial class UnitEmitter
             [.. parameters.Concat(parameterLengths)],
             [],
             [],
-            [target.ResultType is null ? new TreeStatement.Evaluate(forwarded) : new TreeStatement.Return(forwarded)])
+            [
+                // A procedure reached through an argument runs at a level of
+                // its own, since it may call back into a library whose chain
+                // of calls is still running; the level is left however it
+                // ends.
+                new TreeStatement.Evaluate(new TreeExpression.Call("context.Working.Enter", [])),
+                new TreeStatement.TryFinally(
+                    [target.ResultType is null ? new TreeStatement.Evaluate(forwarded) : new TreeStatement.Return(forwarded)],
+                    [new TreeStatement.Evaluate(new TreeExpression.Call("context.Working.Leave", []))]),
+            ])
         {
             IsPublic = false,
             IsStatic = true,
-            IsOneExpression = true,
         });
 
         _forwarders[target.Name] = forwarder;

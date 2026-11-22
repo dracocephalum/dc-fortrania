@@ -22,6 +22,9 @@ internal sealed record TreeMethod(
     IReadOnlyList<TreeStatement> Declarations,
     IReadOnlyList<TreeStatement> Body) : TreeMember
 {
+    /// <summary>Gets the FORTRAN procedure the method is, by its name as the program has it; nothing for a method the translator adds.</summary>
+    public string? Procedure { get; init; }
+
     /// <summary>Gets a value indicating whether the program's own code may call it; one the translator adds is the class's alone.</summary>
     public bool IsPublic { get; init; } = true;
 

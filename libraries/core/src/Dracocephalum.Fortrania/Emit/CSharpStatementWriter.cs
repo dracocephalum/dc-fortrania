@@ -62,6 +62,11 @@ internal static class CSharpStatementWriter
 
                 break;
 
+            case TreeStatement.TryFinally guarded:
+                WriteBlock(text, "try", guarded.Body);
+                WriteBlock(text, "finally", guarded.After);
+                break;
+
             case TreeStatement.While loop:
                 WriteBlock(text, $"while ({Expression(loop.Condition)})", loop.Body);
                 break;

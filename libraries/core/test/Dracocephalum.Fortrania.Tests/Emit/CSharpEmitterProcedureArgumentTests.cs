@@ -115,8 +115,24 @@ public class CSharpEmitterProcedureArgumentTests
         var file = TranslatedProgram.Translate(ProcedureArgumentSample.Source)[10];
 
         // Assert
-        file.ShouldContain("    private static double _DRIVER_passes_SQUARE(FortranContext context, double* a1) => context.Get<Library>().SQUARE(a1);\n");
-        file.ShouldContain("    private static byte* _DRIVER_passes_TAG(FortranContext context, byte* result, int result_len, int* a1) => context.Get<Library>().TAG(result, result_len, a1);\n");
+        file.ShouldContain(
+            """
+                private static double _DRIVER_passes_SQUARE(FortranContext context, double* a1)
+                {
+                    context.Working.Enter();
+                    try
+                    {
+                        return context.Get<Library>().SQUARE(a1);
+                    }
+                    finally
+                    {
+                        context.Working.Leave();
+                    }
+                }
+
+            """.ReplaceLineEndings("\n"));
+        file.ShouldContain("    private static byte* _DRIVER_passes_TAG(FortranContext context, byte* result, int result_len, int* a1)\n");
+        file.ShouldContain("            return context.Get<Library>().TAG(result, result_len, a1);\n");
         file.Split("private static double _DRIVER_passes_SQUARE").Length.ShouldBe(2);
         file.ShouldContain("@out[0] = APPLY(&_DRIVER_passes_SQUARE, Arg(&_d1, 2.0));");
         file.ShouldContain("@out[2] = RELAY((void*)(delegate*<FortranContext, double*, double>)&_DRIVER_passes_SQUARE, Arg(&_d1, 3.0));");
@@ -152,6 +168,9 @@ public class CSharpEmitterProcedureArgumentTests
 
         // Assert
         files[1].ShouldContain("(delegate*<FortranContext, byte*, int*, int, void> s, int* n)");
-        files[2].ShouldContain("private static void _BOTH_passes_SHOW(FortranContext context, byte* a1, int* a2, int a1_len) => context.Get<C>().show_(a1, a2, a1_len);");
+        files[2].ShouldContain("private static void _BOTH_passes_SHOW(FortranContext context, byte* a1, int* a2, int a1_len)");
+        files[2].ShouldContain("context.Working.Enter();");
+        files[2].ShouldContain("context.Get<C>().show_(a1, a2, a1_len);");
+        files[2].ShouldContain("context.Working.Leave();");
     }
 }

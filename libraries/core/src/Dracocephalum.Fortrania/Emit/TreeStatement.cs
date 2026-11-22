@@ -49,6 +49,9 @@ internal abstract record TreeStatement
     /// <summary>The method left, with its result where it has one.</summary>
     internal sealed record Return(TreeExpression? Value) : TreeStatement;
 
+    /// <summary>Statements done, and others done after them however the first end, an exception among the ways.</summary>
+    internal sealed record TryFinally(IReadOnlyList<TreeStatement> Body, IReadOnlyList<TreeStatement> After) : TreeStatement;
+
     /// <summary>An exception thrown.</summary>
     internal sealed record Throw(TreeExpression Exception) : TreeStatement;
 

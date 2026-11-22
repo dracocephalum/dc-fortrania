@@ -1,3 +1,5 @@
+using Dracocephalum.Fortrania.Emit;
+
 namespace Dracocephalum.Fortrania.Translation;
 
 /// <content>
@@ -83,7 +85,7 @@ public static partial class Translator
 
             while (ready.TryDequeue(out var procedure))
             {
-                var end = _places[procedure] + procedure.Source.Methods[procedure.Name].Method.StackBytes;
+                var end = _places[procedure] + WorkingBuffersPass.PieceBytes(procedure.Source.Methods[procedure.Name].Method.StackBytes);
                 size = Math.Max(size, end);
                 foreach (var callee in callees[procedure])
                 {
