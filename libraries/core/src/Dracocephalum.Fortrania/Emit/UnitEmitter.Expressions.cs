@@ -190,7 +190,9 @@ internal sealed partial class UnitEmitter
     // The length of a character variable or array element: the one its
     // declaration gives, or for a dummy argument of assumed length, the one
     // the caller passed.
-    private string LengthOf(Symbol symbol) => CSharpExpressionWriter.Write(LengthNodeOf(symbol));
+    private long ConstantLengthOf(Symbol symbol) => LengthNodeOf(symbol) is TreeExpression.Integer known
+        ? known.Value
+        : throw Unsupported("a CHARACTER length that is not constant");
 
     private TreeExpression LengthNodeOf(Symbol symbol)
     {

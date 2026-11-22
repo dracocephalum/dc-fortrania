@@ -200,9 +200,23 @@ real numbers are added changes the last digit; the translator's own, an
 address or a length or a position, is whole numbers that it made up, where
 grouping does not matter, and has nodes of its own that a pass may fold.
 And parentheses the source wrote are a node, because they fix how an
-expression is evaluated; every other pair is the writer's. It is the first
-part of the program tree that `PENDING.md` plans; statements are still
-text.
+expression is evaluated; every other pair is the writer's.
+
+**A program unit is a tree before it is a file.** What holds for an
+expression holds for all of it. A statement is a node: an assignment, a
+call, a branch, a loop, a return, a line of comment. What stands at the
+top of a method is nodes, a taking from the stack among them, which says
+what is taken and how much and not how C# spells it. A method is its
+name, its parameters, the comments about it and its statements; a file is
+the unit's name, the class it is a part of and its members, the unit's
+block of kept variables and its loader first. The emitter builds that
+tree and decides everything; one writer for expressions, one for
+statements and one for a file turn it into C#, and choose spelling and
+layout. Nothing reads emitted text back any more, and what was collected
+as text and searched to decide a blank line is asked of the tree. It was
+moved a part at a time, each part checked by translating the reference
+sources and comparing every file with the one before, and `PENDING.md`
+has what the tree is for: passes over it, which do not exist yet.
 
 **Constants are joined when translating.** The values of literals and
 named constants are known then, so a concatenation of them alone is

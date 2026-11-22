@@ -208,41 +208,25 @@ public class CSharpStatementWriterTests
     }
 
     [Fact]
-    public void Write_WhenGivenMethods_ShouldSetThemABlankLineApartEachWithItsCommentsAndItsParts()
+    public void Write_WhenALoopCountsUp_ShouldWriteItsStepAsAnIncrement()
     {
         // Arrange
-        var first = new TreeMethod(
-            [new TreeStatement.Comment("About the first.")],
-            "void",
-            "FIRST",
-            ["int* n"],
-            [new TreeStatement.Comment("Among its declarations.")],
-            [new TreeStatement.Declare("int", "i", new TreeExpression.Integer(0))],
-            [new TreeStatement.Comment("Before its code."), new TreeStatement.Assign(I, N)]);
-        var second = new TreeMethod([], "int", "SECOND", [], [], [], [new TreeStatement.Comment("All it has."), new TreeStatement.Return(One)]);
+        var k = new TreeExpression.Local("_k");
+        var loop = new TreeStatement.For(
+            new TreeStatement.Declare("var", "_k", new TreeExpression.Integer(2)),
+            new TreeExpression.Binary(TreeExpression.Operation.Less, k, new TreeExpression.Integer(6)),
+            [new TreeStatement.Increment(k)],
+            [new TreeStatement.Increment(I)]);
 
         // Act
-        var text = new CodeWriter();
-        CSharpStatementWriter.Write(text, [first, second]);
+        var text = Written([loop]);
 
         // Assert
-        text.ToString().ShouldBe(
+        text.ShouldBe(
             """
-            // About the first.
-            public void FIRST(int* n)
+            for (var _k = 2; _k < 6; _k++)
             {
-                // Among its declarations.
-
-                int i = 0;
-
-                // Before its code.
-                i = n;
-            }
-
-            public int SECOND()
-            {
-                // All it has.
-                return 1;
+                i++;
             }
 
             """,

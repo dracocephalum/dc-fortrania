@@ -32,9 +32,9 @@ where the code leans on it. Why something is as it is belongs in
 | Stack use | What a call of a procedure can take from the stack: its own method's `stackalloc` bytes and those of the deepest chain of calls beneath it, the just-in-time compiler's frames left out. |
 | Working buffers | What a method needs only while it runs, its local arrays, character variables and places where values are joined, as against the saved state a unit keeps between calls. |
 | Heap mode | Planned: a context's choice to keep working buffers at fixed places in a block it holds, laid out at translation, rather than on the stack, the stack mode. |
-| Program tree | Planned: the program after lowering, with nothing of FORTRAN's left in it, between the analysis and a writer. |
+| Program tree | A program unit once the emitter has decided how everything in it is done, with nothing of FORTRAN's left in it: a file of members, methods of statements, statements of expressions. It lies between the analysis and a writer. |
 | Pass | Planned: a step that takes a program tree and gives one, an optimization or a lowering for a writer. |
-| Writer | Planned: what walks a program tree and writes one language's source, choosing only spelling and layout. |
+| Writer | What walks a program tree and writes one language's source, choosing only spelling and layout. |
 | Summary | What one program unit shows to the others: how it is called, and what it calls. Units are checked against each other by summaries, never by syntax trees. |
 | Convention | The shape translated procedures present to their callers: how names are spelled, how a logical result comes back, where the length of a character argument goes. |
 | Runtime | The small hand-written library translated code calls for what FORTRAN has built in: character values, input and output, integer powers. |

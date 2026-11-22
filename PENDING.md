@@ -733,26 +733,27 @@ before it, over the toolkit's whole translation, so each step is checked
 by comparing two folders before any test is run, and the translation's
 time is measured before and after.
 
-**How far it is.** Expressions are done, and `DESIGN.md` has them under
-*An expression is a tree before it is text*. Of statements, the body of a
-method is built as `TreeStatement` and written by `CSharpStatementWriter`:
-an assignment, a call, the branches of an `IF`, both kinds of loop, a
-return, a stop, the statements of input and output, and each line of
-comment with the blank lines kept between them. What stands at the top
-of a method is tree
-too: the constants it names, the access to its kept variables, its
-locals, what it takes from the stack, each a node that says so, and the
-local functions that statement functions become. That is what the layout
-of *How much goes on the stack is a setting* has to rewrite, and it can
-now be done as a pass. A method is a node, `TreeMethod`, with its name
-and parameters, the comments about it, and those three parts. Not in the
-tree yet: what a class has beside its methods, the loader of a unit's
-kept variables with its `DATA` values and the forwarders for procedures
-passed, and the file around the class. Where a blank line goes among
-comments is still decided as they are added, from what stands before
-them, and not by the writer. After each change so far the toolkit's
-2,215 translated files came out the same to the byte, and its
-translation took no longer.
+**How far it is.** The tree is built, and `DESIGN.md` has it under *An
+expression is a tree before it is text* and *A program unit is a tree
+before it is a file*: the emitter makes a tree of each program unit, and
+the C# writer gives the same files, to the byte, that the emitter gave
+before it, over the toolkit's 2,215, in no more time. What is left of
+this section's plan:
+
+- **No pass exists yet.** The tree is made and written; nothing is done
+  to it in between. The first is to be the layout of *How much goes on
+  the stack is a setting*, and then the rewrites of *More that the
+  translator can write more simply*.
+- **Where a blank line goes among comments** is decided as the comments
+  are added, from what stands before them, and is in the tree as a node.
+  A pass that adds or takes away a statement beside a comment would
+  leave the spacing as it was; the rule is to move to the writer when a
+  pass first does that.
+- **Types and parameters are text in the tree**: `double*`, `int n`, as
+  C# spells them. A writer for another language needs them as nodes.
+- **The part of a class that belongs to no program unit**, how an
+  instance is made over its context, is still written as text.
+- **The settings name no pass**, and the tree is not public.
 
 Two things the first piece settled:
 

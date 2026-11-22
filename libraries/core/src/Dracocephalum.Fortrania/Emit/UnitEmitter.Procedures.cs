@@ -24,7 +24,7 @@ internal sealed partial class UnitEmitter
     // The forwarders the unit needs, by the procedure each forwards to,
     // with the type of a pointer to each.
     private readonly Dictionary<string, (string Name, string Type)> _forwarders = new(StringComparer.Ordinal);
-    private readonly CodeWriter _forwarderText = new();
+    private readonly List<TreeMethod> _forwarderMethods = [];
 
     private ExpressionTyper? _typer;
 
@@ -159,10 +159,24 @@ internal sealed partial class UnitEmitter
 
         var forwarder = (Name: $"_{UnitName}_passes_{target.Name}", Type: PointerType(target.ResultType, types));
         var returns = target.ResultType is { } result ? ResultType(result) : "void";
-        _forwarderText.Line(
-            $"private static {returns} {forwarder.Name}({string.Join(", ", parameters.Concat(parameterLengths))}) => "
-            + $"context.Get<{OwnerOf(target.Name)?.QualifiedName ?? _options.ClassName}>().{_options.Convention.ProcedureName(target.Name)}({string.Join(", ", passed.Concat(passedLengths))});");
-        _forwarderText.Blank();
+        var library = new TreeExpression.Call($"context.Get<{OwnerOf(target.Name)?.QualifiedName ?? _options.ClassName}>", []);
+        var forwarded = new TreeExpression.MemberCall(
+            library,
+            _options.Convention.ProcedureName(target.Name),
+            [.. passed.Concat(passedLengths).Select(name => new TreeExpression.Local(name))]);
+        _forwarderMethods.Add(new TreeMethod(
+            [],
+            returns,
+            forwarder.Name,
+            [.. parameters.Concat(parameterLengths)],
+            [],
+            [],
+            [target.ResultType is null ? new TreeStatement.Evaluate(forwarded) : new TreeStatement.Return(forwarded)])
+        {
+            IsPublic = false,
+            IsStatic = true,
+            IsOneExpression = true,
+        });
 
         _forwarders[target.Name] = forwarder;
         return forwarder;
