@@ -15,5 +15,5 @@ against a toolkit rule that still exists.
 
 | When you are | Read |
 |---|---|
-| Writing or reviewing code that runs on a computation or kernel-reading path, or choosing between a safe and an unsafe, an allocating and a non-allocating, or a general and a specialised form | [`docs/rules/performance.md`](docs/rules/performance.md) — performance is the first design constraint here; amends the C# coding rules |
+| Writing or reviewing code that runs while a translated program computes or reads a file, the runtime and what the translator emits, or choosing between a safe and an unsafe, an allocating and a non-allocating, or a general and a specialised form | [`docs/rules/performance.md`](docs/rules/performance.md) — performance is the first design constraint here; amends the C# coding rules |
 | Reading or writing binary data, using hardware intrinsics, or touching anything that differs by operating system, processor or byte order | [`docs/rules/portability.md`](docs/rules/portability.md) |

@@ -9,23 +9,13 @@ undecided adds it here rather than mentioning it once in a conversation.
 
 ## Decisions pending
 
-- [ ] **The default branch has no server-side protection.** The repository
-      is private, and the host refuses the shipped ruleset on a private
-      repository under its free plan. The merge settings are applied:
-      squash only, branch deleted on merge. Until this is closed, the only
-      thing keeping changes off `main` is the rule never to commit there.
-      The options: a paid plan, making the repository public, or accepting
-      no gate. Close by: one of the first two, then
-      `gh api repos/<owner>/<name>/rulesets --input .github/rulesets/protect-main.json`.
-
-- [ ] **The local rules still speak as the translated library's
-      repository did.** `docs/rules/performance.md` and
-      `docs/rules/portability.md` were written when the translator, the
-      runtime and the translated SPICE library shared a repository, and
-      name the toolkit and its kernels where they mean translated code and
-      its files. `DESIGN.md`, `PENDING.md` and `GLOSSARY.md` have had what
-      was only the library's taken out, and may still hold a sentence that
-      was. Close by: reading each through once and rewording.
+- [ ] **The plan still speaks in the reference sources' words.**
+      `PENDING.md` was written beside the library Fortrania was made to
+      translate, and says kernels, the kernel pool and the toolkit where a
+      reader of this repository would say files, saved state and the
+      reference sources. The rules and `DESIGN.md` have been reworded.
+      Close by: each section reworded as it is next touched, or moved to
+      `DESIGN.md` when it is built.
 - [ ] **Where the publishing pipeline runs.** GitHub Actions has nuget.org's
       trusted publishing and so needs no stored key; Azure DevOps would
       need one. The development pipeline is on GitHub either way. Close
@@ -94,3 +84,15 @@ undecided adds it here rather than mentioning it once in a conversation.
       another elsewhere, which the runtime has none of so far. Close by:
       the two pages, with a platform that has neither call left as it is
       now, and `docs/rules/portability.md` saying so.
+- [ ] **A call through an argument takes a whole block.** Each level of
+      such calls has a block as large as the first, every region in it,
+      113,528 bytes for the reference sources with their test program,
+      though the procedure called and what it reaches mostly need a
+      small part. Ways to take less, each with more code behind it: a
+      level sized by what the procedure called can reach, which the
+      translator knows for one of its own; levels that share one block
+      and start where the chain that led to the call ends, which needs
+      that end known when the call is made; or a level's block given
+      back when the outermost call returns. Close by: the bytes a
+      level really uses measured over the reference sources' tests, and
+      one of these taken if they are far below a block.
