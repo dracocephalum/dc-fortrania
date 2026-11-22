@@ -777,6 +777,42 @@ the emitter's own, 4,096 bytes; a place for joining that would be longer
 is refused. One library is to serve both a deep stack and a shallow one,
 by a choice of the context.
 
+**Decided, after the measurements at the end of this section:**
+
+- **One library, and the mode chosen when it runs.** A method that has
+  arrays or character variables tests its context's setting on entry; a
+  method with scalars alone has nothing to choose and tests nothing. The
+  test cost nothing that could be measured in a routine that works.
+- **Scalars stay ordinary locals on the stack in either mode.** They are
+  some 5 KB on the deepest chain of the reference sources, the compiler
+  can keep one in a register, which it cannot a place in the block, and
+  the code reads as it does now. So the heap mode leaves the stack the
+  scalars and what every call takes, an estimated 10 to 16 KB on that
+  chain against 85 to 90 KB in the stack mode.
+- **The context's setting has three values**: the stack, the block, and a
+  default, which is what a context has unless it is told. The default
+  means whatever the library was translated for, and the stack for a
+  library that serves both.
+- **A translation can be fixed to one mode, later.** A setting of the
+  translator's then writes each method in one shape, with no test on
+  entry, and the context's setting no longer chooses. A library fixed to
+  the stack needs the block only for what is over the limit.
+- **A context that asks for the mode a library was not translated for is
+  refused**, when the library is made over the context and not at a
+  call: each library checks for itself, so a context that asks for the
+  block fails as soon as a library that knows only the stack joins it.
+  Either mismatch throws, so that the setting never means something else
+  than it says.
+- **The block has a page that cannot be touched at each end**, so that
+  running off it faults at once; and under the setting that clears or
+  fills every local, a known value after each method's buffers, checked
+  when the method returns. The block is data, which a processor does not
+  run, and lies nowhere near a return address, so an overrun there cannot
+  turn a return aside as one on the stack can; what is lost is that the
+  stack's own check stops the program, where an overrun in the block
+  would spoil the next routine's buffer and show as a wrong answer. A
+  procedure's address is never kept in the block.
+
 **Two modes, chosen per context.** In the stack mode a method's buffers
 are on the stack, as now. In the heap mode they are at a fixed place in
 a block of working buffers that the context holds. Each method's buffers
@@ -991,8 +1027,7 @@ Against a method that takes its buffer from the stack and asks nothing:
 A figure repeats to a percent from run to run and moves by ten or twenty
 points with which other benchmarks are run beside it, since that decides
 where the compiled code lies; the ranges are what was seen, and only a
-direction that held throughout is taken from them. Two things follow, and
-neither is decided:
+direction that held throughout is taken from them. Two things follow:
 
 - **A `stackalloc` inside a branch is dearer than one at the top of a
   method**, more than the test itself: the method that tests and then
@@ -1001,8 +1036,8 @@ neither is decided:
   method's time, which is the mode nearly every caller would be in.
 - **The block alone is the fastest.** It takes nothing from the stack and
   adjusts no stack pointer. If that holds for real routines, the choice
-  may not be worth offering at run time: the block for every method, or
-  the mode fixed when translating, would each leave no test on entry.
+  is worth fixing when translating, for a caller who wants the last of
+  it, since that leaves no test on entry.
 
 **And with a method that does some work**, the two shapes translated code
 has most and has largest, each against what is written today:
@@ -1037,9 +1072,10 @@ return address, the registers it saves, its scalars and the room for the
 arguments of what it calls, some tens of bytes that differ from method to
 method.
 
-To be done before a shape is taken: the same with tiered compilation as a
-long-running program has it, and on the toolkit's own routines once the
-translator can write the shape.
+Still to be measured, once the translator writes the shape: the same with
+tiered compilation as a long-running program has it, on the toolkit's own
+routines, and how deep the stack really goes in each mode, read at the
+bottom of the deepest chain.
 
 ## Measurements waiting for a benchmark project
 
