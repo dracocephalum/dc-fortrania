@@ -910,7 +910,9 @@ public sealed class TranslatorTests : IDisposable
         one.ShouldContain("_text /* \"first\" */, 5);");
         one.ShouldNotContain("u8");
         Text("out/Example.Toolkit/Generated/Core/TWO.g.cs").ShouldContain("_text + 8 /* \"2* /\\\"q\" */, 5);");
-        Text("out/Example.Toolkit/Generated/Core/Core.Text.g.cs").ShouldContain("\"first\\0\\0\\02*/\\\"q\\0\\0\\0\"u8);");
+        var block = Text("out/Example.Toolkit/Generated/Core/Core.Text.g.cs");
+        block.ShouldContain("\"first\\0\\0\\02*/\\\"q\\0\\0\\0\"u8);");
+        block.ShouldContain("set \"inlineTextConstants\": true in the translation's settings");
         Text("out/Example.Toolkit/Generated/Core/Core.g.cs").ShouldNotContain("_textBlock");
 
         var compiled = TranslatedProgram.FromSources(
