@@ -128,6 +128,12 @@ internal abstract record TreeExpression
     /// </summary>
     internal sealed record Grouped(TreeExpression Inner) : TreeExpression;
 
+    /// <summary>
+    /// A value with a note beside it for whoever reads the code, which
+    /// says what the value stands for where a pass has left only a number.
+    /// </summary>
+    internal sealed record Noted(TreeExpression Inner, string Note) : TreeExpression;
+
     /// <summary>A term of a <see cref="Sum"/>.</summary>
     /// <param name="Value">The term.</param>
     /// <param name="IsSubtracted">Whether it is taken away and not added.</param>

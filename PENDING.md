@@ -1287,6 +1287,14 @@ length and nothing says what it was for.
   use and whether it was taken for a message, so that what the rules
   missed can be found by reading.
 
+**How a message is reached.** A constant that is not a message is at a
+place in its library's text block, fixed when the program is translated.
+A message cannot be: its bytes and its length differ by language. So a
+message is reached by its number in a table of addresses and lengths
+that the context fills for its language, the constants' own where it
+has none. That is one load more than a constant costs, and only
+messages pay it.
+
 **A first trial is to take little.** Only what is passed whole to a
 procedure that shows it or stores it as one message, an error message
 above all, and nothing a program takes apart. Where a procedure wraps

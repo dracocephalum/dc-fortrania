@@ -609,11 +609,15 @@ public static partial class Translator
         {
             foreach (var source in _sources)
             {
-                foreach (var (name, emitted) in source.Emitted)
+                // In the order of the files' names, so that a constant has
+                // the same place however the units came to be read.
+                var text = settings.InlineTextConstants ? null : new TextBlock();
+                foreach (var (name, emitted) in source.Emitted.OrderBy(unit => unit.Key, StringComparer.Ordinal))
                 {
                     source.Files[name] = CSharpEmitter.WriteWithPlaces(
                         emitted,
-                        procedure => _places.TryGetValue((source, procedure), out var place) ? place : null);
+                        procedure => _places.TryGetValue((source, procedure), out var place) ? place : null,
+                        text);
                 }
 
                 var region = _workingRegions.Single(region => region.Project == source.Project.Name);
@@ -621,11 +625,19 @@ public static partial class Translator
                 {
                     References = [.. Used(source).Select(other => new LibraryReference(other.Namespace, other.ClassName, other.Catalogue.Find))],
                 };
-                source.Files[FileName(source.ClassName)] = new CSharpEmitter(options, source.Catalogue.Find).EmitClass(new LibraryRegion(
+                var emitter = new CSharpEmitter(options, source.Catalogue.Find);
+                source.Files[FileName(source.ClassName)] = emitter.EmitClass(new LibraryRegion(
                     region.Project,
                     region.OwnBytes,
                     region.ReachBytes,
                     [.. _references.GetValueOrDefault(source.Project, []).Select(project => project.Name)]));
+
+                // The constants in a file of their own beside the class's,
+                // named as no unit can be, a FORTRAN name having no dot.
+                if (text is { IsEmpty: false })
+                {
+                    source.Files[FileName(source.ClassName + ".Text")] = emitter.EmitTextBlock(text);
+                }
             }
         }
 

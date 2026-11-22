@@ -71,6 +71,11 @@ internal static class CSharpSpellingExtensions
             {
                 literal.Append(Backslash).Append(character);
             }
+            else if (character == (char)0)
+            {
+                // The language has no escape in octal, so a digit after this one is a digit.
+                literal.Append(Backslash).Append('0');
+            }
             else if (character is < ' ' or Delete)
             {
                 literal.Append(Backslash).Append('u').Append(((int)character).ToString("x4", CultureInfo.InvariantCulture));
