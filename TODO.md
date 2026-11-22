@@ -97,13 +97,3 @@ undecided adds it here rather than mentioning it once in a conversation.
       back when the outermost call returns. Close by: the bytes a
       level really uses measured over the reference sources' tests, and
       one of these taken if they are far below a block.
-- [ ] **A package added later is public from its first version.** The
-      repository is public and its two `ci` packages are private, each
-      told not to take its access from the repository; a visitor finds
-      neither. A package the pipeline publishes for the first time has
-      that setting on, and is readable by anyone until it is turned off
-      on the package's page, which is the owner's to do, with this
-      repository given write access there and those that read it given
-      theirs. It is done the day a package is added, straight after the
-      merge that first publishes it. Close by: a command that sets it,
-      should the host come to have one, written into the pipeline.
