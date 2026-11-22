@@ -9,14 +9,13 @@ undecided adds it here rather than mentioning it once in a conversation.
 
 ## Decisions pending
 
-- [ ] **The local rules still speak as the translated library's
-      repository did.** `docs/rules/performance.md` and
-      `docs/rules/portability.md` were written when the translator, the
-      runtime and the translated SPICE library shared a repository, and
-      name the toolkit and its kernels where they mean translated code and
-      its files. `DESIGN.md`, `PENDING.md` and `GLOSSARY.md` have had what
-      was only the library's taken out, and may still hold a sentence that
-      was. Close by: reading each through once and rewording.
+- [ ] **The plan still speaks in the reference sources' words.**
+      `PENDING.md` was written beside the library Fortrania was made to
+      translate, and says kernels, the kernel pool and the toolkit where a
+      reader of this repository would say files, saved state and the
+      reference sources. The rules and `DESIGN.md` have been reworded.
+      Close by: each section reworded as it is next touched, or moved to
+      `DESIGN.md` when it is built.
 - [ ] **Where the publishing pipeline runs.** GitHub Actions has nuget.org's
       trusted publishing and so needs no stored key; Azure DevOps would
       need one. The development pipeline is on GitHub either way. Close

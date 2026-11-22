@@ -8,6 +8,18 @@ Fortrania: a FORTRAN 77 to C# translator, and the small managed runtime
 library the translated code runs on, with no native binaries. It was
 written to translate NASA's SPICE Toolkit, and holds nothing of it.
 
+## Where it stands
+
+**Not released, and not settled.** It translates the whole of the library
+it was written for, and that translation agrees with a native build of the
+same sources, test for test and to the last digit where that was compared.
+What it does not have yet is a release: nothing is on nuget.org, what is
+public of its types is still to be decided, and the command-line
+translator is not written. [`DESIGN.md`](DESIGN.md) says how it works and
+why, [`PENDING.md`](PENDING.md) what is planned, and
+[`TODO.md`](TODO.md) what is open; the order of what comes before a first
+release is in `PENDING.md`, *Before Fortrania is published*.
+
 ## What is in here
 
 Each category folder holds independent components, one solution each. The

@@ -222,7 +222,7 @@ has what the tree is for: passes over it, which do not exist yet.
 named constants are known then, so a concatenation of them alone is
 written as one literal, however it is grouped, and needs no place at all;
 constants side by side among other values are one piece. Most of the
-toolkit's concatenations are of this kind, an error message or a test's
+reference sources' concatenations are of this kind, an error message or a test's
 title written across continuation lines: of 18,062 joined when run, 442
 are left. The bytes are the same, so there is no setting for it. That is
 the rule for what the translator writes more simply than the source says:
@@ -263,7 +263,7 @@ where the procedure it reaches calls one it was passed, beneath the call
 that passed it, and the figure is an upper bound because which argument is
 called there is not told apart. Counting a passed procedure on top of the
 caller's deepest call instead, the simpler bound, compounds through the
-toolkit's searches, which pass their functions down several levels, and
+reference sources' searches, which pass their functions down several levels, and
 came to 587 KB where this comes to 76 KB. The figures leave out the
 just-in-time compiler's own frames, which come on top. The same result
 lists each variable `EQUIVALENCE` puts off its type's alignment, and each
@@ -312,7 +312,7 @@ its own beside those: none is made unasked and none is the process's by
 default, since new code has no reason to prefer a call that names no
 context, and a default that made itself would hand a library the console
 and leave to run commands that nobody granted. The one thing that needs a
-default, a library that stands in for the reference toolkit under its own
+default, a library that stands in for a native one under that one's own
 function names, keeps one for itself.
 
 **What a host decides for a program is one object.** `FortranContextOptions`
@@ -487,7 +487,7 @@ registered under a name is that file from then on to every statement, and
 is left open when its unit is closed. A stream has one position, so it
 serves one instance. Bytes held in memory can be registered too, as a file
 to read and not to write: every read says where it reads, nothing is kept
-between reads, and so one copy of a kernel in memory can be registered with
+between reads, and so one copy of a large file in memory can be registered with
 any number of instances and read by all of them at once. The provider can
 be replaced altogether, and `MemoryFileProvider` is one that keeps every
 file in memory: a program that writes files and reads them back finds each
@@ -710,7 +710,7 @@ command after the translation.
 
 **The source's comments are carried, where they stand.** A comment says
 what the code beside it is for, and a routine of the reference sources
-opens with its documentation, the disclaimer the toolkit's rules require
+opens with its documentation, the disclaimer their publisher's rules require
 among it; a translation without them is harder to read and is not
 allowed to be published. Each comment line becomes a `//` line at the
 indentation of the code it comes before, with the text after the comment
@@ -729,7 +729,7 @@ declarations are gathered there; those before an `ELSE` go inside the arm
 it opens, and those after the last `END` of a file follow the last
 method. An entry point's method has the comments that follow its `ENTRY`.
 Comments of an include file are the include file's, and are not carried
-into each unit that includes it. Of the toolkit and its tests, 811,320
+into each unit that includes it. Of the reference sources and their tests, 811,320
 comment lines, each is carried once; the main and support libraries'
 translation grows from 12 to 37 MB.
 
