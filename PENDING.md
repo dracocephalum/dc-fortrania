@@ -984,17 +984,20 @@ Against a method that takes its buffer from the stack and asks nothing:
 
 | Shape | 64 bytes | 4,000 bytes |
 |---|---|---|
-| tests the setting, takes from the stack | 35% slower | 28% slower |
+| tests the setting, takes from the stack | 11% to 35% slower | 28% slower |
 | tests the setting, takes from the block | 12% slower | 22% slower |
-| asks nothing, takes from the block | 12% faster | 12% faster |
+| asks nothing, takes from the block | 11% to 21% faster | 12% faster |
 
-The figures repeated to a percent over several runs. Two things follow,
-and neither is decided:
+A figure repeats to a percent from run to run and moves by ten or twenty
+points with which other benchmarks are run beside it, since that decides
+where the compiled code lies; the ranges are what was seen, and only a
+direction that held throughout is taken from them. Two things follow, and
+neither is decided:
 
 - **A `stackalloc` inside a branch is dearer than one at the top of a
   method**, more than the test itself: the method that tests and then
   takes from the stack is the slowest of the four. So one method body
-  serving both modes costs the stack mode a quarter to a third of a small
+  serving both modes costs the stack mode a tenth to a third of a small
   method's time, which is the mode nearly every caller would be in.
 - **The block alone is the fastest.** It takes nothing from the stack and
   adjusts no stack pointer. If that holds for real routines, the choice
@@ -1006,20 +1009,19 @@ has most and has largest, each against what is written today:
 
 | Shape | Against today's |
 |---|---|
-| a scalar passed on by its address: an ordinary local, `&count` | 15% faster |
-| the same scalar in the block | 4% slower, 25% in one run of three |
+| a scalar passed on by its address, today an ordinary local and `&count`: in the block instead | 8% slower |
+| the same scalar as a `stackalloc` of one element | from 9% faster to 8% slower: not told apart |
 | ten arrays of 17,600 bytes together, the most a routine takes: one `stackalloc` and not ten | the same |
 | the same ten arrays in the block | 4% to 5% faster |
 | the ten arrays in a method that tests the setting, from the stack | the same |
 | the ten arrays in a method that tests the setting, from the block | the same, within 6% either way |
 
-- **A scalar that is passed on is better an ordinary local**, whatever
-  the mode: today it is a `stackalloc` of one element, which gives the
-  method the frame and the check every `stackalloc` brings. This is the
-  commonest shape there is, and it needs no setting.
-- **The block's lead is small once a method works**, some 5% for a call
-  that does a few tens of nanoseconds of work, and a scalar is slower
-  there than on the stack.
+- **A scalar stays an ordinary local in either mode.** It is what the
+  translator writes today, and the commonest shape there is; the block
+  was the slower place for it in every run.
+- **The block's lead cannot be seen once a method works**: some 5% for a
+  call that does a few tens of nanoseconds of work, which is less than
+  the figures move by themselves.
 - **Ten pieces or one makes no difference** to the time.
 - **The test on entry is lost in a method that works.** What cost a
   method that does nothing a third of its time cannot be told from

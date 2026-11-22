@@ -78,3 +78,10 @@ undecided adds it here rather than mentioning it once in a conversation.
       into its caller above all. Close by: a job that runs with tiering on
       and warms up until the code has settled, in a process of its own,
       for the figures of a change that turns on a call's cost.
+- [ ] **A paired figure moves with where the compiled code lies.** The
+      runner in `tools/benchmarks` repeats to a percent within one set of
+      benchmarks, and the same comparison moved by ten to twenty points
+      when the set, or the order of compiling, changed. Close by: each
+      comparison measured in several processes of its own, the order of
+      compiling varied, and the range of their ratios reported in place
+      of one.

@@ -74,6 +74,15 @@ of the baseline placed and called as the candidate is shows what that
 alone is worth. A first candidate here looked up to four times faster
 before it had one, and was level or slower with it.
 
+**A difference under a fifth, in a method of a few nanoseconds, is not yet
+a finding.** A pair removes what the machine does and not where the
+compiled code lies, which is decided by what else was compiled before it.
+One comparison here read 0.91 in one set of benchmarks and 1.08 in
+another, each to a percent, run after run. Take a direction that holds
+when the benchmark is run alone, with the others, and with its baseline
+and candidate exchanged; `TODO.md` at the root has the entry for doing
+that in the tool.
+
 ## Configuration
 
 None.

@@ -7,8 +7,9 @@ namespace Dracocephalum.Fortrania.Benchmarks;
 /// <summary>
 /// The two shapes a translated method has most and has largest, each as it
 /// is written today and as it could be. The commonest: a scalar the method
-/// passes on to a procedure it calls, which FORTRAN passes by its address,
-/// so the translator gives it a place of one element on the stack. The
+/// passes on to a procedure it calls, which FORTRAN passes by its address;
+/// the translator writes an ordinary local and takes its address, and the
+/// question is what the scalar would cost anywhere else. The
 /// largest: a routine with ten working arrays of 17,600 bytes together,
 /// each taken from the stack by itself, which is the most any routine of
 /// the reference sources takes. Unlike <see cref="StackEntryBenchmarks"/>,
@@ -51,7 +52,7 @@ public unsafe class StackShapeBenchmarks
     // runs it looks for, whether or not it reads anything of its instance.
 #pragma warning disable CA1822
 
-    [Benchmark(Baseline = true, OperationsPerInvoke = BenchmarkConfig.Repeats)]
+    [Benchmark(OperationsPerInvoke = BenchmarkConfig.Repeats)]
     [BenchmarkCategory(ScalarCategory)]
     public int PassScalarFromStackalloc()
     {
@@ -64,7 +65,7 @@ public unsafe class StackShapeBenchmarks
         return sum;
     }
 
-    [Benchmark(OperationsPerInvoke = BenchmarkConfig.Repeats)]
+    [Benchmark(Baseline = true, OperationsPerInvoke = BenchmarkConfig.Repeats)]
     [BenchmarkCategory(ScalarCategory)]
     public int PassScalarAsLocal()
     {
@@ -157,7 +158,7 @@ public unsafe class StackShapeBenchmarks
 
 #pragma warning restore CA1822
 
-    // As the translator writes it today: a place of one element, set to zero.
+    // A place of one element on the stack, set to zero.
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static int ScalarAsStackalloc(int value)
     {
@@ -166,7 +167,8 @@ public unsafe class StackShapeBenchmarks
         return *count;
     }
 
-    // An ordinary local, and its address where it is passed on.
+    // As the translator writes it today: an ordinary local, and its address
+    // where it is passed on.
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static int ScalarAsLocal(int value)
     {
