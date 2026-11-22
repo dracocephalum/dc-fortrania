@@ -69,7 +69,7 @@ internal sealed partial class UnitEmitter
     // statement being written, and the most any statement needed.
     private Dictionary<DataType, (int InUse, int Most)> _slots = [];
 
-    private CodeWriter _body = new();
+    private StatementBuilder _body = new();
     private IReadOnlyList<string> _parameters = [];
     private Symbol? _result;
     private int _loops;
@@ -178,7 +178,7 @@ internal sealed partial class UnitEmitter
         bool isFunction,
         bool isLast)
     {
-        _body = new CodeWriter();
+        _body = new StatementBuilder();
         _preamble = new CodeWriter();
         _stackBytes = 0;
         _calls.Clear();
@@ -204,7 +204,7 @@ internal sealed partial class UnitEmitter
         // ends on a RETURN has already done so.
         if (_result is not null && !EndsOnReturn(statements))
         {
-            _body.Line(ReturnOf(_result));
+            _body.Add(ReturnOf(_result));
         }
 
         if (!methods.IsEmpty)
@@ -237,12 +237,12 @@ internal sealed partial class UnitEmitter
             _stackBytes,
             [.. _calls.Select(call => new EmittedCall(call.Key, [.. call.Value.Passes], call.Value.PassesOnArgument))],
             _callsThroughArgument));
-        if (methods.LastLine is not ("" or "{") && _body.FirstLine.StartsWith("//", StringComparison.Ordinal))
+        if (methods.LastLine is not ("" or "{") && _body.StartsWithComment)
         {
             methods.Blank();
         }
 
-        methods.Append(_body);
+        CSharpStatementWriter.Write(methods, _body.Statements);
         methods.Close();
     }
 

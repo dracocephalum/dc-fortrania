@@ -4,7 +4,7 @@ using Dracocephalum.Fortrania.Syntax;
 
 namespace Dracocephalum.Fortrania.Emit;
 
-/// <content>Writes statements, blocks and loops.</content>
+/// <content>Turns statements, blocks and loops into the program tree.</content>
 internal sealed partial class UnitEmitter
 {
     private void Write(IReadOnlyList<Construct> body, Symbol? result)
@@ -29,6 +29,7 @@ internal sealed partial class UnitEmitter
             // opens, and go inside it; those before the END IF or END DO
             // close the block they are in.
             case Construct.If block:
+                var branches = new List<TreeStatement.Branch>();
                 for (var index = 0; index < block.Branches.Count; index++)
                 {
                     var branch = block.Branches[index];
@@ -39,12 +40,13 @@ internal sealed partial class UnitEmitter
                         WriteCommentsOf(branch.Header, isExecutable: true);
                     }
 
-                    _body.Open(branch.Header.Statement switch
+                    var condition = branch.Header.Statement switch
                     {
-                        Statement.BlockIf first => $"if ({Condition(first.Condition)})",
-                        Statement.ElseIf next => $"else if ({Condition(next.Condition)})",
-                        _ => "else",
-                    });
+                        Statement.BlockIf first => Condition(first.Condition),
+                        Statement.ElseIf next => Condition(next.Condition),
+                        _ => null,
+                    };
+                    _body.Begin();
                     if (index > 0)
                     {
                         WriteComments(_body, CommentsOf(branch.Header));
@@ -56,26 +58,31 @@ internal sealed partial class UnitEmitter
                         WriteComments(_body, WithoutTrailingBlanks(CommentsOf(block.End)));
                     }
 
-                    _body.Close();
+                    branches.Add(new TreeStatement.Branch(condition, _body.End()));
                 }
 
+                _body.Add(new TreeStatement.If(branches));
                 break;
 
             case Construct.Loop loop:
                 _line = loop.Header.Source.Line;
                 ReleaseSlots();
                 WriteCommentsOf(loop.Header, isExecutable: true);
-                _body.Open(loop.Header.Statement switch
+                Func<IReadOnlyList<TreeStatement>, TreeStatement> looped = loop.Header.Statement switch
                 {
                     Statement.Do counted => CountedLoop(counted),
-                    Statement.DoWhile conditional => $"while ({Condition(conditional.Condition)})",
+                    Statement.DoWhile conditional => While(Condition(conditional.Condition)),
                     _ => throw new ArgumentOutOfRangeException(nameof(construct)),
-                });
+                };
+                _body.Begin();
                 Write(loop.Body, result);
                 WriteComments(_body, WithoutTrailingBlanks(CommentsOf(loop.End)));
-                _body.Close();
+                _body.Add(looped(_body.End()));
                 break;
         }
+
+        static Func<IReadOnlyList<TreeStatement>, TreeStatement> While(TreeExpression condition) =>
+            body => new TreeStatement.While(condition, body);
     }
 
     private void Write(Statement statement, Symbol? result)
@@ -97,30 +104,31 @@ internal sealed partial class UnitEmitter
                     break;
                 }
 
-                _body.Line($"{target.Text} = {Stored(Value(assignment.Value), target.Type)};");
+                _body.Add(new TreeStatement.Assign(target.Node, StoredNode(Value(assignment.Value), target.Type)));
                 break;
 
             case Statement.Call call:
-                _body.Line($"{Invocation(call.Name, call.Arguments)};");
+                _body.Add(new TreeStatement.Evaluate(InvocationNode(call.Name, call.Arguments)));
                 break;
 
             case Statement.LogicalIf logical:
-                _body.Open($"if ({Condition(logical.Condition)})");
+                var condition = Condition(logical.Condition);
+                _body.Begin();
                 Write(logical.Body, result);
-                _body.Close();
+                _body.Add(new TreeStatement.If([new TreeStatement.Branch(condition, _body.End())]));
                 break;
 
             case Statement.Return:
-                _body.Line(result is null ? "return;" : ReturnOf(result));
+                _body.Add(result is null ? new TreeStatement.Return(null) : ReturnOf(result));
                 break;
 
             case Statement.Stop stop:
-                _body.Line(stop.Code switch
+                _body.Add(new TreeStatement.Throw(new TreeExpression.New("FortranStopException", stop.Code switch
                 {
-                    null => "throw new FortranStopException();",
-                    Expression.Literal { Type: DataType.Integer } code => $"throw new FortranStopException({Value(code).Text});",
+                    null => [],
+                    Expression.Literal { Type: DataType.Integer } code => [Value(code).Node],
                     _ => throw Unsupported("STOP with a character constant"),
-                });
+                })));
                 break;
 
             case Statement.Read or Statement.Write or Statement.Print or Statement.Open or Statement.Close
@@ -137,54 +145,70 @@ internal sealed partial class UnitEmitter
     // Inside a function its name is a variable; what it holds on the way
     // out is the result. A logical one is stored as an integer, and
     // returned as a bool unless the convention has it stay one.
-    private string ReturnOf(Symbol result)
+    private TreeStatement.Return ReturnOf(Symbol result)
     {
-        var name = Local(result);
-        return result.Type!.Type == DataType.Logical && !_options.Convention.ReturnsLogicalAsInteger
-            ? $"return {name} != 0;"
-            : $"return {name};";
+        TreeExpression name = new TreeExpression.Local(Local(result));
+        return new TreeStatement.Return(result.Type!.Type == DataType.Logical && !_options.Convention.ReturnsLogicalAsInteger
+            ? new TreeExpression.Binary(TreeExpression.Operation.NotEqual, name, Zero)
+            : name);
     }
 
-    private string Condition(Expression condition) => Value(condition).Text;
+    private TreeExpression Condition(Expression condition) => Value(condition).Node;
 
     // A DO loop runs a number of times fixed before it starts, and leaves
     // its variable one step past the last value used. With an integer
     // variable and a step known when translating, a plain comparison against
     // the limit does both. Otherwise the count is worked out first, as the
-    // language defines it.
-    private string CountedLoop(Statement.Do loop)
+    // language defines it. What has to be worked out before the loop is
+    // added here; the loop itself is given once its body is known.
+    private Func<IReadOnlyList<TreeStatement>, TreeStatement> CountedLoop(Statement.Do loop)
     {
-        var variable = Target(new Expression.Name(loop.Variable));
-        var first = Stored(Value(loop.First), variable.Type);
-        var last = Stored(Value(loop.Last), variable.Type);
-        var type = variable.Type.ToCSharpStorageType();
+        var counter = Target(new Expression.Name(loop.Variable));
+        var variable = counter.Node;
+        var variableType = counter.Type;
+        var first = StoredNode(Value(loop.First), variableType);
+        var last = StoredNode(Value(loop.Last), variableType);
+        var type = variableType.ToCSharpStorageType();
         var number = (++_loops).ToString(CultureInfo.InvariantCulture);
 
         var step = loop.Step is null
             ? 1
             : (_evaluator.TryEvaluate(loop.Step, _line) as Constant.Integer)?.Value;
 
-        if (variable.Type == DataType.Integer && step is { } known && known != 0)
+        if (variableType == DataType.Integer && step is { } known && known != 0)
         {
             var limit = last;
             if (_evaluator.TryEvaluate(loop.Last, _line) is null)
             {
-                limit = $"_last{number}";
-                _body.Line($"{type} {limit} = {last};");
+                limit = new TreeExpression.Local($"_last{number}");
+                _body.Add(new TreeStatement.Declare(type, $"_last{number}", last));
             }
 
-            var comparison = known > 0 ? "<=" : ">=";
-            var advance = known > 0
-                ? string.Create(CultureInfo.InvariantCulture, $"+= {known}")
-                : string.Create(CultureInfo.InvariantCulture, $"-= {-(long)known}");
-            return $"for ({variable.Text} = {first}; {variable.Text} {comparison} {limit}; {variable.Text} {advance})";
+            var comparison = known > 0 ? TreeExpression.Operation.LessOrEqual : TreeExpression.Operation.GreaterOrEqual;
+            var advance = new TreeStatement.Advance(variable, new TreeExpression.Integer(Math.Abs((long)known)), IsSubtracted: known < 0);
+            return body => new TreeStatement.For(
+                new TreeStatement.Assign(variable, first),
+                new TreeExpression.Binary(comparison, variable, limit),
+                [advance],
+                body);
         }
 
-        var increment = loop.Step is null ? "1" : Stored(Value(loop.Step), variable.Type);
-        _body.Line($"{type} _step{number} = {increment};");
-        _body.Line($"{type} _last{number} = {last};");
-        _body.Line($"{variable.Text} = {first};");
-        var count = $"(int)((_last{number} - {variable.Text} + _step{number}) / _step{number})";
-        return $"for (int _count{number} = {count}; _count{number} > 0; _count{number}--, {variable.Text} += _step{number})";
+        var increment = loop.Step is null ? One : StoredNode(Value(loop.Step), variableType);
+        var stepName = new TreeExpression.Local($"_step{number}");
+        var lastName = new TreeExpression.Local($"_last{number}");
+        var countName = new TreeExpression.Local($"_count{number}");
+        _body.Add(new TreeStatement.Declare(type, stepName.Name, increment));
+        _body.Add(new TreeStatement.Declare(type, lastName.Name, last));
+        _body.Add(new TreeStatement.Assign(variable, first));
+
+        var span = new TreeExpression.Grouped(Add(Plus(lastName), Minus(variable), Plus(stepName)));
+        var count = new TreeExpression.Converted(
+            "int",
+            new TreeExpression.Grouped(new TreeExpression.Binary(TreeExpression.Operation.Divide, span, stepName)));
+        return body => new TreeStatement.For(
+            new TreeStatement.Declare("int", countName.Name, count),
+            new TreeExpression.Binary(TreeExpression.Operation.Greater, countName, Zero),
+            [new TreeStatement.Decrement(countName), new TreeStatement.Advance(variable, stepName)],
+            body);
     }
 }

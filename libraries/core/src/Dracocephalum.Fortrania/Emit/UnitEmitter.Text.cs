@@ -202,7 +202,7 @@ internal sealed partial class UnitEmitter
         if (!IsConcatenation(assignment.Value) || TryFold(assignment.Value, out _))
         {
             var value = Value(assignment.Value);
-            _body.Line($"{CSharpExpressionWriter.Write(Assigned(target, value))};");
+            _body.Add(new TreeStatement.Evaluate(Assigned(target, value)));
             return;
         }
 
@@ -216,7 +216,7 @@ internal sealed partial class UnitEmitter
         if (!overlaps)
         {
             var padded = new TreeExpression.MemberCall(Joining(target.Node, target.LengthNode!, assignment.Value), "Pad", []);
-            _body.Line($"{CSharpExpressionWriter.Write(padded)};");
+            _body.Add(new TreeStatement.Evaluate(padded));
             return;
         }
 
@@ -224,7 +224,7 @@ internal sealed partial class UnitEmitter
             ?? Bound(assignment.Value)
             ?? throw Unsupported("a concatenation of assumed length assigned to part of itself");
         var joined = Joined(assignment.Value, capacity);
-        _body.Line($"{CSharpExpressionWriter.Write(Assigned(target, joined))};");
+        _body.Add(new TreeStatement.Evaluate(Assigned(target, joined)));
     }
 
     // One character value copied to another by the runtime, padded or cut

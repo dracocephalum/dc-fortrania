@@ -30,7 +30,7 @@ internal sealed partial class UnitEmitter
     // blank line that would open what the writer holds, or follow an opening
     // brace or another blank line, is left out; a block of comments that
     // follows code has one before it.
-    private static void WriteComments(CodeWriter writer, IEnumerable<string> lines)
+    private static void WriteComments(ILineWriter writer, IEnumerable<string> lines)
     {
         // The text after the comment character, or null for a blank line.
         var texts = lines.Select(line => IsBlankComment(line) ? null : line[1..].TrimEnd()).ToList();
@@ -70,7 +70,7 @@ internal sealed partial class UnitEmitter
     // Writes a block of comment lines with the indentation they share taken
     // off, which in the source stood for the code's own; what is lined up
     // within the block stays lined up.
-    private static void WriteBlock(CodeWriter writer, List<string> texts)
+    private static void WriteBlock(ILineWriter writer, List<string> texts)
     {
         var shared = texts.Where(text => text.Length > 0)
             .Select(text => text.Length - text.TrimStart(' ').Length)

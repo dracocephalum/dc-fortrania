@@ -3,7 +3,7 @@ using System.Text;
 namespace Dracocephalum.Fortrania.Emit;
 
 /// <summary>Collects lines of source text at a running depth of indentation.</summary>
-internal sealed class CodeWriter
+internal sealed class CodeWriter : ILineWriter
 {
     private readonly StringBuilder _text = new();
     private int _depth;
