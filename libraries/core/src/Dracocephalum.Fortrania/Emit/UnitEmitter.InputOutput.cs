@@ -262,9 +262,10 @@ internal sealed partial class UnitEmitter
                     break;
 
                 case IOItem.ImpliedDo loop:
-                    _body.Open(CountedLoop(new Statement.Do(null, loop.ControlVariable, loop.First, loop.Last, loop.Step)));
+                    var textLoop = CountedLoop(new Statement.Do(null, loop.ControlVariable, loop.First, loop.Last, loop.Step));
+                    _body.Begin();
                     WriteTextItems(loop.Items, isRead);
-                    _body.Close();
+                    _body.Add(textLoop(_body.End()));
                     break;
             }
         }
@@ -290,9 +291,10 @@ internal sealed partial class UnitEmitter
                     break;
 
                 case IOItem.ImpliedDo loop:
-                    _body.Open(CountedLoop(new Statement.Do(null, loop.ControlVariable, loop.First, loop.Last, loop.Step)));
+                    var itemLoop = CountedLoop(new Statement.Do(null, loop.ControlVariable, loop.First, loop.Last, loop.Step));
+                    _body.Begin();
                     WriteItems(loop.Items, method);
-                    _body.Close();
+                    _body.Add(itemLoop(_body.End()));
                     break;
             }
         }

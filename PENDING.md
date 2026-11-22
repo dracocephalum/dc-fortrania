@@ -734,13 +734,17 @@ by comparing two folders before any test is run, and the translation's
 time is measured before and after.
 
 **How far it is.** Expressions are done, and `DESIGN.md` has them under
-*An expression is a tree before it is text*. Statements are next: an
-assignment, a call, a loop, a branch and a jump, the declarations of a
-method's locals, and the comments between them, which are to be nodes of
-their own. Until then a statement is written as text around the
-expressions it holds, and three places of the emitter still spell a
-piece of an expression themselves, in input and output, where a list's
-count is worked out. After each change so far the toolkit's
+*An expression is a tree before it is text*. Of statements, the body of a
+method is built as `TreeStatement` and written by `CSharpStatementWriter`:
+an assignment, a call, the branches of an `IF`, both kinds of loop, a
+return and a stop. Still made as text, and carried in the tree as lines
+and blocks of it: the statements of input and output, nine places, and
+every comment and blank line. Not in the tree at all yet: what stands at
+the top of a method, its declarations, its kept variables and what it
+takes from the stack, and the local functions that statement functions
+become. Three places in input and output also spell a piece of an
+expression themselves, where a list's count is worked out. After each
+change so far the toolkit's
 2,215 translated files came out the same to the byte, and its
 translation took no longer.
 

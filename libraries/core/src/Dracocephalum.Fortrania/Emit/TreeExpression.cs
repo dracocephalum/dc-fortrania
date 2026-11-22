@@ -96,6 +96,9 @@ internal abstract record TreeExpression
     /// <summary>A call of a method of a value, as each step of a concatenation is of the one before.</summary>
     internal sealed record MemberCall(TreeExpression Target, string Method, IReadOnlyList<TreeExpression> Arguments) : TreeExpression;
 
+    /// <summary>An object of a type of the runtime's or the framework's made, which is how an exception to be thrown comes to be.</summary>
+    internal sealed record New(string Type, IReadOnlyList<TreeExpression> Arguments) : TreeExpression;
+
     /// <summary>A call through the address of a procedure.</summary>
     internal sealed record Invoke(TreeExpression Target, IReadOnlyList<TreeExpression> Arguments) : TreeExpression;
 
