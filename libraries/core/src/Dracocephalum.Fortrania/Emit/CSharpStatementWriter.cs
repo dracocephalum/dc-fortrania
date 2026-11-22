@@ -36,10 +36,6 @@ internal static class CSharpStatementWriter
                 text.Blank();
                 break;
 
-            case TreeStatement.TextBlock block:
-                WriteBlock(text, block.Heading, block.Body);
-                break;
-
             case TreeStatement.If branched:
                 for (var index = 0; index < branched.Branches.Count; index++)
                 {

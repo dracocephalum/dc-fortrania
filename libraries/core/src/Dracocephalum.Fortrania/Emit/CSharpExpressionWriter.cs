@@ -67,6 +67,10 @@ internal static class CSharpExpressionWriter
                 return $"{WriteAt(member.Target, Level.Primary)}.{member.Method}({string.Join(", ", member.Arguments.Select(Write))})";
             case TreeExpression.New made:
                 return $"new {made.Type}({string.Join(", ", made.Arguments.Select(Write))})";
+            case TreeExpression.NamedArgument named:
+                return $"{named.Name}: {Write(named.Value)}";
+            case TreeExpression.Bytes bytes:
+                return $"new({Write(bytes.Address)}, {Write(bytes.Length)})";
             case TreeExpression.Invoke invoke:
                 return $"{WriteAt(invoke.Target, Level.Primary)}({string.Join(", ", invoke.Arguments.Select(Write))})";
             case TreeExpression.Grouped grouped:

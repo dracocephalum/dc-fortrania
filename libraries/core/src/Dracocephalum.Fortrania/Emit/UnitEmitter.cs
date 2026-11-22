@@ -588,10 +588,6 @@ internal sealed partial class UnitEmitter
     {
         public string Text => CSharpExpressionWriter.Write(Node);
 
-        public Level Level => CSharpExpressionWriter.LevelOf(Node);
-
         public string? Length => LengthNode is null ? null : CSharpExpressionWriter.Write(LengthNode);
-
-        public string At(Level needed) => CSharpExpressionWriter.WriteAt(Node, needed);
     }
 }

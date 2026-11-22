@@ -27,23 +27,6 @@ public class StatementBuilderTests
     }
 
     [Fact]
-    public void Close_WhenABlockWasOpenedByItsHeading_ShouldAddItAsTextWithItsBody()
-    {
-        // Arrange
-        var sut = new StatementBuilder();
-
-        // Act
-        sut.Open("fixed (byte* p = a)");
-        sut.Add(Returned);
-        sut.Close();
-
-        // Assert
-        var block = sut.Statements.ShouldHaveSingleItem().ShouldBeOfType<TreeStatement.TextBlock>();
-        block.Heading.ShouldBe("fixed (byte* p = a)");
-        block.Body.ShouldBe([Returned]);
-    }
-
-    [Fact]
     public void LastLine_WhenAskedAsStatementsAreAdded_ShouldSayWhatSourceTextWouldEndOn()
     {
         // Arrange
@@ -98,6 +81,6 @@ public class StatementBuilderTests
 
         // Act & Assert
         Should.Throw<InvalidOperationException>(() => sut.Statements);
-        Should.Throw<InvalidOperationException>(sut.Close);
+        Should.Throw<InvalidOperationException>(() => new StatementBuilder().End());
     }
 }

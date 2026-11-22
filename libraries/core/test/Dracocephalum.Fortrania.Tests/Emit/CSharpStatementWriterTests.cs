@@ -177,14 +177,18 @@ public class CSharpStatementWriterTests
     }
 
     [Fact]
-    public void Write_WhenGivenTextOfAPartNotMoved_ShouldWriteItAsItStands()
+    public void Write_WhenGivenLinesOfCommentAndInputAndOutput_ShouldWriteTheLinesAsTheyStandAndTheCallsWithTheirNamedArguments()
     {
         // Arrange
+        var name = new TreeExpression.Bytes(new TreeExpression.Local("name"), new TreeExpression.Local("name_len"));
+        var opened = new TreeExpression.Call(
+            "_io.Open",
+            [N, new TreeExpression.NamedArgument("file", name), new TreeExpression.NamedArgument("status", new TreeExpression.Utf8("OLD"))]);
         IReadOnlyList<TreeStatement> statements =
         [
             new TreeStatement.Text("// A comment."),
             new TreeStatement.Blank(),
-            new TreeStatement.TextBlock("fixed (byte* p = a)", [new TreeStatement.Text("_io.Write(p, 4);")]),
+            new TreeStatement.Evaluate(new TreeExpression.Call("_io.Require", [opened])),
         ];
 
         // Act
@@ -195,10 +199,7 @@ public class CSharpStatementWriterTests
             """
             // A comment.
 
-            fixed (byte* p = a)
-            {
-                _io.Write(p, 4);
-            }
+            _io.Require(_io.Open(n, file: new(name, name_len), status: "OLD"u8));
 
             """,
             StringCompareShould.IgnoreLineEndings);

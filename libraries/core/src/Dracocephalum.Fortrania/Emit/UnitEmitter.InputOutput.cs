@@ -1,21 +1,22 @@
-using System.Globalization;
 using Dracocephalum.Fortrania.Analysis;
 using Dracocephalum.Fortrania.Syntax;
 
 namespace Dracocephalum.Fortrania.Emit;
 
 /// <content>
-/// Writes input and output statements. Each becomes calls on the
-/// instance's <c>_io</c>, which alone knows what is behind a unit. A
-/// statement that connects, inquires or positions is one call that gives
-/// its status. A statement that transfers is a call that begins it, one for
-/// each item of its list, and one that ends it and gives the status. The
-/// status goes where <c>IOSTAT</c> says; where the statement has none, a
-/// failure ends the program, which here is an exception.
+/// Turns input and output statements into the program tree. Each becomes
+/// calls on the instance's <c>_io</c>, which alone knows what is behind a
+/// unit. A statement that connects, inquires or positions is one call that
+/// gives its status. A statement that transfers is a call that begins it,
+/// one for each item of its list, and one that ends it and gives the
+/// status. The status goes where <c>IOSTAT</c> says; where the statement
+/// has none, a failure ends the program, which here is an exception.
 /// </content>
 internal sealed partial class UnitEmitter
 {
     private const string IO = "_io";
+
+    private static TreeExpression.Call OnIO(string method, params IEnumerable<TreeExpression> arguments) => new($"{IO}.{method}", [.. arguments]);
 
     private void WriteInputOutput(Statement statement)
     {
@@ -27,7 +28,7 @@ internal sealed partial class UnitEmitter
 
             case Statement.Close close:
                 var closing = Controls("CLOSE", close.Controls, "UNIT", "STATUS", "IOSTAT");
-                Finish($"{IO}.Close({Unit(closing)}{Specifier(closing, "STATUS", "status")})", closing);
+                Finish(OnIO("Close", [Unit(closing), .. Specifier(closing, "STATUS", "status")]), closing);
                 break;
 
             case Statement.Inquire inquire:
@@ -36,7 +37,7 @@ internal sealed partial class UnitEmitter
 
             case Statement.Rewind rewind:
                 var rewinding = Controls("REWIND", rewind.Controls, "UNIT", "IOSTAT");
-                Finish($"{IO}.Rewind({Unit(rewinding)})", rewinding);
+                Finish(OnIO("Rewind", Unit(rewinding)), rewinding);
                 break;
 
             case Statement.Read read:
@@ -49,12 +50,12 @@ internal sealed partial class UnitEmitter
 
             // PRINT writes where WRITE with an asterisk for its unit does.
             case Statement.Print print:
-                WriteText("6", print.Format, print.Items, isRead: false, []);
+                WriteText([new TreeExpression.Integer(6)], print.Format, print.Items, isRead: false, []);
                 break;
 
             case Statement.Backspace backspace:
                 var backing = Controls("BACKSPACE", backspace.Controls, "UNIT", "IOSTAT");
-                Finish($"{IO}.Backspace({Unit(backing)})", backing);
+                Finish(OnIO("Backspace", Unit(backing)), backing);
                 break;
 
             default:
@@ -81,25 +82,25 @@ internal sealed partial class UnitEmitter
         return byKeyword;
     }
 
-    private string Unit(Dictionary<string, Expression?> controls) =>
+    private TreeExpression Unit(Dictionary<string, Expression?> controls) =>
         controls.GetValueOrDefault("UNIT") is { } unit && Value(unit) is { Type: DataType.Integer } number
-            ? number.Text
+            ? number.Node
             : throw Unsupported("input or output that names no unit by its number");
 
     private void WriteOpen(Dictionary<string, Expression?> controls)
     {
-        var call = $"{IO}.Open({Unit(controls)}"
-            + Specifier(controls, "FILE", "file")
-            + Specifier(controls, "STATUS", "status")
-            + Specifier(controls, "ACCESS", "access")
-            + Specifier(controls, "FORM", "form");
+        var arguments = new List<TreeExpression> { Unit(controls) };
+        arguments.AddRange(Specifier(controls, "FILE", "file"));
+        arguments.AddRange(Specifier(controls, "STATUS", "status"));
+        arguments.AddRange(Specifier(controls, "ACCESS", "access"));
+        arguments.AddRange(Specifier(controls, "FORM", "form"));
 
         if (controls.GetValueOrDefault("RECL") is { } length)
         {
-            call += $", recl: {Stored(Value(length), DataType.Integer)}";
+            arguments.Add(new TreeExpression.NamedArgument("recl", StoredNode(Value(length), DataType.Integer)));
         }
 
-        Finish(call + ")", controls);
+        Finish(OnIO("Open", arguments), controls);
     }
 
     private void WriteInquire(Dictionary<string, Expression?> controls)
@@ -110,48 +111,51 @@ internal sealed partial class UnitEmitter
             throw Unsupported("INQUIRE that names both a file and a unit, or neither");
         }
 
-        var call = byFile ? $"{IO}.InquireFile({Bytes(controls["FILE"]!)}" : $"{IO}.InquireUnit({Unit(controls)}";
+        var arguments = new List<TreeExpression> { byFile ? Bytes(controls["FILE"]!) : Unit(controls) };
 
         foreach (var (keyword, parameter) in new[] { ("EXIST", "exist"), ("OPENED", "opened"), ("NUMBER", "number"), ("NAMED", "named") })
         {
             if (controls.GetValueOrDefault(keyword) is { } answer)
             {
-                call += $", {parameter}: {Argument(answer, null).Address}";
+                arguments.Add(new TreeExpression.NamedArgument(parameter, ArgumentNode(answer, null).Address));
             }
         }
 
         if (controls.GetValueOrDefault("NAME") is { } name)
         {
-            var (address, length) = Argument(name, null);
-            call += $", name: {address}, nameLength: {length}";
+            var (address, length) = ArgumentNode(name, null);
+            arguments.Add(new TreeExpression.NamedArgument("name", address));
+            arguments.Add(new TreeExpression.NamedArgument("nameLength", length!));
         }
 
-        Finish(call + ")", controls);
+        Finish(OnIO(byFile ? "InquireFile" : "InquireUnit", arguments), controls);
     }
 
     // A specifier whose value is text, as a named argument; nothing where
     // the statement leaves the specifier out.
-    private string Specifier(Dictionary<string, Expression?> controls, string keyword, string parameter) =>
-        controls.GetValueOrDefault(keyword) is { } value ? $", {parameter}: {Bytes(value)}" : string.Empty;
+    private TreeExpression[] Specifier(Dictionary<string, Expression?> controls, string keyword, string parameter) =>
+        controls.GetValueOrDefault(keyword) is { } value ? [new TreeExpression.NamedArgument(parameter, Bytes(value))] : [];
 
     // A character value as a span of bytes: a constant as its literal, and
     // anything else as its address and length.
-    private string Bytes(Expression value)
+    private TreeExpression Bytes(Expression value)
     {
         if (_evaluator.TryEvaluate(value, _line) is Constant.Character constant && constant.Value.All(character => character <= '\u007f'))
         {
-            return constant.Value.ToUtf8Literal();
+            return new TreeExpression.Utf8(constant.Value);
         }
 
-        var (address, length) = Argument(value, null);
-        return length is null ? throw Unsupported("a specifier that is not of type CHARACTER") : $"new({address}, {length})";
+        var (address, length) = ArgumentNode(value, null);
+        return length is null
+            ? throw Unsupported("a specifier that is not of type CHARACTER")
+            : new TreeExpression.Bytes(address, length);
     }
 
-    private void Finish(string call, Dictionary<string, Expression?> controls)
+    private void Finish(TreeExpression call, Dictionary<string, Expression?> controls)
     {
-        _body.Line(controls.GetValueOrDefault("IOSTAT") is { } status
-            ? $"{Target(status).Text} = {call};"
-            : $"{IO}.Require({call});");
+        _body.Add(controls.GetValueOrDefault("IOSTAT") is { } status
+            ? new TreeStatement.Assign(Target(status).Node, call)
+            : new TreeStatement.Evaluate(OnIO("Require", call)));
     }
 
     private void WriteTransfer(string statement, IReadOnlyList<IOControl> controlList, IReadOnlyList<IOItem> items, bool isRead)
@@ -174,20 +178,20 @@ internal sealed partial class UnitEmitter
             throw Unsupported("unformatted input or output without a record number");
         }
 
-        _body.Line($"{IO}.{(isRead ? "ReadDirect" : "WriteDirect")}({unit}, {Stored(Value(record), DataType.Integer)});");
+        _body.Add(new TreeStatement.Evaluate(OnIO(isRead ? "ReadDirect" : "WriteDirect", unit, StoredNode(Value(record), DataType.Integer))));
         WriteItems(items, isRead ? "Get" : "Put");
-        Finish($"{IO}.{(isRead ? "EndRead" : "EndWrite")}()", controls);
+        Finish(OnIO(isRead ? "EndRead" : "EndWrite"), controls);
     }
 
     // The unit of a statement that transfers text. An asterisk is the unit
     // a program starts with for that direction: 5 to read, 6 to write. A
     // character value is an internal file, and is given as its address,
     // the length of a record and the number of records.
-    private string TextUnit(Dictionary<string, Expression?> controls, bool isRead)
+    private TreeExpression[] TextUnit(Dictionary<string, Expression?> controls, bool isRead)
     {
         if (controls.GetValueOrDefault("UNIT") is not { } unit)
         {
-            return isRead ? "5" : "6";
+            return [new TreeExpression.Integer(isRead ? 5 : 6)];
         }
 
         _typer ??= new ExpressionTyper(_table);
@@ -195,7 +199,7 @@ internal sealed partial class UnitEmitter
         {
             var number = Value(unit);
             return number.Type == DataType.Integer
-                ? number.Text
+                ? [number.Node]
                 : throw Unsupported("input or output on a unit that is not an integer");
         }
 
@@ -203,25 +207,25 @@ internal sealed partial class UnitEmitter
         // element, of the element's length.
         if (unit is Expression.Name name && _table.Find(name.Identifier) is { Kind: SymbolKind.Variable, IsArray: true } array)
         {
-            return $"{Local(array)}, {LengthOf(array)}, {WholeSize(array, asBytes: false)}";
+            return [new TreeExpression.Local(Local(array)), LengthNodeOf(array), WholeSize(array, asBytes: false)];
         }
 
-        var (address, length) = Argument(unit, null);
-        return $"{address}, {length}, 1";
+        var (address, length) = ArgumentNode(unit, null);
+        return [address, length!, One];
     }
 
     // A statement that transfers text: a call that begins it with the
     // unit, and the format where it has one, one for each item, typed as
     // the item is, and one that ends it.
-    private void WriteText(string unit, Expression? format, IReadOnlyList<IOItem> items, bool isRead, Dictionary<string, Expression?> controls)
+    private void WriteText(TreeExpression[] unit, Expression? format, IReadOnlyList<IOItem> items, bool isRead, Dictionary<string, Expression?> controls)
     {
         // An asterisk for the format is list-directed: the items' own types
         // say how each is written or read.
-        _body.Line(format is null
-            ? $"{IO}.{(isRead ? "ReadList" : "WriteList")}({unit});"
-            : $"{IO}.{(isRead ? "ReadFormatted" : "WriteFormatted")}({unit}, {Bytes(format)});");
+        _body.Add(new TreeStatement.Evaluate(format is null
+            ? OnIO(isRead ? "ReadList" : "WriteList", unit)
+            : OnIO(isRead ? "ReadFormatted" : "WriteFormatted", [.. unit, Bytes(format)])));
         WriteTextItems(items, isRead);
-        Finish($"{IO}.{(isRead ? "EndRead" : "EndWrite")}()", controls);
+        Finish(OnIO(isRead ? "EndRead" : "EndWrite"), controls);
     }
 
     private void WriteTextItems(IReadOnlyList<IOItem> items, bool isRead)
@@ -233,12 +237,13 @@ internal sealed partial class UnitEmitter
             {
                 case IOItem.Value { Expression: Expression.Name name } when _table.Find(name.Identifier) is { Kind: SymbolKind.Variable, IsArray: true } array:
                     var count = WholeSize(array, asBytes: false);
-                    _body.Line(array.Type!.Type switch
+                    var whole = new TreeExpression.Local(Local(array));
+                    _body.Add(new TreeStatement.Evaluate(array.Type!.Type switch
                     {
-                        DataType.Character => $"{IO}.{method}({Local(array)}, {LengthOf(array)}, {count});",
-                        DataType.Logical => $"{IO}.{method}Logicals({Local(array)}, {count});",
-                        _ => $"{IO}.{method}({Local(array)}, {count});",
-                    });
+                        DataType.Character => OnIO(method, whole, LengthNodeOf(array), count),
+                        DataType.Logical => OnIO(method + "Logicals", whole, count),
+                        _ => OnIO(method, whole, count),
+                    }));
                     break;
 
                 case IOItem.Value value:
@@ -246,17 +251,17 @@ internal sealed partial class UnitEmitter
                     var type = _typer.TypeOf(value.Expression, _line, null);
                     if (type == DataType.Character)
                     {
-                        var (text, length) = Argument(value.Expression, null);
-                        _body.Line($"{IO}.{method}({text}, {length});");
+                        var (text, length) = ArgumentNode(value.Expression, null);
+                        _body.Add(new TreeStatement.Evaluate(OnIO(method, text, length!)));
                     }
                     else if (!isRead)
                     {
-                        _body.Line($"{IO}.Write({Value(value.Expression).Text});");
+                        _body.Add(new TreeStatement.Evaluate(OnIO("Write", Value(value.Expression).Node)));
                     }
                     else
                     {
-                        var address = Argument(value.Expression, null).Address;
-                        _body.Line(type == DataType.Logical ? $"{IO}.ReadLogical({address});" : $"{IO}.Read({address});");
+                        var address = ArgumentNode(value.Expression, null).Address;
+                        _body.Add(new TreeStatement.Evaluate(OnIO(type == DataType.Logical ? "ReadLogical" : "Read", address)));
                     }
 
                     break;
@@ -279,15 +284,15 @@ internal sealed partial class UnitEmitter
             {
                 // A whole array is all its elements, in the order they lie.
                 case IOItem.Value { Expression: Expression.Name name } when _table.Find(name.Identifier) is { Kind: SymbolKind.Variable, IsArray: true } array:
-                    _body.Line($"{IO}.{method}({Local(array)}, {WholeSize(array)});");
+                    _body.Add(new TreeStatement.Evaluate(OnIO(method, new TreeExpression.Local(Local(array)), WholeSize(array))));
                     break;
 
                 case IOItem.Value value:
                     _typer ??= new ExpressionTyper(_table);
                     var type = _typer.TypeOf(value.Expression, _line, null);
-                    var (address, length) = Argument(value.Expression, null);
-                    var bytes = length ?? type.GetStorageSize().ToString(CultureInfo.InvariantCulture);
-                    _body.Line($"{IO}.{method}({address}, {bytes});");
+                    var (address, length) = ArgumentNode(value.Expression, null);
+                    var bytes = length ?? new TreeExpression.Integer(type.GetStorageSize());
+                    _body.Add(new TreeStatement.Evaluate(OnIO(method, address, bytes)));
                     break;
 
                 case IOItem.ImpliedDo loop:
@@ -302,21 +307,21 @@ internal sealed partial class UnitEmitter
 
     // The bytes a whole array takes, or the elements it has, which for a
     // dummy argument may be known only when the program runs.
-    private string WholeSize(Symbol array, bool asBytes = true)
+    private TreeExpression.Product WholeSize(Symbol array, bool asBytes = true)
     {
         long known = !asBytes || array.Type!.Type == DataType.Character ? 1 : array.Type.Type.GetStorageSize();
-        var factors = new List<string>();
+        var factors = new List<TreeExpression>();
 
         if (asBytes && array.Type!.Type == DataType.Character)
         {
-            var length = LengthOf(array);
-            if (long.TryParse(length, NumberStyles.None, CultureInfo.InvariantCulture, out var constant))
+            var length = LengthNodeOf(array);
+            if (KnownNumber(length) is { } constant)
             {
                 known *= constant;
             }
             else
             {
-                factors.Add(Grouped(length));
+                factors.Add(Group(length));
             }
         }
 
@@ -332,18 +337,18 @@ internal sealed partial class UnitEmitter
             }
             else
             {
-                var upper = Value(bound.Upper);
+                var upper = Value(bound.Upper).Node;
                 factors.Add(bound.Lower is null
-                    ? upper.At(Level.Unary)
-                    : $"({upper.At(Level.Additive)} - {Value(bound.Lower).At(Level.Multiplicative)} + 1)");
+                    ? AtLeast(upper, Level.Unary)
+                    : new TreeExpression.Grouped(Add(Plus(upper), Minus(Value(bound.Lower).Node), Plus(One))));
             }
         }
 
         if (known != 1 || factors.Count == 0)
         {
-            factors.Insert(0, known.ToString(CultureInfo.InvariantCulture));
+            factors.Insert(0, new TreeExpression.Integer(known));
         }
 
-        return string.Join(" * ", factors);
+        return new TreeExpression.Product(factors);
     }
 }

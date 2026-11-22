@@ -7,10 +7,9 @@ namespace Dracocephalum.Fortrania.Emit;
 /// into source text and decides nothing but spelling and layout.
 /// </summary>
 /// <remarks>
-/// The emitter is moved over to it a part at a time. Input and output, the
-/// declarations at the top of a method and the comments still write text,
-/// which travels as <see cref="Text"/>, <see cref="TextBlock"/> and
-/// <see cref="Blank"/>; the tree is complete when none is made.
+/// Every statement of a method is one of these. Its comments still come as
+/// lines of text, <see cref="Text"/> and <see cref="Blank"/>, until the
+/// tree has a node that says what a comment is about.
 /// </remarks>
 internal abstract record TreeStatement
 {
@@ -63,11 +62,8 @@ internal abstract record TreeStatement
     /// </summary>
     internal sealed record For(TreeStatement Start, TreeExpression Condition, IReadOnlyList<TreeStatement> Step, IReadOnlyList<TreeStatement> Body) : TreeStatement;
 
-    /// <summary>A line of source text written by a part of the emitter not yet moved to the tree.</summary>
+    /// <summary>A line of source text: a line of comment, as it is to be written.</summary>
     internal sealed record Text(string Line) : TreeStatement;
-
-    /// <summary>A block under a heading of source text, written by a part of the emitter not yet moved to the tree.</summary>
-    internal sealed record TextBlock(string Heading, IReadOnlyList<TreeStatement> Body) : TreeStatement;
 
     /// <summary>A blank line, between comments or before them.</summary>
     internal sealed record Blank : TreeStatement;
