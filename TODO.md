@@ -104,6 +104,6 @@ undecided adds it here rather than mentioning it once in a conversation.
       that setting on, and is readable by anyone until it is turned off
       on the package's page, which is the owner's to do, with this
       repository given write access there and those that read it given
-      theirs. Close by: nothing, while packages are added; do it the day
-      one is, before the change that adds it is merged if the host
-      allows a package to be made beforehand, straight after if not.
+      theirs. It is done the day a package is added, straight after the
+      merge that first publishes it. Close by: a command that sets it,
+      should the host come to have one, written into the pipeline.
