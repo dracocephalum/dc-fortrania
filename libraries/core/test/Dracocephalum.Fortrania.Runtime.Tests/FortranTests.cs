@@ -87,6 +87,39 @@ public unsafe class FortranTests
         Fortran.Pow(value, exponent).ShouldBe(expected);
 
     [Theory]
+    [InlineData("J2000", "J2000")]
+    [InlineData("J2000   ", "J2000")]
+    [InlineData("J2000  X", "J2000")]
+    [InlineData("J2001   ", "J2000")]
+    [InlineData("B1950   ", "J2000")]
+    [InlineData("J2", "J2000")]
+    [InlineData("J2", "J2   ")]
+    [InlineData("U", "U")]
+    [InlineData("U", "C")]
+    [InlineData("", "   ")]
+    [InlineData("", "X")]
+    [InlineData("   ", "")]
+    [InlineData("X  ", "")]
+    public void IsEqual_WhateverTheTwoValuesAre_ShouldSayWhatCompareSaysByGivingZero(string value, string other)
+    {
+        // Arrange: a byte before each that differs from the other's, so
+        // that nothing read ahead of a value of no length agrees by chance.
+        var left = System.Text.Encoding.ASCII.GetBytes("<" + value);
+        var right = System.Text.Encoding.ASCII.GetBytes(">" + other);
+        fixed (byte* a = left)
+        {
+            fixed (byte* b = right)
+            {
+                // Act
+                var equal = Fortran.IsEqual(a + 1, value.Length, b + 1, other.Length);
+
+                // Assert
+                equal.ShouldBe(Fortran.Compare(a + 1, value.Length, b + 1, other.Length) == 0);
+            }
+        }
+    }
+
+    [Theory]
     [InlineData(1.7f, 7, 4.103387070E+01f)]
     [InlineData(1.7f, -5, 7.042962313E-02f)]
     [InlineData(1.7f, 2, 2.890000105E+00f)]

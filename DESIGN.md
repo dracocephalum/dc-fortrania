@@ -261,6 +261,26 @@ it never set is wrong in FORTRAN as well, and gets whatever the stack
 held, which may differ from one call to the next. What a unit keeps
 between calls is not touched by this, and is still handed out zeroed.
 
+**Equality with a constant is tested as equality.** The emitter writes
+every comparison of character values as the runtime's `Compare`, which
+orders two values of any lengths, and a question about how it came out.
+Where the question is whether they are equal and one side is a constant,
+a pass writes less: one byte against a constant of one byte is a
+comparison of the two bytes, `*c == 'U'`, and anything else is the
+runtime's `IsEqual`. The reference sources' main library has some 1,600
+such tests, most of them in chains where all but one fail.
+
+- **`IsEqual` compares the first bytes where it is used and calls for
+  the rest.** A test that fails on its first byte, as most in a chain do,
+  takes a sixth of the time `Compare` took; one that holds takes between
+  the same and a little over half.
+- **The whole test written in line was measured too, and not taken.** It
+  is faster where the values are equal, but it is several calls for the
+  just-in-time compiler to write in line, and in four methods of the
+  reference sources it used up what that compiler allows a method, after
+  which the method's other small calls were no longer written in line
+  either. One comparison of two bytes uses next to nothing of it.
+
 **A library keeps its character constants in one block.** A constant
 written where it is used, as a literal of bytes whose address is taken,
 is several calls for the just-in-time compiler to write in line, and

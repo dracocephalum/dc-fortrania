@@ -23,6 +23,10 @@ static unsafe partial class Fortran
 {
     private const byte Blank = (byte)' ';
 
+    // How many bytes are fewer than it pays to hand to a search of the
+    // framework's.
+    private const int ShortRun = 8;
+
     /// <summary>Gives the address of a character constant.</summary>
     /// <param name="constant">
     /// A <c>u8</c> literal and nothing else. The compiler keeps the bytes of
@@ -118,6 +122,63 @@ static unsafe partial class Fortran
         }
 
         return 0;
+    }
+
+    /// <summary>
+    /// Tells whether two character values are equal, the shorter taken as
+    /// followed by blanks, where the second is known to be the shorter or
+    /// of the same length: a constant, nearly always. It says what
+    /// <see cref="Compare"/> says by giving zero, for any two values, and
+    /// does less to say it.
+    /// </summary>
+    /// <param name="value">The first value.</param>
+    /// <param name="length">The length of the first value.</param>
+    /// <param name="shorter">The second value.</param>
+    /// <param name="shorterLength">The length of the second value. Where it is the greater after all, the answer is still right.</param>
+    /// <returns>Whether they are equal.</returns>
+    /// <remarks>
+    /// Only the first bytes are compared where the test is used, and the
+    /// rest is a call: most tests in a chain of them fail on that byte, and
+    /// the compiler that writes this in line writes only so much in line
+    /// in one method, of which the whole test would take several times
+    /// as much. <c>DESIGN.md</c>, <em>Equality with a constant is tested
+    /// as equality</em>, has the measurements.
+    /// </remarks>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static bool IsEqual(byte* value, int length, byte* shorter, int shorterLength) =>
+        (length <= 0 || shorterLength <= 0 || *value == *shorter) && IsEqualInFull(value, length, shorter, shorterLength);
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static bool IsEqualInFull(byte* value, int length, byte* shorter, int shorterLength)
+    {
+        if (length < shorterLength || shorterLength < 0)
+        {
+            return Compare(value, length, shorter, shorterLength) == 0;
+        }
+
+        if (!new ReadOnlySpan<byte>(value, shorterLength).SequenceEqual(new ReadOnlySpan<byte>(shorter, shorterLength)))
+        {
+            return false;
+        }
+
+        // What is left of the longer has to be blank. A few bytes are
+        // looked at one by one: the framework's search is faster over
+        // many and costs more to begin than these take.
+        var rest = length - shorterLength;
+        if (rest >= ShortRun)
+        {
+            return !new ReadOnlySpan<byte>(value + shorterLength, rest).ContainsAnyExcept(Blank);
+        }
+
+        for (var index = shorterLength; index < length; index++)
+        {
+            if (value[index] != Blank)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /// <summary>Finds where one character value first occurs in another, as <c>INDEX</c> does.</summary>

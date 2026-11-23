@@ -784,11 +784,10 @@ with its measurement, as `docs/rules/performance.md` asks. A number is the
 same only if it is the same bits the reference compiler gives, so a
 rewrite of arithmetic is checked against that compiler and not argued.
 
-- **A character value compared with a constant.** `NAME .EQ. 'J2000'`
-  goes through the runtime's comparison, which pads the shorter with
-  blanks as it goes. With one side a constant of known length, the
-  comparison is a compare of that many bytes and a check that the rest of
-  the other is blank, which can be written in place.
+- **A character value compared with a constant.** Done for equality;
+  `DESIGN.md` has it under *Equality with a constant is tested as
+  equality*. An ordering against a constant, `NAME .LT. 'K'`, still goes
+  through the runtime's comparison, and is rare.
 - **A whole array copied or cleared by a `DO` loop.** A loop whose body
   only assigns one array's elements to another's, or a constant to each,
   with nothing else read or written, is a span copy or fill, when the

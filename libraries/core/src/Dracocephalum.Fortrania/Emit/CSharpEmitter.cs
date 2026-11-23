@@ -190,7 +190,9 @@ public sealed class CSharpEmitter
             return unit.Text;
         }
 
-        file = WorkingBuffersPass.Apply(file, placeOf);
+        // Before the constants are moved, while one is still to be seen
+        // for what it is.
+        file = ConstantEqualityPass.Apply(WorkingBuffersPass.Apply(file, placeOf));
         return CSharpFileWriter.Write(text is null ? file : TextBlockPass.Apply(file, text));
     }
 
