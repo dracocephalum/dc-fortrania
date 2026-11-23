@@ -192,7 +192,7 @@ public sealed class CSharpEmitter
 
         // Before the constants are moved, while one is still to be seen
         // for what it is.
-        file = ConstantEqualityPass.Apply(WorkingBuffersPass.Apply(file, placeOf));
+        file = ArrayLoopPass.Apply(ConstantEqualityPass.Apply(WorkingBuffersPass.Apply(file, placeOf)));
         return CSharpFileWriter.Write(text is null ? file : TextBlockPass.Apply(file, text));
     }
 

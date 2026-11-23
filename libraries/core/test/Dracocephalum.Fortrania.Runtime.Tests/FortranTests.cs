@@ -120,6 +120,62 @@ public unsafe class FortranTests
     }
 
     [Theory]
+    [InlineData(0, 20, 16, true)]
+    [InlineData(20, 0, 16, true)]
+    [InlineData(3, 0, 16, true)]
+    [InlineData(0, 16, 16, true)]
+    [InlineData(0, 0, 16, true)]
+    [InlineData(0, 3, 16, false)]
+    [InlineData(0, 15, 16, false)]
+    [InlineData(0, 20, 15, false)]
+    [InlineData(0, 20, 0, false)]
+    [InlineData(0, 20, -4, false)]
+    public void CanMoveElements_WhenTheRunIsLongAndTheTargetNotAheadInsideTheSource_ShouldSayYes(int from, int to, int count, bool expected)
+    {
+        // Arrange
+        var elements = stackalloc double[40];
+
+        // Act
+        var can = Fortran.CanMoveElements(elements + from, elements + to, count);
+
+        // Assert
+        can.ShouldBe(expected);
+    }
+
+    [Fact]
+    public void MoveElements_WhenTheTargetIsBehindInsideTheSource_ShouldGiveWhatALoopFromTheFirstGives()
+    {
+        // Arrange
+        var elements = stackalloc int[16];
+        for (var index = 0; index < 16; index++)
+        {
+            elements[index] = index;
+        }
+
+        // Act
+        var after = Fortran.MoveElements(elements + 2, elements, 12);
+
+        // Assert
+        after.ShouldBe(13);
+        new Span<int>(elements, 16).ToArray().ShouldBe([2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 12, 13, 14, 15]);
+    }
+
+    [Fact]
+    public void FillElements_WhenGivenARun_ShouldSetEveryElementOfItAndNoOther()
+    {
+        // Arrange
+        var elements = stackalloc float[12];
+        new Span<float>(elements, 12).Clear();
+
+        // Act
+        var after = Fortran.FillElements(elements + 1, 10, 2.5f);
+
+        // Assert
+        after.ShouldBe(11);
+        new Span<float>(elements, 12).ToArray().ShouldBe([0f, 2.5f, 2.5f, 2.5f, 2.5f, 2.5f, 2.5f, 2.5f, 2.5f, 2.5f, 2.5f, 0f]);
+    }
+
+    [Theory]
     [InlineData(1.7f, 7, 4.103387070E+01f)]
     [InlineData(1.7f, -5, 7.042962313E-02f)]
     [InlineData(1.7f, 2, 2.890000105E+00f)]

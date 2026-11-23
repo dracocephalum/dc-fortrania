@@ -788,10 +788,11 @@ rewrite of arithmetic is checked against that compiler and not argued.
   `DESIGN.md` has it under *Equality with a constant is tested as
   equality*. An ordering against a constant, `NAME .LT. 'K'`, still goes
   through the runtime's comparison, and is rare.
-- **A whole array copied or cleared by a `DO` loop.** A loop whose body
-  only assigns one array's elements to another's, or a constant to each,
-  with nothing else read or written, is a span copy or fill, when the
-  two arrays are known not to overlap.
+- **A whole array copied or cleared by a `DO` loop.** Done for the
+  plainest loop; `DESIGN.md` has it under *A loop that copies or fills
+  an array is done at once where it is long*. A loop over part of an
+  array, one with a step, and one that copies character elements are
+  left as they are.
 - **A whole power of an integer known when translating.** A real raised
   to 2, 3 or 4 is done, in the runtime and not by a pass; `DESIGN.md`
   has it under *An integer power multiplies, in the reference compiler's

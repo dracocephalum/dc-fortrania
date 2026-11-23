@@ -281,6 +281,41 @@ such tests, most of them in chains where all but one fail.
   which the method's other small calls were no longer written in line
   either. One comparison of two bytes uses next to nothing of it.
 
+**A loop that copies or fills an array is done at once where it is
+long.** A `DO` loop from the first element, one at a time, whose one
+statement stores to the element of its turn from the same element of
+another array or from a value it does not change, keeps its loop and
+gains a second way beside it:
+
+    if (CanMoveElements(vin, vout, _last1))
+    {
+        i = MoveElements(vin, vout, _last1);
+    }
+    else
+    {
+        for (i = 1; i <= _last1; i += 1)
+        {
+            vout[i - 1] = vin[i - 1];
+        }
+    }
+
+- **Which is right is known only when it runs.** The runtime's copy is
+  taken for sixteen elements or more, where it is from a sixth faster
+  than the loop to six times as fast over a thousand, and not where the target starts inside the source
+  after its start: there the loop reads what it has just written, which
+  a copy made at once does not. A fill is taken by its length alone.
+- **The runtime's forms are calls that give back the loop's variable.**
+  Written in line they made every run of three elements a third slower,
+  since the procedure then kept its length across a call of the
+  framework's; as calls that return it, a short run costs between what
+  it did and a sixth more.
+- **Few loops, in procedures that much else calls.** The reference
+  sources' main library has nineteen such loops, among them the ones
+  that copy and clear arrays for the rest. Over their test suite those
+  are called 640 million times: 385 million of the calls are for fewer
+  than eight elements, and four fifths of the elements moved are in
+  runs of eight or more.
+
 **A library keeps its character constants in one block.** A constant
 written where it is used, as a literal of bytes whose address is taken,
 is several calls for the just-in-time compiler to write in line, and

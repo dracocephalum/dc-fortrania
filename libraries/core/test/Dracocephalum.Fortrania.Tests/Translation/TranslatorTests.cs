@@ -1002,6 +1002,136 @@ public sealed class TranslatorTests : IDisposable
     }
 
     [Fact]
+    public void Run_WhenALoopOnlyCopiesOrFills_ShouldDoALongRunAtOnceAndGiveWhatTheLoopGives()
+    {
+        // Arrange: COPY is called with arrays apart, and with the target a
+        // few elements into the source, where the loop reads what it has
+        // just written and a copy made at once would not. LAST is the
+        // loop's variable as each leaves it.
+        Put("core/loops.f", """
+                  SUBROUTINE COPY ( A, N, B, LAST )
+                  INTEGER N, LAST, I
+                  DOUBLE PRECISION A ( * ), B ( * )
+                  DO I = 1, N
+                     B ( I ) = A ( I )
+                  END DO
+                  LAST = I
+                  END
+
+                  SUBROUTINE SETALL ( V, N, B, LAST )
+                  INTEGER N, LAST, I
+                  DOUBLE PRECISION V, B ( * )
+                  DO I = 1, N
+                     B ( I ) = V
+                  END DO
+                  LAST = I
+                  END
+
+                  SUBROUTINE OTHERS ( A, N, B )
+                  INTEGER N, I
+                  DOUBLE PRECISION A ( * ), B ( * )
+                  DO I = 1, N
+                     B ( I ) = A ( I ) + 1.0D0
+                  END DO
+                  DO I = 2, N
+                     B ( I ) = A ( I )
+                  END DO
+                  END
+            """);
+        const string Driver =
+            """
+            using Dracocephalum.Fortrania.Runtime;
+
+            namespace Translated;
+
+            public static unsafe class Driver
+            {
+                // Twenty elements counting from one, copied or filled, and
+                // then read back as one number each a digit of base 100.
+                public static string Run(string what, int count, int shift)
+                {
+                    using var context = new FortranContext();
+                    var library = context.Get<Example.Toolkit.Core>();
+                    var a = stackalloc double[40];
+                    for (var index = 0; index < 40; index++)
+                    {
+                        a[index] = index + 1;
+                    }
+
+                    var last = 0;
+                    var value = 7.0;
+                    if (what == "copy")
+                    {
+                        library.COPY(a, &count, a + shift, &last);
+                    }
+                    else
+                    {
+                        library.SETALL(&value, &count, a + shift, &last);
+                    }
+
+                    return last + ":" + string.Join(",", new System.Span<double>(a, 24).ToArray());
+                }
+
+                public static string CopyApart() => Run("copy", 18, 20);
+
+                public static string CopyAhead() => Run("copy", 18, 3);
+
+                public static string CopyBehind() => RunBehind();
+
+                public static string CopyFew() => Run("copy", 3, 20);
+
+                public static string CopyNone() => Run("copy", 0, 20);
+
+                public static string FillMany() => Run("fill", 18, 2);
+
+                public static string FillFew() => Run("fill", 2, 2);
+
+                private static string RunBehind()
+                {
+                    using var context = new FortranContext();
+                    var a = stackalloc double[40];
+                    for (var index = 0; index < 40; index++)
+                    {
+                        a[index] = index + 1;
+                    }
+
+                    var count = 18;
+                    var last = 0;
+                    context.Get<Example.Toolkit.Core>().COPY(a + 3, &count, a, &last);
+                    return last + ":" + string.Join(",", new System.Span<double>(a, 16).ToArray());
+                }
+            }
+            """;
+
+        // Act
+        var result = Translator.Run(Settings(Project("Example.Toolkit", Source("Core", "core/*.f"))), _root);
+
+        // Assert
+        result.Succeeded.ShouldBeTrue();
+        var copy = Text("out/Example.Toolkit/Generated/Core/COPY.g.cs");
+        copy.ShouldContain("if (CanMoveElements(a, b, _last1))");
+        copy.ShouldContain("i = MoveElements(a, b, _last1);");
+        copy.ShouldContain("b[i - 1] = a[i - 1];");
+        var fill = Text("out/Example.Toolkit/Generated/Core/SETALL.g.cs");
+        fill.ShouldContain("if (_last1 >= LongRun)");
+        fill.ShouldContain("i = FillElements(b, _last1, *v);");
+        var others = Text("out/Example.Toolkit/Generated/Core/OTHERS.g.cs");
+        others.ShouldNotContain("Elements(");
+
+        var compiled = TranslatedProgram.FromSources(
+            Directory.GetFiles(Path.Combine(_root, "out"), "*.cs", SearchOption.AllDirectories).Select(File.ReadAllText).Append(Driver));
+        compiled.Run<string>("CopyApart").ShouldBe("19:1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,1,2,3,4");
+
+        // Three ahead, the loop repeats the first three elements to the end.
+        compiled.Run<string>("CopyAhead").ShouldBe("19:1,2,3,1,2,3,1,2,3,1,2,3,1,2,3,1,2,3,1,2,3,22,23,24");
+        compiled.Run<string>("CopyBehind").ShouldBe("19:4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19");
+        compiled.Run<string>("CopyFew").ShouldBe("4:1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,1,2,3,24");
+        compiled.Run<string>("CopyNone").ShouldBe("1:1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24");
+        compiled.Run<string>("FillMany").ShouldBe("19:1,2,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,21,22,23,24");
+        compiled.Run<string>("FillFew").ShouldBe("3:1,2,7,7,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24");
+    }
+
+    [Fact]
     public void Run_WhenAUnitHasEntryPoints_ShouldCountEachByWhatItsOwnStatementsTakeAndCall()
     {
         // Arrange: only KEEP names the array, and only PEEK calls LEAF.
