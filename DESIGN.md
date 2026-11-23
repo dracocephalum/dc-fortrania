@@ -223,8 +223,9 @@ statements and one for a file turn it into C#, and choose spelling and
 layout. Nothing reads emitted text back any more, and what was collected
 as text and searched to decide a blank line is asked of the tree. It was
 moved a part at a time, each part checked by translating the reference
-sources and comparing every file with the one before, and `PENDING.md`
-has what the tree is for: passes over it, which do not exist yet.
+sources and comparing every file with the one before. Passes change it
+before it is written: the layout of working buffers, the character
+constants' block, and two rewrites, below.
 
 **Constants are joined when translating.** The values of literals and
 named constants are known then, so a concatenation of them alone is
@@ -378,12 +379,52 @@ block cannot.
   back. Such a procedure may call back into a library whose chain is
   still running, which no layout of one project can foresee. How deep
   the levels go is the host's to limit, 16 unless it says otherwise.
+- **The setting has three values**: the stack, the block, and a default,
+  which is what the library was translated for and the stack for one
+  that serves both. A context that asks for a mode a library was not
+  translated for is refused when the library is made over it, and not at
+  a call, so that the setting never means something else than it says.
+- **A procedure on a chain of calls that comes back to itself** has no
+  place, and keeps its buffers on the stack in both modes.
+- **The block is data and lies nowhere near a return address**, so an
+  overrun there cannot turn a return aside as one on the stack can; what
+  is lost is that the stack's own check stops the program, where an
+  overrun in the block spoils the next routine's buffer and shows as a
+  wrong answer. A procedure's address is never kept in the block.
 
-It was measured before it was built, with the shapes written by hand: the
-test on entry costs a tenth to a third of a method that does nothing, and
-nothing that can be told from noise in one that does fifty nanoseconds of
-work. `PENDING.md`, *How much goes on the stack is a setting*, has the
-figures and what is not built.
+It was measured before it was built, with the shapes written by hand in
+`tools/benchmarks`, against a method that takes its buffers from the stack
+and asks nothing:
+
+| Shape | A method that does nothing | One that does some fifty nanoseconds of work |
+|---|---|---|
+| tests the setting, then takes from the stack | 11% to 35% slower | the same |
+| tests the setting, then takes from the block | 12% to 22% slower | the same, within 6% either way |
+| asks nothing, takes from the block | 11% to 21% faster | 4% to 5% faster |
+| ten arrays as one piece and not ten | | the same |
+| a scalar passed by its address, in the block and not a local | | 8% slower |
+
+- **The test on entry is lost in a method that works**, so one library
+  that chooses when it runs costs nothing that was measured, provided
+  only a method with arrays or character variables tests.
+- **A scalar stays an ordinary local in either mode**: the block was the
+  slower place for it in every run.
+- **A `stackalloc` inside a branch is dearer than one at the top of a
+  method**, more than the test itself, which is why a method that tests
+  and then takes from the stack was the slowest shape on an empty method.
+
+Two designs were set aside. Limits that split a method's buffers between
+the stack and the heap as it runs cost a cut to compute and a choice per
+buffer, for a gain over two modes that no one had asked for. Taking each
+method's buffers from the heap on every call and giving them back on
+return, as f2rust does for its large arrays, costs an allocation per call
+and a release on every way out.
+
+The test program of the reference sources, run with buffers on the stack
+and in the block, takes a thread's stack of 96 KB and not of 64 KB in
+either; the deepest family touches 72 KB of stack with buffers on it and
+44 KB without. `PENDING.md`, *Working buffers: what is not built*, has
+what is left.
 
 **A translation says how much stack each procedure can take.** The emitter
 counts what each method takes with `stackalloc` and which procedures it
@@ -401,9 +442,18 @@ just-in-time compiler's own frames, which come on top. The same result
 lists each variable `EQUIVALENCE` puts off its type's alignment, and each
 call that passes a 4-byte number where the procedure takes an 8-byte one,
 for `docs/rules/portability.md`, *Alignment*. The tool that translates the
-reference sources writes all
-three beside the translation; `PENDING.md`, *How much goes on the stack is a setting*,
-has what they showed.
+reference sources writes all three beside the translation. Over N0067,
+counting only what the translation takes itself:
+
+- The main library's deepest procedures are the geometry finders,
+  `GFPOSC`, `GFSNTC` and `GFSUBC`, at some 76 KB and 53 calls deep; the
+  everyday entry points take 55 to 70 KB, and time conversion about 6 KB.
+- What makes the deepest chains deep is the toolkit's dynamic frames,
+  whose routines come in copies, `ZZSPKEZ0` and `ZZSPKEZ1` among them,
+  that stand in for recursion.
+- No procedure is reached again beneath itself, no variable lies off its
+  alignment, and no call passes a 4-byte number where an 8-byte one is
+  taken.
 
 **A translated library computes, and is handed everything else.** What the
 libraries a FORTRAN program is linked from share, they share because they
@@ -449,8 +499,9 @@ function names, keeps one for itself.
 
 **What a host decides for a program is one object.** `FortranContextOptions`
 holds it: where files come from, whether the console is the program's, its
-command line, whether it may run commands, its clock, what `RECL` counts
-and how a line ends. Left as made it gives nothing but files on disk, and
+command line, whether it may run commands, its clock, what `RECL` counts,
+how a line ends, where working buffers are kept and how deep calls
+through an argument may go, `WorkingBuffers` and `CallbackDepth`. Left as made it gives nothing but files on disk, and
 `Standalone` is what a FORTRAN program run on its own has. A context is
 made from one. A call inside a library is unchanged,
 and one across libraries costs a load of that member more.

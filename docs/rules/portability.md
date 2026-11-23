@@ -79,9 +79,6 @@ above does not name it, nothing is tested on it, and no package is made
 for it; whoever needs it translates their program for it themselves.
 
 **The translator is still to write such a place so that it runs there.**
-Those offsets are known when translating, so each such variable is to be
-read and written with `Unsafe.ReadUnaligned` and `Unsafe.WriteUnaligned`,
-always, with no setting, and passed to a call as an aligned copy.
 `PENDING.md`, *A variable off its alignment is read as unaligned*, has the
 plan; it is not built. The reference sources do not need it: `EQUIVALENCE`
 puts no variable of theirs off its alignment, and a translation's report of

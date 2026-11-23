@@ -20,7 +20,7 @@ exist.
 | `libraries/` | packages published to NuGet |
 | `tools/` | what builds, tests or measures the rest, never published |
 | `agentics/` | the toolkit's — `rules/` this repository is held to, see *Agent guidelines* below, and `templates/`; replaced whole by a sync, never edited in place |
-| `docs/rules/` | this repository's own rules, once it has any, and `AGENTS.md` there is their index — started from `agentics/templates/rules-AGENTS.md`; the sync copies its rows into the table below |
+| `docs/rules/` | this repository's own rules, and `AGENTS.md` there is their index — started from `agentics/templates/rules-AGENTS.md`; the sync copies its rows into the table below |
 | `.claude/skills/` | Claude Code shims; the toolkit's are replaced whole by a sync, a shim of the same name included |
 
 Build configuration lives **once, at the repository root** — `Directory.Build.props`,

@@ -16,10 +16,9 @@ undecided adds it here rather than mentioning it once in a conversation.
       reference sources. The rules and `DESIGN.md` have been reworded.
       Close by: each section reworded as it is next touched, or moved to
       `DESIGN.md` when it is built.
-- [ ] **Where the publishing pipeline runs.** GitHub Actions has nuget.org's
-      trusted publishing and so needs no stored key; Azure DevOps would
-      need one. The development pipeline is on GitHub either way. Close
-      by: choosing, before the first release.
+- [ ] **Where the publishing pipeline runs.** `PENDING.md`, *Before
+      Fortrania is published*, has what weighs in it. Close by: choosing,
+      before the first release.
 - [ ] **The release pipeline is not written.** Decided: pushing a tag
       starts it, `v` and the version for everything that follows the
       root `Version.props`, the component's folder name before it
@@ -36,19 +35,11 @@ undecided adds it here rather than mentioning it once in a conversation.
       sorts below the release it follows. Close by: a step of the ci
       pipeline that fails when the version in the code is already on
       nuget.org, once there is a release to compare with.
-- [ ] **The deploy job has not removed a version.** It has published, twice.
-      It removes once a package has more `ci` versions than it keeps, and
-      whether the run's own token may do that is the part most likely to
-      need mending: the host calls that ability a preview. Close by: a run
-      that removes.
 - [ ] **A package says little about itself.** No readme is packed, since
-      the component's has links that only resolve in the repository, and
-      the translator has no command to be packed as a tool. Close by: a
-      readme written for the package's page, named in the pipeline's
-      trigger list after the entry that takes documents away, and the
-      command of
-      `PENDING.md`, *The command is `fortrania`, and the target language
-      its first word*.
+      the component's has links that only resolve in the repository.
+      Close by: a readme written for each package's page, the command's
+      above all, named in the pipeline's trigger list after the entry
+      that takes documents away.
 - [ ] **A build on a developer's machine has no feed.** It is numbered
       `-dev` and packed to whatever folder is named; nothing reads it
       from there. Close by: a folder feed named by an environment
@@ -68,10 +59,8 @@ undecided adds it here rather than mentioning it once in a conversation.
       into its caller above all. Close by: a job that runs with tiering on
       and warms up until the code has settled, in a process of its own,
       for the figures of a change that turns on a call's cost.
-- [ ] **A paired figure moves with where the compiled code lies.** The
-      runner in `tools/benchmarks` repeats to a percent within one set of
-      benchmarks, and the same comparison moved by ten to twenty points
-      when the set, or the order of compiling, changed. Close by: each
+- [ ] **A paired figure moves with where the compiled code lies**, as
+      `tools/benchmarks/README.md` says. Close by: each
       comparison measured in several processes of its own, the order of
       compiling varied, and the range of their ratios reported in place
       of one.

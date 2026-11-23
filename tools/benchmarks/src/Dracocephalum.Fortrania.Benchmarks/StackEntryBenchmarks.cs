@@ -6,11 +6,12 @@ namespace Dracocephalum.Fortrania.Benchmarks;
 
 /// <summary>
 /// What it costs a method to choose, each time it is entered, where its
-/// working buffers lie. Today a translated method takes them from the
-/// stack and asks nothing. <c>PENDING.md</c>, <em>How much goes on the
-/// stack is a setting</em>, would have it test a setting of its context
-/// first and take them from the stack or from a fixed place in a block of
-/// the context's. Measured for a method that is small and called often,
+/// working buffers lie: a method that takes them from the stack and asks
+/// nothing, against one that tests a setting of its context first and
+/// takes them from the stack or from a fixed place in a block of the
+/// context's, as translated code now does. <c>DESIGN.md</c>, <em>Where a
+/// method keeps its working buffers is the context's to say</em>, has
+/// what was found. Measured for a method that is small and called often,
 /// where a test on entry weighs most, with a small buffer and with one
 /// near the most a method takes from the stack.
 /// The last form asks nothing either and always takes them from the block,
