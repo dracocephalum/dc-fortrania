@@ -349,6 +349,17 @@ a whole translation from them. Left to do:
   of theirs has to know the platform, and a command run after the
   translation rewrites that one. So it is not built until a program needs
   it.
+- **How long a run of an array is done at once.** A loop that only
+  copies or fills an array is given to the runtime from sixteen
+  elements on, a number measured on one machine of 64 bits and written
+  down twice, in the translator for a length it knows and in the
+  runtime for the rest; `DESIGN.md` has it under *A loop that copies or
+  fills an array is done at once where it is long*. A setting is to
+  give another, for a platform where the two ways cross elsewhere, a
+  processor of 32 bits say. The translator would then write the number
+  into each test it emits and not leave it to the runtime's constant,
+  so that a translation carries what it was tuned to. Not built until a
+  platform is measured that wants another.
 - **Paths that go deeper than one folder.** The last part of a path may
   have `*` and `?`; `**` for folders at any depth is not read.
 - **The rest of what a translation is told**, under *What the translator
