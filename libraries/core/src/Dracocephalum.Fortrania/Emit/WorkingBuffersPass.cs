@@ -15,9 +15,10 @@ namespace Dracocephalum.Fortrania.Emit;
 /// it is a local function, a few bytes for a value on its way.
 /// </para>
 /// <para>
-/// <c>PENDING.md</c>, <em>How much goes on the stack is a setting</em>, has
-/// the measurements behind the shape: the test costs nothing that can be
-/// measured in a method that works, and one piece costs what several do.
+/// <c>DESIGN.md</c>, <em>Where a method keeps its working buffers is the
+/// context's to say</em>, has the measurements behind the shape: the test
+/// costs nothing that can be measured in a method that works, and one
+/// piece costs what several do.
 /// </para>
 /// </remarks>
 internal static class WorkingBuffersPass

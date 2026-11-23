@@ -206,7 +206,7 @@ public unsafe class StackShapeBenchmarks
         return Work(text, query, reals, numbers, begins, ends, lexemeBegins, lexemeEnds, tokens, values, value);
     }
 
-    // One piece, and each array a place in it, as PENDING.md has it.
+    // One piece, and each array a place in it, as translated code has it.
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static double ArraysAsOneOnStack(int value)
     {

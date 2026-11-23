@@ -19,7 +19,7 @@
   <ItemGroup>
     <!-- What is measured is the runtime as it is in the tree, so that a change
          is measured before it is merged: agentics/rules/layout.md, "A component
-         that is never published may reference another by project". -->
+         that is never released may reference another by path". -->
     <ProjectReference Include="../../../../libraries/core/src/Dracocephalum.Fortrania.Runtime/Dracocephalum.Fortrania.Runtime.csproj" />
   </ItemGroup>
 

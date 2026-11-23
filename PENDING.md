@@ -351,7 +351,9 @@ a whole translation from them. Left to do:
 
 ## Translating as a step of the build
 
-Next to be built: the command it runs is there. Its
+Next to be built: the command it runs is there. The package is to be
+`Dracocephalum.Fortrania.Build`, in `libraries/core` with the translator
+and the runtime, so that the three keep one version. Its
 first user is the translated library's repository, whose translation is
 to be kept in the project's folder and committed. A project is to be able
 to translate FORTRAN as it builds, the way a project compiles `.proto`
@@ -387,9 +389,8 @@ the translator, and the project names what to translate.
 
 **Sources can be fetched**, as `DESIGN.md` describes under *A variable can
 say where to download the folder it names*; it is done as part of a
-translation, and does nothing when the folder is there. Still to come: a
-`fortrania restore` that does only that, for a pipeline that wants fetching
-as a step of its own; the archive format of the toolkit's own packages,
+translation, and does nothing when the folder is there. Still to come:
+`fortrania restore`, under *What the command does not do yet*; the archive format of the toolkit's own packages,
 `.tar.Z`, which .NET does not read; and a forced run from the build step,
 so that rebuilding a project translates it whole.
 
@@ -641,11 +642,11 @@ the first pipeline on, long before a release. How they are numbered and
 where they go is in `DESIGN.md`, *A package's version is in the code, and
 the build says what kind it is*.
 
-**It is the first repository with pipelines.**
+**It is the first repository with pipelines.** Those that build every pull
+request and publish each merge are built; `DESIGN.md` has them under *A
+package's version is in the code, and the build says what kind it is*.
+Left:
 
-- **A development pipeline on GitHub.** Every pull request and every push
-  to the default branch is built and tested; a push to the default branch
-  also packs a development version of each package.
 - **A publishing pipeline, started on purpose.** It builds what a release
   names, and publishes to nuget.org with trusted publishing, which trades
   a short-lived token for the pipeline's own identity, so that no API key
@@ -670,13 +671,10 @@ templates of the agentics toolkit for every repository after this one.
 
 ## A tree between the analysis and the writers
 
-The emitter turns the analysed program into C# text in one step, so what
-it decides and what it writes are mixed: the joining of constants under
-*Constants are joined when translating* in `DESIGN.md` is done on the
-strings as they are written, and a command that changes a routine after
-the translation reads the output back with the C# compiler, changes that
-tree and writes it again. The optimization round, step 3 of *Before
-Fortrania is published*, puts a tree in between, and is built on it:
+The emitter once turned the analysed program into C# text in one step, so
+that what it decided and what it wrote were mixed. The optimization round,
+step 3 of *Before Fortrania is published*, put a tree in between, and is
+built on it:
 
     parse → analyse → lower to the program tree → passes → a writer
 
@@ -689,13 +687,12 @@ pass through every stage. It is the translator's own, and so its shape is
 ours, which is why the emitter writes text and not the C# compiler's
 tree; see *Back ends beyond C# source*.
 
-**A pass takes a tree and gives one.** What the translator now does in
-the emitter, or after it, becomes a pass, and so does what is planned:
+**A pass takes a tree and gives one.** Four exist: the layout of working
+buffers, the character constants' block, and two of the rewrites under
+*More that the translator can write more simply*; `DESIGN.md` has each.
+Still to become passes:
 
-- joining constants, and the rewrites under *More that the translator can
-  write more simply*;
-- the layout of working buffers of *How much goes on the stack is a
-  setting*;
+- joining constants, which the emitter does as it builds the tree;
 - the SPICE tool's platform rewrite, which becomes a pass the tool gives
   the translator rather than a second reading of its output; *Settings
   for what differs by platform* is the runtime's side of the same.
@@ -744,10 +741,6 @@ the C# writer gives the same files, to the byte, that the emitter gave
 before it, over the toolkit's 2,215, in no more time. What is left of
 this section's plan:
 
-- **No pass exists yet.** The tree is made and written; nothing is done
-  to it in between. The first is to be the layout of *How much goes on
-  the stack is a setting*, and then the rewrites of *More that the
-  translator can write more simply*.
 - **Where a blank line goes among comments** is decided as the comments
   are added, from what stands before them, and is in the tree as a node.
   A pass that adds or takes away a statement beside a comment would
@@ -757,7 +750,9 @@ this section's plan:
   C# spells them. A writer for another language needs them as nodes.
 - **The part of a class that belongs to no program unit**, how an
   instance is made over its context, is still written as text.
-- **The settings name no pass**, and the tree is not public.
+- **The settings name no pass of a user's own**, and the tree is not
+  public. Two settings switch a pass of the translator's off,
+  `inlineTextConstants` and `plainArrayLoops`.
 
 Two things the first piece settled:
 
@@ -806,171 +801,40 @@ rewrite of arithmetic is checked against that compiler and not argued.
 The toolkit's translation is the measure of which are worth it: each is
 counted there before it is built, as the joined constants were.
 
-## How much goes on the stack is a setting
+## Working buffers: what is not built
 
-What a method needs only while it runs, a local array, a character
-variable, a place where a value is joined, its working buffers, lies on
-the stack when it is small and in the unit's block otherwise, as
-`DESIGN.md` has it under *What a unit keeps between calls*. The limit is
-the emitter's own, 4,096 bytes; a place for joining that would be longer
-is refused. One library is to serve both a deep stack and a shallow one,
-by a choice of the context.
+`DESIGN.md`, *Where a method keeps its working buffers is the context's to
+say*, has what is built: a context chooses the stack or its block, each
+method with arrays or character variables takes them as one piece from
+one or the other by a test on entry, each project has a region laid out
+from its own calls, and a call through a procedure argument runs at a
+level of its own. Left to do:
 
-**Decided, after the measurements at the end of this section:**
-
-- **One library, and the mode chosen when it runs.** A method that has
-  arrays or character variables tests its context's setting on entry; a
-  method with scalars alone has nothing to choose and tests nothing. The
-  test cost nothing that could be measured in a routine that works.
-- **Scalars stay ordinary locals on the stack in either mode.** They are
-  some 5 KB on the deepest chain of the reference sources, the compiler
-  can keep one in a register, which it cannot a place in the block, and
-  the code reads as it does now. So the heap mode leaves the stack the
-  scalars and what every call takes, an estimated 10 to 16 KB on that
-  chain against 85 to 90 KB in the stack mode.
-- **The context's setting has three values**: the stack, the block, and a
-  default, which is what a context has unless it is told. The default
-  means whatever the library was translated for, and the stack for a
-  library that serves both.
-- **A translation can be fixed to one mode, later.** A setting of the
-  translator's then writes each method in one shape, with no test on
-  entry, and the context's setting no longer chooses. A library fixed to
-  the stack needs the block only for what is over the limit.
-- **A context that asks for the mode a library was not translated for is
-  refused**, when the library is made over the context and not at a
-  call: each library checks for itself, so a context that asks for the
-  block fails as soon as a library that knows only the stack joins it.
-  Either mismatch throws, so that the setting never means something else
-  than it says.
-- **The block has a page that cannot be touched at each end**, so that
-  running off it faults at once; and under the setting that clears or
-  fills every local, a known value after each method's buffers, checked
-  when the method returns. The block is data, which a processor does not
-  run, and lies nowhere near a return address, so an overrun there cannot
-  turn a return aside as one on the stack can; what is lost is that the
-  stack's own check stops the program, where an overrun in the block
-  would spoil the next routine's buffer and show as a wrong answer. A
-  procedure's address is never kept in the block.
-
-**Built: a context chooses, and translated code follows.** `DESIGN.md` has
-it under *Where a method keeps its working buffers is the context's to
-say*. A translation works out each procedure's place in its project's
-region, `StackUse.Place`, and what each project needs,
-`TranslationResult.WorkingRegions`; a pass over the program tree has each
-method with buffers take them as one piece, from the stack or from its
-place; each library asks its context for its project's region when it is
-made; and a forwarder moves the context to the next level and back. For
-the reference sources every one of 2,761 procedures has a place, the
-toolkit's region is 73,128 bytes and its test program's 40,488, and all
-400 test families give the same in either mode, the one that times
-itself apart.
-
-**Not built, of what this section decides or plans:**
-
-- A translation fixed to one mode, with no test on entry. The context
+- **A translation fixed to one mode**, a setting of the translator's that
+  writes each method in one shape with no test on entry. The context
   already refuses a library translated for the other mode than it asks
-  for; nothing yet makes such a library.
-- What a statement function takes stays on the stack in both modes, a
+  for; nothing yet makes such a library. Fixed to the block, a method
+  would also adjust no stack pointer, which measured fastest of all on a
+  method that does nothing.
+- **Arrays kept in a unit's block only for being too large for the
+  stack**, over 4,096 bytes, are still there and not on the working side,
+  so a unit's block holds more than its saved state; and a place for
+  joining character values that would be longer is refused. On the
+  working side both would take a place like any other buffer.
+- **What a statement function takes** stays on the stack in both modes, a
   few bytes for a value on its way.
-- Arrays kept in a unit's block only for being too large for the stack
-  are still there, and not on the working side.
-- The page that cannot be touched at each end of a block, and the known
-  value after each method's buffers under the setting that clears or
-  fills every local.
-- The check for a routine with saved state that is entered while it is
-  running.
-- A procedure the host passes: it reaches translated code through no
-  forwarder, so the managed layer is to enter and leave a level for it.
-- The comparison to the last digit with the reference compiler's build,
-  which was not run again in the block's mode, and the depth the stack
-  really reaches in each.
-- The allocator in two layers; a block comes straight from the system.
-
-**How it differs from what follows, which was written first.**
-
-- **A project's places are its own**, worked out from that project
-  alone, so that a library is translated once and used by any program,
-  one translated apart from it among them. A call into another project
-  leaves the region for that project's.
-- **The context lays the regions out**, as libraries are made over it: a
-  project's region starts after those of every project that can call
-  into it. A project says what it needs for itself and what it reaches,
-  its own and the deepest chain of projects it refers to, and the
-  context has that much before any procedure runs, since the first
-  library made is the one called first. The block then grows only
-  between calls, with nothing to copy, since working buffers hold
-  nothing from one call to the next.
-- **Every call through a procedure argument takes the next level**, and
-  not only one from the host. Translated code reaches a passed procedure
-  through a forwarder, so the forwarder moves the context to the next
-  level's block and back. A procedure passed down from one library may
-  call that library again while its chain is running, which no layout
-  of one project alone can see; at a level of its own it meets nothing.
-  That is why only calls by name count for a place. It costs a few
-  loads and stores at each such call, and a block for each level
-  reached, taken the first time.
-- **How deep the levels may go is the host's to set**, 16 unless told
-  otherwise.
-
-**Two modes, chosen per context.** In the stack mode a method's buffers
-are on the stack, as now. In the heap mode they are at a fixed place in
-a block of working buffers that the context holds. Each method's buffers
-are one piece in either mode, and the method tests the context's setting
-once on entry, a branch that is always predicted the same way:
-
-    byte* _locals;
-    if (_context.LocalsOnStack)
-    {
-        byte* onStack = stackalloc byte[17600];
-        _locals = onStack;
-    }
-    else
-    {
-        _locals = _context.Frames + 41200;
-    }
-
-    byte* chrbuf = _locals + 0;
-    byte* eqryc = _locals + 2000;
-
-A buffer over the 4,096 bytes is at its fixed place in both modes, so the
-block exists in both, and a place for joining that is longer is no longer
-refused.
-
-**The fixed places are laid out at translation.** FORTRAN 77 has no
-recursion, and the stack report proves it of a translation, so a method
-can start where the buffers of its deepest caller end: methods that can
-run at the same time never share bytes, and methods that never do share
-them, as calls one after another at one depth share the stack. The block
-is then exactly the deepest chain, 76,533 bytes for the toolkit, and a
-method's place is a constant: nothing is taken or given back on a call,
-nothing is to be undone after an exception, and the block never grows.
-The translator asserts that every place lies inside the block, from the
-same walk of the calls that makes the report.
-
-**A unit's saved state stays apart.** What `SAVE` and `DATA` keep is the
-program's state and stays in each unit's block, loaded on its first call
-and held until the context is disposed. What is in that block now only
-for being too large for the stack moves to the working side, so the unit
-blocks hold state alone.
-
-**Regions.** The block has a region for each library a program uses,
-since a library's layout starts at its own beginning: 76 KB for the
-toolkit and 91 KB for its test program, which calls into it. Projects
-never call each other both ways, so regions apart are enough.
-
-**A callback that calls back in gets a region of its own.** A procedure
-the host passes, a user function for a search, may call the library
-while a chain is running, and the layout cannot know of it; that is
-legal FORTRAN as long as it calls no routine that is running. Every
-procedure the host passes goes through the managed boundary, and the
-boundary gives each such nested entry the next level's region: of the
-library's full size, taken the first time the level is reached within an
-outermost call, reused by every later callback at that level, and given
-back when the outermost call returns. Level 0 is taken when the context
-is made and is never given back. The method does not know its level; the
-boundary moves `Frames` and puts it back. Past a depth of 16 the boundary
-throws rather than take another. In the stack mode a nested chain goes
-further down the thread's stack instead.
+- **A procedure the host passes** reaches translated code through no
+  forwarder, so the managed layer is to enter and leave a level for it,
+  as a forwarder does.
+- **The page that cannot be touched at each end of a block**, and under
+  the setting that clears or fills every local a known value after each
+  method's buffers, checked when the method returns; `TODO.md` has both.
+- **Guard bytes between regions** in a debug build of the runtime,
+  checked as a level is left, against a mistake in the layout that would
+  let one routine overwrite another's buffers with nothing to see.
+- **The comparison to the last digit with the reference compiler's
+  build**, which was not run again in the block's mode.
+- **A routine called again while it runs throws**, below.
 
 **A routine called again while it runs throws.** FORTRAN 77 does not allow
 it, and the toolkit's state is not made for it: a user function for
@@ -1070,117 +934,11 @@ size is first wanted, since the tests write nothing near it.
 How a name is given to one kind of file or another is under *Input and
 output is to be looked at again as a whole*.
 
-**A program that does recurse** has units the report finds; those keep
-their buffers on the stack in both modes.
-
-**Guarding the layout.** A mistake in it would let one routine overwrite
-another's buffers with nothing to see. The toolkit's tests and the
-bit-for-bit comparison are to run in both modes, and a debug build of the
-runtime can put guard bytes between regions and check them at the
-boundary.
-
-Two designs were set aside on the way. Limits and budgets that split a
-method's buffers between the stack and the heap at run time cost a cut
-to compute and a choice per buffer, for a gain over two modes that no one
-had asked for. Taking each method's buffers from the heap on every call
-and giving them back on return, which is what f2rust does for its large
-arrays, costs an allocation per call and a release on every way out.
-
-**What the report showed.** `DESIGN.md`, *A translation
-says how much stack each procedure can take*, has how it is made. Over
-N0067, with today's fixed limit of 4,096 bytes, and counting only what
-the translation takes itself:
-
-- The main library's deepest procedures are the geometry finders,
-  `GFPOSC`, `GFSNTC` and `GFSUBC` at 76,533 bytes and 53 calls deep; the
-  everyday entry points take 55 to 70 KB (`SPKEZR` 61,742, `PXFORM`
-  54,090, `SINCPT` 66,887), and time conversion about 6 KB (`STR2ET`
-  5,948).
-- Of its 2,041 procedures, 41 can take more than 64 KB and 166 more than
-  16 KB; 755 take anything of their own, and the most any takes of its own
-  is `EKFIND`'s 17,600 bytes, in locals each under the limit.
-- What makes the deepest chains deep is the toolkit's dynamic frames,
-  whose routines come in copies, `ZZSPKEZ0` and `ZZSPKEZ1` among them,
-  that stand in for recursion; the frame routines take some 6 KB each,
-  and the error-message path at the bottom of a chain about 4 KB.
-- No procedure is reached again beneath itself, no variable lies off its
-  alignment, and no call passes a 4-byte number where an 8-byte one is
-  taken.
-
-The just-in-time compiler's frames come on top, for chains of about 50
-calls. So the stack mode fits the default stack of a .NET thread on
-desktop and server systems, a megabyte or more, with room to spare; the
-heap mode is for a thread that was given a small one, or a caller that is
-deep already, and leaves the thread's stack only the compiler's frames.
-**Measured, and the test on entry is what costs.** `tools/benchmarks` has
-the shapes written by hand, for a method that does next to nothing, which
-is where an entry weighs most, with a buffer of 64 bytes and one of 4,000.
-Against a method that takes its buffer from the stack and asks nothing:
-
-| Shape | 64 bytes | 4,000 bytes |
-|---|---|---|
-| tests the setting, takes from the stack | 11% to 35% slower | 28% slower |
-| tests the setting, takes from the block | 12% slower | 22% slower |
-| asks nothing, takes from the block | 11% to 21% faster | 12% faster |
-
-A figure repeats to a percent from run to run and moves by ten or twenty
-points with which other benchmarks are run beside it, since that decides
-where the compiled code lies; the ranges are what was seen, and only a
-direction that held throughout is taken from them. Two things follow:
-
-- **A `stackalloc` inside a branch is dearer than one at the top of a
-  method**, more than the test itself: the method that tests and then
-  takes from the stack is the slowest of the four. So one method body
-  serving both modes costs the stack mode a tenth to a third of a small
-  method's time, which is the mode nearly every caller would be in.
-- **The block alone is the fastest.** It takes nothing from the stack and
-  adjusts no stack pointer. If that holds for real routines, the choice
-  is worth fixing when translating, for a caller who wants the last of
-  it, since that leaves no test on entry.
-
-**And with a method that does some work**, the two shapes translated code
-has most and has largest, each against what is written today:
-
-| Shape | Against today's |
-|---|---|
-| a scalar passed on by its address, today an ordinary local and `&count`: in the block instead | 8% slower |
-| the same scalar as a `stackalloc` of one element | from 9% faster to 8% slower: not told apart |
-| ten arrays of 17,600 bytes together, the most a routine takes: one `stackalloc` and not ten | the same |
-| the same ten arrays in the block | 4% to 5% faster |
-| the ten arrays in a method that tests the setting, from the stack | the same |
-| the ten arrays in a method that tests the setting, from the block | the same, within 6% either way |
-
-- **A scalar stays an ordinary local in either mode.** It is what the
-  translator writes today, and the commonest shape there is; the block
-  was the slower place for it in every run.
-- **The block's lead cannot be seen once a method works**: some 5% for a
-  call that does a few tens of nanoseconds of work, which is less than
-  the figures move by themselves.
-- **Ten pieces or one makes no difference** to the time.
-- **The test on entry is lost in a method that works.** What cost a
-  method that does nothing a third of its time cannot be told from
-  nothing in one that does some fifty nanoseconds of work. So one library
-  that chooses when it runs costs nothing that was measured, provided
-  that only a method with arrays or character variables tests, and a
-  method with scalars alone has nothing to choose.
-
-So the stack remains the place for scalars in either mode, and what the
-block would hold is the arrays and character variables. A method in the
-block's mode still takes from the stack what every method does: its
-return address, the registers it saves, its scalars and the room for the
-arguments of what it calls, some tens of bytes that differ from method to
-method.
-
-Still to be measured, once the translator writes the shape: the same with
-tiered compilation as a long-running program has it, on the toolkit's own
-routines, and how deep the stack really goes in each mode, read at the
-bottom of the deepest chain.
-
-## Measurements waiting for a benchmark project
+## Measurements still to make
 
 [`docs/rules/performance.md`](docs/rules/performance.md) asks that a change
 made for speed come with a benchmark, and `tools/benchmarks` is where one
-is written. These are the questions it is to answer first, each a change
+is written. These are the questions it is to answer next, each a change
 that is not to be made before it does. A question that is answered leaves
 this list, for `DESIGN.md` where the answer shaped the code.
 
@@ -1204,13 +962,6 @@ this list, for `DESIGN.md` where the answer shaped the code.
   call to `fmod`, and SPICE reduces angles and times with it. `fmod` is
   exact, so only an exact form may take its place, or the results move;
   the question is whether one is faster.
-- **Searching and comparing text.** `INDEX` and the comparisons, `LGE`
-  and the three like it, are loops over bytes in the runtime.
-  `Span.IndexOf` and `SequenceCompareTo` are vectorized by .NET and give
-  the same answers; whether that pays on values as short as FORTRAN's
-  mostly are was the question. The comparisons and `INDEX` are on the
-  framework's vectorized forms already, and `DESIGN.md` has what was
-  measured of copies and of equality.
 - **The toolkit's small vector and matrix routines.** `VDOT`, `MXV`,
   `MXM`, `VCRSS` and their like are the most called arithmetic of the
   toolkit, and the just-in-time compiler vectorizes no loop by itself.
@@ -1313,14 +1064,13 @@ constants, and is not part of a first trial.
 
 ## Back ends beyond C# source
 
-The emitter writes C# source text directly from the analysed program, with
-no tree of C# objects in between: the output's shape is fully ours, the
+The emitter writes C# source text from a tree of its own, with no tree of
+C# objects in between: the output's shape is fully ours, the
 original comments have to pass through, and there are over a million lines
 to write. That is the back end the translated library is built with, and the
 only one that runs everywhere, since it needs nothing at run time. The tree
-that is to come between, under *A tree between the analysis and the
-writers*, is the translator's own and keeps all three; each back end below
-then starts from it.
+between, under *A tree between the analysis and the writers*, is the
+translator's own and keeps all three; each back end below starts from it.
 
 Analysis is to leave nothing in its result that only a C# emitter could use,
 so that other back ends remain additions. Three are wanted, none before the
@@ -1442,7 +1192,8 @@ Where the reference toolkit differs by platform in a value and not in logic,
 the longest file name and the most files open at once, the value is to come
 from a settings class the runtime is given, with the larger of the
 reference's values as the default, in place of a constant in translated
-code. `docs/rules/portability.md` has the table of differences.
+code. `docs/rules/portability.md`, *Where a program differs by platform*,
+has the kinds of difference and how each is answered.
 
 ## A variable off its alignment is read as unaligned
 

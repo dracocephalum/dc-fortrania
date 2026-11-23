@@ -14,8 +14,8 @@ written to translate NASA's SPICE Toolkit, and holds nothing of it.
 it was written for, and that translation agrees with a native build of the
 same sources, test for test and to the last digit where that was compared.
 What it does not have yet is a release: nothing is on nuget.org, what is
-public of its types is still to be decided, and the command-line
-translator is not written. [`DESIGN.md`](DESIGN.md) says how it works and
+public of its types is still to be decided, and it cannot yet translate
+as a step of a build. [`DESIGN.md`](DESIGN.md) says how it works and
 why, [`PENDING.md`](PENDING.md) what is planned, and
 [`TODO.md`](TODO.md) what is open; the order of what comes before a first
 release is in `PENDING.md`, *Before Fortrania is published*.
