@@ -368,7 +368,9 @@ a whole translation from them. Left to do:
 
 ## Translating as a step of the build
 
-To be looked at again once the emitter is complete. A project is to be able
+Next to be built, after a first form of the command, which it runs. Its
+first user is the translated library's repository, whose translation is
+to be kept in the project's folder and committed. A project is to be able
 to translate FORTRAN as it builds, the way a project compiles `.proto`
 files: a package that is used only at build time brings MSBuild targets and
 the translator, and the project names what to translate.
@@ -640,6 +642,13 @@ In this order, because each step changes what the next one looks at:
    which translator. The rule already decided for a scaffolded library,
    the runtime of the translator's own version, is to be the rule for the
    packages: one version number for the two.
+
+**The command and the build package are taken ahead of the cleanup
+round.** The optimization round's three rewrites are done, and the
+translated library's repository waits for a translation it can commit
+and build on a server, which needs step 5 and then *Translating as a
+step of the build*. The cleanup round follows them, and still comes
+before anything is released.
 
 **Development packages come before all of that.** The translated library
 is built in a repository of its own and takes the translator and the
