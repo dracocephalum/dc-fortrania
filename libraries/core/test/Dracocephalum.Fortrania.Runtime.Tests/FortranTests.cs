@@ -130,17 +130,23 @@ public unsafe class FortranTests
     [InlineData(0, 20, 15, false)]
     [InlineData(0, 20, 0, false)]
     [InlineData(0, 20, -4, false)]
-    public void CanMoveElements_WhenTheRunIsLongAndTheTargetNotAheadInsideTheSource_ShouldSayYes(int from, int to, int count, bool expected)
+    public void ShouldMoveElements_WhenTheRunIsLongAndTheTargetNotAheadInsideTheSource_ShouldSayYes(int from, int to, int count, bool expected)
     {
         // Arrange
         var elements = stackalloc double[40];
 
         // Act
-        var can = Fortran.CanMoveElements(elements + from, elements + to, count);
+        var can = Fortran.ShouldMoveElements(elements + from, elements + to, count);
 
         // Assert
         can.ShouldBe(expected);
     }
+
+    // The translator decides by the same number for a loop whose length it
+    // knows, and has it written down for itself.
+    [Fact]
+    public void LongRun_AsTheTranslatorTakesItToBe_ShouldBeSixteen() =>
+        Fortran.LongRun.ShouldBe(16);
 
     [Fact]
     public void MoveElements_WhenTheTargetIsBehindInsideTheSource_ShouldGiveWhatALoopFromTheFirstGives()

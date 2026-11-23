@@ -1109,7 +1109,8 @@ public sealed class TranslatorTests : IDisposable
         // Assert
         result.Succeeded.ShouldBeTrue();
         var copy = Text("out/Example.Toolkit/Generated/Core/COPY.g.cs");
-        copy.ShouldContain("if (CanMoveElements(a, b, _last1))");
+        copy.ShouldContain("/* A long run is done at once and a short one by the loop; \"plainArrayLoops\": true in the translation's settings writes the loop alone. */");
+        copy.ShouldContain("if (ShouldMoveElements(a, b, _last1))");
         copy.ShouldContain("i = MoveElements(a, b, _last1);");
         copy.ShouldContain("b[i - 1] = a[i - 1];");
         var fill = Text("out/Example.Toolkit/Generated/Core/SETALL.g.cs");
@@ -1129,6 +1130,81 @@ public sealed class TranslatorTests : IDisposable
         compiled.Run<string>("CopyNone").ShouldBe("1:1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24");
         compiled.Run<string>("FillMany").ShouldBe("19:1,2,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,21,22,23,24");
         compiled.Run<string>("FillFew").ShouldBe("3:1,2,7,7,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24");
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Run_WhenALoopsLengthIsKnown_ShouldWriteOnlyTheWayThatSuitsItUnlessLoopsAreToStayPlain(bool keepsLoops)
+    {
+        // Arrange: a short fill, a long one, one to a named constant, and
+        // a long copy, which keeps its loop for arrays that overlap.
+        Put("core/known.f", """
+                  DOUBLE PRECISION FUNCTION KNOWN ( V )
+                  INTEGER I, N
+                  PARAMETER ( N = 24 )
+                  DOUBLE PRECISION V, B ( 30 ), C ( 30 )
+                  DO I = 1, 3
+                     B ( I ) = 1.0D0
+                  END DO
+                  DO I = 1, 20
+                     B ( I ) = 2.0D0
+                  END DO
+                  DO I = 1, N
+                     C ( I ) = V
+                  END DO
+                  DO I = 1, 20
+                     C ( I ) = B ( I )
+                  END DO
+                  KNOWN = B ( 3 ) + B ( 20 ) + C ( 20 ) + C ( 24 ) + I
+                  END
+            """);
+        const string Driver =
+            """
+            using Dracocephalum.Fortrania.Runtime;
+
+            namespace Translated;
+
+            public static unsafe class Driver
+            {
+                public static double Known()
+                {
+                    using var context = new FortranContext();
+                    var first = 5.0;
+                    return context.Get<Example.Toolkit.Core>().KNOWN(&first);
+                }
+            }
+            """;
+        var settings = Settings(Project("Example.Toolkit", Source("Core", "core/*.f")));
+        settings.PlainArrayLoops = keepsLoops;
+
+        // Act
+        var result = Translator.Run(settings, _root);
+
+        // Assert
+        result.Succeeded.ShouldBeTrue();
+        var known = Text("out/Example.Toolkit/Generated/Core/KNOWN.g.cs");
+        known.ShouldContain("for (i = 1; i <= 3; i += 1)");
+        if (keepsLoops)
+        {
+            known.ShouldNotContain("Elements(");
+            known.ShouldNotContain("plainArrayLoops");
+            known.ShouldMatch(@"for \(i = 1; i <= (n|24); i \+= 1\)");
+        }
+        else
+        {
+            known.ShouldContain("/* A loop that fills, done at once; \"plainArrayLoops\": true in the translation's settings writes the loop. */");
+            known.ShouldContain("i = FillElements(b, 20, 2.0);");
+            known.ShouldMatch(@"i = FillElements\(c, (n|24), \*v\);");
+            known.ShouldNotContain("LongRun");
+            known.ShouldContain("if (ShouldMoveElements(b, c, 20))");
+            known.ShouldContain("i = MoveElements(b, c, 20);");
+            known.Split("for (i = 1;").Length.ShouldBe(3);
+        }
+
+        var compiled = TranslatedProgram.FromSources(
+            Directory.GetFiles(Path.Combine(_root, "out"), "*.cs", SearchOption.AllDirectories).Select(File.ReadAllText).Append(Driver));
+        compiled.Run<double>("Known").ShouldBe(2.0 + 2.0 + 2.0 + 5.0 + 21);
     }
 
     [Fact]

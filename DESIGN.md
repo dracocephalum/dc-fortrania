@@ -285,9 +285,10 @@ such tests, most of them in chains where all but one fail.
 long.** A `DO` loop from the first element, one at a time, whose one
 statement stores to the element of its turn from the same element of
 another array or from a value it does not change, keeps its loop and
-gains a second way beside it:
+gains a second way beside it, under a remark that says so:
 
-    if (CanMoveElements(vin, vout, _last1))
+    /* A long run is done at once and a short one by the loop; ... */
+    if (ShouldMoveElements(vin, vout, _last1))
     {
         i = MoveElements(vin, vout, _last1);
     }
@@ -299,7 +300,14 @@ gains a second way beside it:
         }
     }
 
-- **Which is right is known only when it runs.** The runtime's copy is
+- **A length known when translating is decided then.** A loop to a
+  number, or to a constant the procedure names, is left as it was
+  where that is under sixteen; a longer fill is the runtime's alone,
+  with no loop beside it; a longer copy keeps both, since whether two
+  arrays overlap is not known until the program runs.
+- **A setting writes the loop alone**, `plainArrayLoops`, and the
+  remark above each such loop names it.
+- **Otherwise the program chooses as it runs.** The runtime's copy is
   taken for sixteen elements or more, where it is from a sixth faster
   than the loop to six times as fast over a thousand, and not where the target starts inside the source
   after its start: there the loop reads what it has just written, which

@@ -1,3 +1,5 @@
+using Dracocephalum.Fortrania.Analysis;
+
 namespace Dracocephalum.Fortrania.Emit;
 
 /// <summary>
@@ -9,11 +11,17 @@ namespace Dracocephalum.Fortrania.Emit;
 /// <remarks>
 /// <para>
 /// Only the plainest loop is taken: from the first element, one at a
-/// time, to a last that is not known when translating, with one statement that stores to the element the loop's
+/// time, with one statement that stores to the element the loop's
 /// variable names, from the same element of another array or from a
-/// value the loop does not change. The loop is kept beside what stands
-/// for it, since which is right is known only when it runs: how many
-/// elements there are, and whether the two arrays overlap.
+/// value the loop does not change.
+/// </para>
+/// <para>
+/// Where the last element is known when translating, so is which way is
+/// right for the length, and only that way is written: the loop as it
+/// was for a short run, and for a long one the runtime's fill, or its
+/// copy with the loop beside it, since whether two arrays overlap is
+/// known only when the program runs. Where the last is not known, both
+/// ways are written and the program chooses.
 /// </para>
 /// <para>
 /// <c>DESIGN.md</c>, <em>A loop that copies or fills an array is done at
@@ -22,10 +30,17 @@ namespace Dracocephalum.Fortrania.Emit;
 /// </remarks>
 internal static class ArrayLoopPass
 {
-    private const string CanMove = "CanMoveElements";
+    /// <summary>The setting that leaves such loops as they are, as a translation's settings file spells it.</summary>
+    public const string Setting = "plainArrayLoops";
+
+    private const string ShouldMove = "ShouldMoveElements";
     private const string Move = "MoveElements";
     private const string Fill = "FillElements";
-    private const string LongRun = "LongRun";
+    private const string LongRunName = "LongRun";
+
+    // The runtime's LongRun, which the two have to agree on: the pass
+    // decides by it for a length it knows, and the runtime for the rest.
+    private const long LongRun = 16;
 
     /// <summary>Rewrites the loops of a file's methods that only copy or fill.</summary>
     /// <param name="file">The file as the emitter made it.</param>
@@ -34,18 +49,27 @@ internal static class ArrayLoopPass
         // The runtime's procedures by their own names, or by the name the
         // file gives the runtime's class where it has to.
         var runtime = file.RuntimeAlias is { } alias ? alias + "." : string.Empty;
-        return file with
-        {
-            Members =
-            [
-                .. file.Members.Select(member => member is TreeMethod method
-                    ? method with { Body = TreeRewriter.RewriteStatements(method.Body, statement => Replace(statement, runtime)) }
-                    : member),
-            ],
-        };
+        return file with { Members = [.. file.Members.Select(member => member is TreeMethod method ? Apply(method, runtime) : member)] };
     }
 
-    private static TreeStatement Replace(TreeStatement statement, string runtime)
+    private static TreeMethod Apply(TreeMethod method, string runtime)
+    {
+        // The whole numbers the method names, a PARAMETER's value among
+        // them: a loop to one of these has a length known here.
+        var constants = method.Declarations
+            .OfType<TreeStatement.Declare>()
+            .Where(declared => declared.IsConstant)
+            .ToDictionary(declared => declared.Name, declared => declared.Value switch
+            {
+                TreeExpression.Integer whole => whole.Value,
+                TreeExpression.Number { Value: Constant.Integer whole } => whole.Value,
+                _ => (long?)null,
+            });
+
+        return method with { Body = TreeRewriter.RewriteStatements(method.Body, statement => Replace(statement, runtime, constants)) };
+    }
+
+    private static IReadOnlyList<TreeStatement> Replace(TreeStatement statement, string runtime, Dictionary<string, long?> constants)
     {
         if (statement is not TreeStatement.For loop
             || loop.Start is not TreeStatement.Assign { Target: TreeExpression.Local variable, Value: TreeExpression.Integer { Value: 1 } }
@@ -54,37 +78,63 @@ internal static class ArrayLoopPass
             || loop.Body is not [TreeStatement.Assign { Target: TreeExpression.Indexed { Address: TreeExpression.Local target } stored, Value: var value }]
             || counted != variable
             || advanced != variable
-            || last is not TreeExpression.Local
             || last == variable
-            || !IsElementOfTheTurn(stored, variable))
+            || !IsElementOfTheTurn(stored, variable)
+            || !TryCount(last, constants, out var known)
+            || known < LongRun)
         {
-            return statement;
+            return [statement];
         }
 
-        TreeExpression condition;
-        TreeExpression atOnce;
-        if (value is TreeExpression.Indexed { Address: TreeExpression.Local source } read && IsElementOfTheTurn(read, variable) && source != target)
+        var source = value is TreeExpression.Indexed { Address: TreeExpression.Local from } read && IsElementOfTheTurn(read, variable) && from != target
+            ? from
+            : null;
+        if (source is null && !IsUnchangedByTheLoop(value, variable, target))
         {
-            condition = new TreeExpression.Call(runtime + CanMove, [source, target, last]);
-            atOnce = new TreeExpression.Call(runtime + Move, [source, target, last]);
-        }
-        else if (IsUnchangedByTheLoop(value, variable, target))
-        {
-            condition = new TreeExpression.Binary(TreeExpression.Operation.GreaterOrEqual, last, new TreeExpression.Local(runtime + LongRun));
-            atOnce = new TreeExpression.Call(runtime + Fill, [target, last, value]);
-        }
-        else
-        {
-            return statement;
+            return [statement];
         }
 
         // The runtime gives back where the loop leaves its variable, one
         // past the last.
-        return new TreeStatement.If(
+        TreeExpression atOnce = source is null
+            ? new TreeExpression.Call(runtime + Fill, [target, last, value])
+            : new TreeExpression.Call(runtime + Move, [source, target, last]);
+        var done = new TreeStatement.Assign(variable, atOnce);
+
+        // A fill of a length known to be long needs no loop beside it.
+        if (source is null && known is not null)
+        {
+            return [new TreeStatement.Note($"A loop that fills, done at once; \"{Setting}\": true in the translation's settings writes the loop."), done];
+        }
+
+        TreeExpression condition = source is null
+            ? new TreeExpression.Binary(TreeExpression.Operation.GreaterOrEqual, last, new TreeExpression.Local(runtime + LongRunName))
+            : new TreeExpression.Call(runtime + ShouldMove, [source, target, last]);
+        return
         [
-            new TreeStatement.Branch(condition, [new TreeStatement.Assign(variable, atOnce)]),
-            new TreeStatement.Branch(null, [loop]),
-        ]);
+            new TreeStatement.Note($"A long run is done at once and a short one by the loop; \"{Setting}\": true in the translation's settings writes the loop alone."),
+            new TreeStatement.If([new TreeStatement.Branch(condition, [done]), new TreeStatement.Branch(null, [loop])]),
+        ];
+    }
+
+    // How many elements a loop to a last element has: a number where the
+    // last is one or is a constant the method names as one, and nothing
+    // where it is a variable. A constant named by anything but a whole
+    // number is not counted at all, its value not being known here.
+    private static bool TryCount(TreeExpression last, Dictionary<string, long?> constants, out long? count)
+    {
+        count = null;
+        switch (last)
+        {
+            case TreeExpression.Integer number:
+                count = number.Value;
+                return true;
+            case TreeExpression.Local named when constants.TryGetValue(named.Name, out var value):
+                count = value;
+                return value is not null;
+            default:
+                return last is TreeExpression.Local;
+        }
     }
 
     // Whether an element is the one the loop's variable names in its

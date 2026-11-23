@@ -21,11 +21,11 @@ internal static class TreeRewriter
 
     /// <summary>Rewrites statements, those inside another's body before the one that holds them.</summary>
     /// <param name="statements">The statements.</param>
-    /// <param name="change">Given a statement whose own bodies have been changed already, gives what is to stand for it.</param>
-    public static IReadOnlyList<TreeStatement> RewriteStatements(IReadOnlyList<TreeStatement> statements, Func<TreeStatement, TreeStatement> change) =>
-        [.. statements.Select(statement => RewriteStatement(statement, change))];
+    /// <param name="change">Given a statement whose own bodies have been changed already, gives what is to stand for it: itself, another, or several.</param>
+    public static IReadOnlyList<TreeStatement> RewriteStatements(IReadOnlyList<TreeStatement> statements, Func<TreeStatement, IReadOnlyList<TreeStatement>> change) =>
+        [.. statements.SelectMany(statement => RewriteStatement(statement, change))];
 
-    private static TreeStatement RewriteStatement(TreeStatement statement, Func<TreeStatement, TreeStatement> change) => change(statement switch
+    private static IReadOnlyList<TreeStatement> RewriteStatement(TreeStatement statement, Func<TreeStatement, IReadOnlyList<TreeStatement>> change) => change(statement switch
     {
         TreeStatement.TryFinally guarded => new TreeStatement.TryFinally(RewriteStatements(guarded.Body, change), RewriteStatements(guarded.After, change)),
         TreeStatement.If branches => new TreeStatement.If([.. branches.Branches.Select(branch => branch with { Body = RewriteStatements(branch.Body, change) })]),

@@ -12,7 +12,7 @@ namespace Dracocephalum.Fortrania.Runtime;
 /// Whole runs of an array's elements, for a <c>DO</c> loop that only
 /// copies one array to another or gives every element the same value. A
 /// translation keeps the loop for a short run and for one these cannot
-/// stand for, and asks <see cref="CanMoveElements{T}"/> which it is.
+/// stand for, and asks <see cref="ShouldMoveElements{T}"/> which it is.
 /// </content>
 #if FORTRANIA_RUNTIME_INTERNAL
 internal
@@ -42,12 +42,12 @@ static unsafe partial class Fortran
     /// has just written, and a copy made at once would not.
     /// </returns>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static bool CanMoveElements<T>(T* from, T* to, int count)
+    public static bool ShouldMoveElements<T>(T* from, T* to, int count)
         where T : unmanaged =>
         count >= LongRun && (to <= from || to >= from + count);
 
     /// <summary>
-    /// Copies a run of elements at once, where <see cref="CanMoveElements{T}"/>
+    /// Copies a run of elements at once, where <see cref="ShouldMoveElements{T}"/>
     /// has said it may be. It is a call and not written in line, and gives
     /// back what the loop's variable is to be, so that the loop beside it
     /// in a translated procedure costs a short run nothing: nothing of the

@@ -617,7 +617,8 @@ public static partial class Translator
                     source.Files[name] = CSharpEmitter.WriteWithPlaces(
                         emitted,
                         procedure => _places.TryGetValue((source, procedure), out var place) ? place : null,
-                        text);
+                        text,
+                        settings.PlainArrayLoops);
                 }
 
                 var region = _workingRegions.Single(region => region.Project == source.Project.Name);

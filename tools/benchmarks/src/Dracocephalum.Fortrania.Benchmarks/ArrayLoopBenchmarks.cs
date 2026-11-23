@@ -286,7 +286,7 @@ public unsafe class ArrayLoopBenchmarks
     {
         int i;
         var last = *ndim;
-        if (Fortran.CanMoveElements(vin, vout, last))
+        if (Fortran.ShouldMoveElements(vin, vout, last))
         {
             i = Fortran.MoveElements(vin, vout, last);
         }

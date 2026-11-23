@@ -72,6 +72,12 @@ internal abstract record TreeStatement
     /// <summary>A line of comment: its text, with nothing of how a language marks one.</summary>
     internal sealed record Comment(string Text) : TreeStatement;
 
+    /// <summary>
+    /// A remark of the translator's own about the statement after it, set
+    /// off from the comments that came with the program.
+    /// </summary>
+    internal sealed record Note(string Text) : TreeStatement;
+
     /// <summary>A blank line, between comments or before them.</summary>
     internal sealed record Blank : TreeStatement;
 
