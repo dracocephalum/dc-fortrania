@@ -35,6 +35,16 @@ public sealed class TranslationSettings
     public bool InlineTextConstants { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether a <c>DO</c> loop that only
+    /// copies one array to another, or gives every element of one the same
+    /// value, is written as the loop alone. Unless set, such a loop has the
+    /// runtime's copy or fill beside it, taken where the run is long: that
+    /// is several times as fast for a long array and makes the code some
+    /// lines longer at each such loop.
+    /// </summary>
+    public bool PlainArrayLoops { get; set; }
+
+    /// <summary>
     /// Gets or sets the variables a path may name as <c>$(Name)</c>, names
     /// compared without regard to case. Their values are the last of three
     /// places a value is looked for: the local settings file beside this

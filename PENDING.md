@@ -349,6 +349,17 @@ a whole translation from them. Left to do:
   of theirs has to know the platform, and a command run after the
   translation rewrites that one. So it is not built until a program needs
   it.
+- **How long a run of an array is done at once.** A loop that only
+  copies or fills an array is given to the runtime from sixteen
+  elements on, a number measured on one machine of 64 bits and written
+  down twice, in the translator for a length it knows and in the
+  runtime for the rest; `DESIGN.md` has it under *A loop that copies or
+  fills an array is done at once where it is long*. A setting is to
+  give another, for a platform where the two ways cross elsewhere, a
+  processor of 32 bits say. The translator would then write the number
+  into each test it emits and not leave it to the runtime's constant,
+  so that a translation carries what it was tuned to. Not built until a
+  platform is measured that wants another.
 - **Paths that go deeper than one folder.** The last part of a path may
   have `*` and `?`; `**` for folders at any depth is not read.
 - **The rest of what a translation is told**, under *What the translator
@@ -788,10 +799,11 @@ rewrite of arithmetic is checked against that compiler and not argued.
   `DESIGN.md` has it under *Equality with a constant is tested as
   equality*. An ordering against a constant, `NAME .LT. 'K'`, still goes
   through the runtime's comparison, and is rare.
-- **A whole array copied or cleared by a `DO` loop.** A loop whose body
-  only assigns one array's elements to another's, or a constant to each,
-  with nothing else read or written, is a span copy or fill, when the
-  two arrays are known not to overlap.
+- **A whole array copied or cleared by a `DO` loop.** Done for the
+  plainest loop; `DESIGN.md` has it under *A loop that copies or fills
+  an array is done at once where it is long*. A loop over part of an
+  array, one with a step, and one that copies character elements are
+  left as they are.
 - **A whole power of an integer known when translating.** A real raised
   to 2, 3 or 4 is done, in the runtime and not by a pass; `DESIGN.md`
   has it under *An integer power multiplies, in the reference compiler's

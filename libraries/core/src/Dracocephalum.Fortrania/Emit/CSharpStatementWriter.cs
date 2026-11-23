@@ -20,6 +20,9 @@ internal static class CSharpStatementWriter
     public static string? WriteLine(TreeStatement statement) => statement switch
     {
         TreeStatement.Comment comment => comment.Text.Length == 0 ? "//" : "// " + comment.Text,
+
+        // A remark may hold anything but what would end it.
+        TreeStatement.Note note => $"/* {note.Text.Replace("*/", "* /", StringComparison.Ordinal)} */",
         TreeStatement.Return { Value: null } => "return;",
         TreeStatement.Return returned => $"return {Expression(returned.Value!)};",
         TreeStatement.Throw thrown => $"throw {Expression(thrown.Exception)};",

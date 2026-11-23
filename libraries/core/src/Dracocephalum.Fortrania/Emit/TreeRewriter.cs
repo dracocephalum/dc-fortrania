@@ -19,6 +19,23 @@ internal static class TreeRewriter
     public static IReadOnlyList<TreeStatement> Rewrite(IReadOnlyList<TreeStatement> statements, Func<TreeExpression, TreeExpression> change) =>
         [.. statements.Select(statement => Rewrite(statement, change))];
 
+    /// <summary>Rewrites statements, those inside another's body before the one that holds them.</summary>
+    /// <param name="statements">The statements.</param>
+    /// <param name="change">Given a statement whose own bodies have been changed already, gives what is to stand for it: itself, another, or several.</param>
+    public static IReadOnlyList<TreeStatement> RewriteStatements(IReadOnlyList<TreeStatement> statements, Func<TreeStatement, IReadOnlyList<TreeStatement>> change) =>
+        [.. statements.SelectMany(statement => RewriteStatement(statement, change))];
+
+    private static IReadOnlyList<TreeStatement> RewriteStatement(TreeStatement statement, Func<TreeStatement, IReadOnlyList<TreeStatement>> change) => change(statement switch
+    {
+        TreeStatement.TryFinally guarded => new TreeStatement.TryFinally(RewriteStatements(guarded.Body, change), RewriteStatements(guarded.After, change)),
+        TreeStatement.If branches => new TreeStatement.If([.. branches.Branches.Select(branch => branch with { Body = RewriteStatements(branch.Body, change) })]),
+        TreeStatement.While loop => loop with { Body = RewriteStatements(loop.Body, change) },
+        TreeStatement.For loop => loop with { Body = RewriteStatements(loop.Body, change) },
+
+        // What holds no statements, and a function of the method's own.
+        _ => statement,
+    });
+
     private static TreeStatement Rewrite(TreeStatement statement, Func<TreeExpression, TreeExpression> change) => statement switch
     {
         TreeStatement.Evaluate evaluate => evaluate with { Expression = Rewrite(evaluate.Expression, change) },

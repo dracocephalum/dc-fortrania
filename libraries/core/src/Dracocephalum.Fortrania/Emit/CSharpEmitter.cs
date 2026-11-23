@@ -180,7 +180,8 @@ public sealed class CSharpEmitter
     /// <see cref="EmitTextBlock"/>. Nothing for a unit that is to write
     /// its constants itself.
     /// </param>
-    public static string WriteWithPlaces(EmittedUnit unit, Func<string, long?> placeOf, TextBlock? text = null)
+    /// <param name="keepsArrayLoops">Whether a loop that only copies or fills an array is left as the loop alone, and not given the runtime's copy or fill beside it for a long run.</param>
+    public static string WriteWithPlaces(EmittedUnit unit, Func<string, long?> placeOf, TextBlock? text = null, bool keepsArrayLoops = false)
     {
         ArgumentNullException.ThrowIfNull(unit);
         ArgumentNullException.ThrowIfNull(placeOf);
@@ -193,6 +194,11 @@ public sealed class CSharpEmitter
         // Before the constants are moved, while one is still to be seen
         // for what it is.
         file = ConstantEqualityPass.Apply(WorkingBuffersPass.Apply(file, placeOf));
+        if (!keepsArrayLoops)
+        {
+            file = ArrayLoopPass.Apply(file);
+        }
+
         return CSharpFileWriter.Write(text is null ? file : TextBlockPass.Apply(file, text));
     }
 
