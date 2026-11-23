@@ -877,6 +877,35 @@ how a file the translator no longer makes is told from one somebody wrote.
 The settings file, the command line and the build step all read into the
 same description, kept in the translator's library and not in any of them.
 
+## The command is `fortrania`, and what to produce its first word
+
+`Dracocephalum.Fortrania.Cli` is a .NET tool whose command is
+`fortrania`, and `fortrania cs` translates to C# as a settings file says.
+It is a thin program over `Translator.Run` and holds no rule of a
+translation's own. The package is named for what it is beside the
+translator's, a command line; *tool* is a word of this repository's
+layout already, for what is never published.
+
+    fortrania cs [settings] [--force]
+    fortrania --version
+
+- **The settings file is named, or found.** With none named, the command
+  takes the one `fortrania.json` or `*.fortrania.json` in the folder it
+  is run in, and refuses none or several. Its paths are taken from where
+  it lies, as `Translator.Run`'s are, so a translation is the same from
+  whatever folder it is started.
+- **What to produce is the first word**, so that another target or
+  another thing to do, `fortrania restore` say, is a word beside it. A
+  name made of the target, as `f2c` and `f2j` are, needs a name for each,
+  and the obvious ones are not all free: `f2fs` is a file system, and
+  `f2` alone renames files. The short names stay where they clash with
+  nothing: a program standing alone may be released as `f2cs`, and the
+  project is to be tagged `f2cs` and `f2csharp`.
+- **Messages go to the error stream** in the form a build reads, a file
+  and its line, and the outcome to the output. It exits with zero when
+  it did as asked, one when the settings or the translation failed, and
+  two for a command line it does not take.
+
 ## A package's version is in the code, and the build says what kind it is
 
 `Version.props` holds one number, major, minor and patch, and it is the

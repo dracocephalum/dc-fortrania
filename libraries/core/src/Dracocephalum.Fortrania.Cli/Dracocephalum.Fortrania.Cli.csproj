@@ -1,0 +1,15 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Description>Fortrania's command, fortrania: translates FORTRAN 77 to C# as a settings file says, with Dracocephalum.Fortrania. Installed as a .NET tool.</Description>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>fortrania</ToolCommandName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Dracocephalum.Fortrania/Dracocephalum.Fortrania.csproj" />
+  </ItemGroup>
+
+</Project>

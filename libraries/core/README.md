@@ -8,7 +8,7 @@ translated code runs on.
 | Category | `libraries/` |
 | Kind | library |
 | Solution | `Dracocephalum.Fortrania.slnx` |
-| Projects | `src/Dracocephalum.Fortrania`, the translator; `src/Dracocephalum.Fortrania.Runtime`, what translated code calls; and a test project for each under `test/` |
+| Projects | `src/Dracocephalum.Fortrania`, the translator; `src/Dracocephalum.Fortrania.Runtime`, what translated code calls; `src/Dracocephalum.Fortrania.Cli`, the command, `fortrania`; and a test project for each under `test/` |
 
 ## What it does
 
@@ -41,8 +41,8 @@ Everything up to the emitter is independent of the output language, and the
 emitter sits behind a seam of its own, so another back end is an addition
 and not a rewrite. A whole translation, several projects made of several FORTRAN libraries
 each, is described by one settings file and done by `Translator.Run`. The
-command-line front end, `fortrania`, will be a thin program over that and
-hold no logic of its own.
+command, `fortrania`, is a thin program over that and holds no logic of
+its own.
 
 ## Run it
 
@@ -52,9 +52,19 @@ there fails with `MSB1003` on purpose.
     dotnet build Dracocephalum.Fortrania.slnx --nologo -v:q
     dotnet test  Dracocephalum.Fortrania.slnx
 
-There is no command-line front end yet. When one is added it will be invoked
-as `fortrania cs`; [`PENDING.md`](../../PENDING.md), *The command is
-`fortrania`, and the target language its first word*, has the reasons.
+The command is a .NET tool. From a build of this folder it runs as
+
+    dotnet run --project src/Dracocephalum.Fortrania.Cli -- cs path/to/settings.json
+
+and, installed from its package, as
+
+    dotnet tool install --global Dracocephalum.Fortrania.Cli
+    fortrania cs [settings] [--force]
+
+With no settings file named it takes the one `fortrania.json` or
+`*.fortrania.json` in the folder it is run in. `fortrania --help` says
+the rest; [`DESIGN.md`](../../DESIGN.md), *The command is `fortrania`,
+and what to produce its first word*, has why it is shaped so.
 
 ## Configuration
 
