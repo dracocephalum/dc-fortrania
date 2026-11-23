@@ -1,9 +1,11 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/Dracocephalum.Fortrania.Cli/Dracocephalum.Fortrania.Cli.csproj" />
     <Project Path="src/Dracocephalum.Fortrania.Runtime/Dracocephalum.Fortrania.Runtime.csproj" />
     <Project Path="src/Dracocephalum.Fortrania/Dracocephalum.Fortrania.csproj" />
   </Folder>
   <Folder Name="/test/">
+    <Project Path="test/Dracocephalum.Fortrania.Cli.Tests/Dracocephalum.Fortrania.Cli.Tests.csproj" />
     <Project Path="test/Dracocephalum.Fortrania.Runtime.Tests/Dracocephalum.Fortrania.Runtime.Tests.csproj" />
     <Project Path="test/Dracocephalum.Fortrania.Tests/Dracocephalum.Fortrania.Tests.csproj" />
   </Folder>

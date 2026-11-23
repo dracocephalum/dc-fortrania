@@ -284,32 +284,18 @@ which it never overwrites. The defaults that make this work:
 This is also the path the conformance tests take: translate, run, and set
 the output against the reference compiler's.
 
-## The command is `fortrania`, and the target language its first word
+## What the command does not do yet
 
-The command-line translator is a .NET tool whose command is `fortrania`,
-with what to produce as its first word: `fortrania cs` translates to C#.
-Other things it does are words beside that one, `fortrania restore` for
-fetching sources among them. The command's name is not the program's: the
-tool's project names its command itself.
+`DESIGN.md`, *The command is `fortrania`, and what to produce its first
+word*, has what is built. Left to do:
 
-- A name made of the target, as `f2c` and the Java translator `f2j` are,
-  needs a name per target, and the obvious ones are not all free: `f2fs`
-  is the Linux file system and its tools. One command with the target as a
-  word has no such family to find names for.
-- `f2` alone, with the target after it, is another program already, a
-  widely installed tool that renames files, and two letters are found by no
-  search.
-- `fortrania` is the project's own name, and is typed mostly in build files
-  and scripts, where its length costs nothing.
-
-The short names stay in use where they clash with nothing. A program that
-stands alone, for a machine without the tool installed, may be published
-with the project's releases under the name of its target, `f2cs`, and the
-project is to be tagged with `f2cs` and `f2csharp` so that a search for
-either finds it.
-
-Still to be found out when the tool is built: whether one tool package can
-give more than one command. Nothing above depends on the answer.
+- **`fortrania restore`**, which fetches the sources a translation needs
+  and does nothing else, for a pipeline that wants fetching as a step of
+  its own.
+- **Whether one tool package can give more than one command**, should a
+  short name of its own, `f2cs`, ever be wanted beside `fortrania`.
+- **A program that stands alone**, for a machine without the .NET tool
+  installed, released under the name of its target.
 
 ## What a translation's settings do not do yet
 
@@ -317,9 +303,6 @@ give more than one command. Nothing above depends on the answer.
 has what is built: the settings, their rules, and the translator that does
 a whole translation from them. Left to do:
 
-- **A command to run it.** `fortrania cs` is to read a settings file and do
-  the translation, as *The command is `fortrania`, and the target language
-  its first word* has it.
 - **Translating libraries apart.** Today every source of the settings is
   read in one run. A library translated by itself is to write its
   summaries to a file beside its code, for a later translation that calls
@@ -368,7 +351,7 @@ a whole translation from them. Left to do:
 
 ## Translating as a step of the build
 
-Next to be built, after a first form of the command, which it runs. Its
+Next to be built: the command it runs is there. Its
 first user is the translated library's repository, whose translation is
 to be kept in the project's folder and committed. A project is to be able
 to translate FORTRAN as it builds, the way a project compiles `.proto`
@@ -635,8 +618,9 @@ In this order, because each step changes what the next one looks at:
    so that what it tidies is the code that stays. A published type is a
    promise, so what is `public` is decided type by type here, the
    translation settings above all.
-5. **The command**, `fortrania cs`, published as a .NET tool; see *The
-   command is `fortrania`, and the target language its first word*.
+5. **The command**, `fortrania cs`, published as a .NET tool. Built;
+   `DESIGN.md` has it under *The command is `fortrania`, and what to
+   produce its first word*.
 6. **Which runtime a translation runs on.** Emitted code calls the
    runtime's API, so a package's user has to know which runtime goes with
    which translator. The rule already decided for a scaffolded library,
@@ -646,8 +630,8 @@ In this order, because each step changes what the next one looks at:
 **The command and the build package are taken ahead of the cleanup
 round.** The optimization round's three rewrites are done, and the
 translated library's repository waits for a translation it can commit
-and build on a server, which needs step 5 and then *Translating as a
-step of the build*. The cleanup round follows them, and still comes
+and build on a server, which needs step 5, which is built, and then
+*Translating as a step of the build*. The cleanup round follows them, and still comes
 before anything is released.
 
 **Development packages come before all of that.** The translated library
