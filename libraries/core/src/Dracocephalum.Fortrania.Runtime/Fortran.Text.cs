@@ -23,6 +23,10 @@ static unsafe partial class Fortran
 {
     private const byte Blank = (byte)' ';
 
+    // How many bytes are fewer than it pays to hand to a search of the
+    // framework's.
+    private const int ShortRun = 8;
+
     /// <summary>Gives the address of a character constant.</summary>
     /// <param name="constant">
     /// A <c>u8</c> literal and nothing else. The compiler keeps the bytes of
@@ -145,11 +149,37 @@ static unsafe partial class Fortran
         (length <= 0 || shorterLength <= 0 || *value == *shorter) && IsEqualInFull(value, length, shorter, shorterLength);
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private static bool IsEqualInFull(byte* value, int length, byte* shorter, int shorterLength) =>
-        length >= shorterLength && shorterLength >= 0
-            ? new ReadOnlySpan<byte>(value, shorterLength).SequenceEqual(new ReadOnlySpan<byte>(shorter, shorterLength))
-                && (length == shorterLength || !new ReadOnlySpan<byte>(value + shorterLength, length - shorterLength).ContainsAnyExcept(Blank))
-            : Compare(value, length, shorter, shorterLength) == 0;
+    private static bool IsEqualInFull(byte* value, int length, byte* shorter, int shorterLength)
+    {
+        if (length < shorterLength || shorterLength < 0)
+        {
+            return Compare(value, length, shorter, shorterLength) == 0;
+        }
+
+        if (!new ReadOnlySpan<byte>(value, shorterLength).SequenceEqual(new ReadOnlySpan<byte>(shorter, shorterLength)))
+        {
+            return false;
+        }
+
+        // What is left of the longer has to be blank. A few bytes are
+        // looked at one by one: the framework's search is faster over
+        // many and costs more to begin than these take.
+        var rest = length - shorterLength;
+        if (rest >= ShortRun)
+        {
+            return !new ReadOnlySpan<byte>(value + shorterLength, rest).ContainsAnyExcept(Blank);
+        }
+
+        for (var index = shorterLength; index < length; index++)
+        {
+            if (value[index] != Blank)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
 
     /// <summary>Finds where one character value first occurs in another, as <c>INDEX</c> does.</summary>
     /// <param name="text">The value searched.</param>
