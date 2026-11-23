@@ -945,6 +945,63 @@ public sealed class TranslatorTests : IDisposable
     }
 
     [Fact]
+    public void Run_WhenACharacterValueIsTestedAgainstAConstant_ShouldTestForEqualityAndNotOrderTheTwo()
+    {
+        // Arrange: one byte against one, a name in a longer variable, the
+        // constant on the left, a test for difference, and a comparison
+        // of two variables, which stays as it is. COUNT adds a power of
+        // two for each test that comes out as FORTRAN has it.
+        Put("core/tests.f", """
+                  INTEGER FUNCTION COUNT ( C, NAME, OTHER )
+                  CHARACTER*1 C
+                  CHARACTER*(*) NAME, OTHER
+                  COUNT = 0
+                  IF ( C .EQ. 'U' ) COUNT = COUNT + 1
+                  IF ( C .NE. 'X' ) COUNT = COUNT + 2
+                  IF ( NAME .EQ. 'J2000' ) COUNT = COUNT + 4
+                  IF ( 'B1950' .NE. NAME ) COUNT = COUNT + 8
+                  IF ( NAME .EQ. OTHER ) COUNT = COUNT + 16
+                  IF ( NAME .LT. 'K' ) COUNT = COUNT + 32
+                  IF ( NAME .EQ. 'J2000   X' ) COUNT = COUNT + 64
+                  END
+            """);
+        const string Driver =
+            """
+            using Dracocephalum.Fortrania.Runtime;
+            using static Dracocephalum.Fortrania.Runtime.Fortran;
+
+            namespace Translated;
+
+            public static unsafe class Driver
+            {
+                public static int Count()
+                {
+                    using var context = new FortranContext();
+                    return context.Get<Example.Toolkit.Core>().COUNT(AddrOf("U"u8), 1, AddrOf("J2000   "u8), 8, AddrOf("J2000"u8), 5);
+                }
+            }
+            """;
+
+        // Act
+        var result = Translator.Run(Settings(Project("Example.Toolkit", Source("Core", "core/*.f"))), _root);
+
+        // Assert
+        result.Succeeded.ShouldBeTrue();
+        var count = Text("out/Example.Toolkit/Generated/Core/COUNT.g.cs");
+        count.ShouldContain("if (*c == 'U')");
+        count.ShouldContain("if (*c != 'X')");
+        count.ShouldContain("if (IsEqual(name, name_len, _text");
+        count.ShouldContain("/* \"J2000\" */, 5))");
+        count.ShouldContain("if (!IsEqual(name, name_len, _text");
+        count.ShouldContain("if (Compare(name, name_len, other, other_len) == 0)");
+        count.ShouldContain("/* \"K\" */, 1) < 0)");
+
+        var compiled = TranslatedProgram.FromSources(
+            Directory.GetFiles(Path.Combine(_root, "out"), "*.cs", SearchOption.AllDirectories).Select(File.ReadAllText).Append(Driver));
+        compiled.Run<int>("Count").ShouldBe(1 + 2 + 4 + 8 + 16 + 32);
+    }
+
+    [Fact]
     public void Run_WhenAUnitHasEntryPoints_ShouldCountEachByWhatItsOwnStatementsTakeAndCall()
     {
         // Arrange: only KEEP names the array, and only PEEK calls LEAF.
