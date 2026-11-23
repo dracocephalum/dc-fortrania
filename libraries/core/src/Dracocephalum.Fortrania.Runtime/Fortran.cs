@@ -93,7 +93,34 @@ static unsafe partial class Fortran
     /// <param name="value">The base.</param>
     /// <param name="exponent">The exponent; a negative one gives the reciprocal of the positive power.</param>
     /// <returns>The power.</returns>
-    public static double Pow(double value, int exponent)
+    /// <remarks>
+    /// The exponents a program mostly writes are each the multiplications
+    /// the general form does for it, in its order, chosen before any loop:
+    /// written in line with an exponent that is a constant, as it nearly
+    /// always is, only the one choice is left. <c>DESIGN.md</c>, <em>An
+    /// integer power multiplies, in the reference compiler's order</em>,
+    /// has what that was measured to save.
+    /// </remarks>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static double Pow(double value, int exponent) => exponent switch
+    {
+        2 => value * value,
+        3 => value * (value * value),
+        4 => (value * value) * (value * value),
+        _ => PowByLoop(value, exponent),
+    };
+
+    /// <inheritdoc cref="Pow(double, int)"/>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static float Pow(float value, int exponent) => exponent switch
+    {
+        2 => value * value,
+        3 => value * (value * value),
+        4 => (value * value) * (value * value),
+        _ => PowByLoop(value, exponent),
+    };
+
+    private static double PowByLoop(double value, int exponent)
     {
         var remaining = (uint)Math.Abs((long)exponent);
         var result = (remaining & 1) != 0 ? value : 1.0;
@@ -109,8 +136,7 @@ static unsafe partial class Fortran
         return exponent < 0 ? 1.0 / result : result;
     }
 
-    /// <inheritdoc cref="Pow(double, int)"/>
-    public static float Pow(float value, int exponent)
+    private static float PowByLoop(float value, int exponent)
     {
         var remaining = (uint)Math.Abs((long)exponent);
         var result = (remaining & 1) != 0 ? value : 1.0f;

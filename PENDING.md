@@ -793,9 +793,11 @@ rewrite of arithmetic is checked against that compiler and not argued.
   only assigns one array's elements to another's, or a constant to each,
   with nothing else read or written, is a span copy or fill, when the
   two arrays are known not to overlap.
-- **A real raised to a small constant power.** `X**2` as `x * x` is what
-  the reference compiler does too; a larger power, or one of another
-  type, is checked bit for bit first.
+- **A whole power of an integer known when translating.** A real raised
+  to 2, 3 or 4 is done, in the runtime and not by a pass; `DESIGN.md`
+  has it under *An integer power multiplies, in the reference compiler's
+  order*. An integer raised to such a power still goes through the
+  runtime's loop, and is rare in the reference sources.
 
 The toolkit's translation is the measure of which are worth it: each is
 counted there before it is built, as the joined constants were.

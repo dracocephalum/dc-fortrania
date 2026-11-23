@@ -72,6 +72,16 @@ public unsafe class FortranTests
     [InlineData(1.1, 0, 1.0)]
     [InlineData(3.7, 1, 3.7)]
     [InlineData(-0.3, 3, -2.69999999999999997E-02)]
+    [InlineData(1.1, 2, 1.21000000000000019E+00)]
+    [InlineData(3.7, 2, 1.36900000000000013E+01)]
+    [InlineData(0.1, 2, 1.00000000000000019E-02)]
+    [InlineData(1.1, 3, 1.33100000000000041E+00)]
+    [InlineData(3.7, 3, 5.06530000000000058E+01)]
+    [InlineData(0.1, 3, 1.00000000000000024E-03)]
+    [InlineData(1.1, 4, 1.46410000000000040E+00)]
+    [InlineData(3.7, 4, 1.87416100000000029E+02)]
+    [InlineData(-0.3, 4, 8.09999999999999956E-03)]
+    [InlineData(0.1, 4, 1.00000000000000045E-04)]
     public void Pow_WhenADoubleIsRaisedToAnInteger_ShouldAgreeWithTheReferenceCompilerToTheLastBit(
         double value, int exponent, double expected) =>
         Fortran.Pow(value, exponent).ShouldBe(expected);
@@ -79,6 +89,9 @@ public unsafe class FortranTests
     [Theory]
     [InlineData(1.7f, 7, 4.103387070E+01f)]
     [InlineData(1.7f, -5, 7.042962313E-02f)]
+    [InlineData(1.7f, 2, 2.890000105E+00f)]
+    [InlineData(1.7f, 3, 4.913000107E+00f)]
+    [InlineData(1.7f, 4, 8.352100372E+00f)]
     public void Pow_WhenARealIsRaisedToAnInteger_ShouldAgreeWithTheReferenceCompilerToTheLastBit(
         float value, int exponent, float expected) =>
         Fortran.Pow(value, exponent).ShouldBe(expected);

@@ -122,6 +122,14 @@ the natural C# type is kept, so a condition reads as written.
 with an integer `N` is repeated multiplication, and the order of the
 multiplications decides the last bit. The runtime's `Pow` multiplies in the
 order the reference compiler's library does, so the results agree exactly.
+The exponents a program mostly writes, 2, 3 and 4, are chosen ahead of
+the general loop and are each its multiplications in its order; `Pow` is
+written in line, and an exponent is nearly always a constant, so only
+the one choice is left where it is used. Three squares divided and added
+up, the reference sources' commonest use, take a third of the time they
+took through the loop, and the multiplications written out by hand take
+no less. A translation is written as before, `Pow(x, 2)`, and no pass
+was needed.
 A real exponent goes to the platform's `Math.Pow`, which may differ from
 another platform's in the last place.
 
