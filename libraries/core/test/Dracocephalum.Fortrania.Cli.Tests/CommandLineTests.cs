@@ -151,6 +151,65 @@ public sealed class CommandLineTests : IDisposable
     }
 
     [Fact]
+    public void Run_WhenToldOneProject_ShouldTranslateItAloneAndReadTheOtherFromItsSummary()
+    {
+        // Arrange: a library and a program that calls it, translated
+        // together once; then the library's sources go.
+        Put("lib/twice.f", Source);
+        Put("app/main.f", "      PROGRAM APP\n      INTEGER N\n      N = 4\n      CALL TWICE ( N )\n      END\n");
+        Put(
+            "fortrania.json",
+            """
+            {
+              "output": "out",
+              "runtime": { "package": "1.2.3" },
+              "projects": [
+                { "name": "Example.Toolkit", "sources": [ { "name": "Core", "files": [ "lib/*.f" ] } ] },
+                { "name": "Example.App", "sources": [ { "name": "AppMain", "files": [ "app/*.f" ] } ] }
+              ]
+            }
+            """);
+        Run("cs").ShouldBe(CommandLine.Done, _error.ToString());
+        File.Delete(Path.Combine(_root, "lib/twice.f"));
+        var before = _output.ToString().Length;
+
+        // Act
+        var code = Run("cs", "--project", "Example.App", "--force");
+
+        // Assert
+        code.ShouldBe(CommandLine.Done, _error.ToString());
+        _output.ToString()[before..].ShouldStartWith("Translated: 1 program units,");
+    }
+
+    [Theory]
+    [InlineData("cs", "--project")]
+    [InlineData("cs", "--project", "--force")]
+    public void Run_WhenToldOfAProjectWithoutItsName_ShouldShowHowToUseItAndSaySo(params string[] arguments)
+    {
+        // Act
+        var code = Run(arguments);
+
+        // Assert
+        code.ShouldBe(CommandLine.Misused);
+        _error.ToString().ShouldContain("--project is to be followed by the name");
+    }
+
+    [Fact]
+    public void Run_WhenToldAProjectTheSettingsLack_ShouldSaySoAndFail()
+    {
+        // Arrange
+        Put("src/twice.f", Source);
+        Put("fortrania.json", Settings);
+
+        // Act
+        var code = Run("cs", "--project", "Example.Other");
+
+        // Assert
+        code.ShouldBe(CommandLine.Failed);
+        _error.ToString().ShouldContain("the project Example.Other to translate");
+    }
+
+    [Fact]
     public void Run_WhenAskedForHelp_ShouldShowHowToUseItAndSucceed()
     {
         // Act

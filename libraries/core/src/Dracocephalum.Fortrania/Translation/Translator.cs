@@ -287,18 +287,24 @@ public static partial class Translator
             return Environment.GetEnvironmentVariable(name) ?? (settings.Variables.TryGetValue(name, out var given) ? given.Path : null);
         }
 
-        // Every path the settings give, so that a variable with no value is
-        // reported once and before anything is read.
+        // Every path this run needs, so that a variable with no value is
+        // reported once and before anything is read. A project read from its
+        // summary needs its folder and none of its sources.
         private IEnumerable<string?> Paths() =>
             new[] { settings.Output, settings.Runtime.Project }
                 .Concat(settings.Projects.Select(project => project.Output))
-                .Concat(settings.Projects.SelectMany(project => project.Sources).SelectMany(source => source.Files.Concat(source.Includes)));
+                .Concat(settings.Projects.Where(IsTranslated).SelectMany(project => project.Sources).SelectMany(source => source.Files.Concat(source.Includes)));
+
+        private HashSet<string> VariablesNamed() =>
+        [
+            .. Paths()
+                .Where(path => path is not null)
+                .SelectMany(path => VariableReference().Matches(path!).Select(match => match.Groups[1].Value)),
+        ];
 
         private void CheckVariables()
         {
-            var missing = Paths()
-                .Where(path => path is not null)
-                .SelectMany(path => VariableReference().Matches(path!).Select(match => match.Groups[1].Value))
+            var missing = VariablesNamed()
                 .Where(name => ResolveVariable(name) is null)
                 .Distinct(StringComparer.OrdinalIgnoreCase);
 
@@ -311,11 +317,13 @@ public static partial class Translator
         // A variable that names a folder to download is fetched when the
         // folder is not there, and only for the path the settings give: a
         // value from the local settings file or the environment is somebody's
-        // own folder, used as it is.
+        // own folder, used as it is. Only what this run reads is fetched: the
+        // sources of a project read from its summary are not.
         private void FetchSources()
         {
             var fetcher = new SourceFetcher(options);
-            foreach (var (name, variable) in settings.Variables.Where(pair => pair.Value.Url is not null))
+            var named = new HashSet<string>(VariablesNamed(), StringComparer.OrdinalIgnoreCase);
+            foreach (var (name, variable) in settings.Variables.Where(pair => pair.Value.Url is not null && named.Contains(pair.Key)))
             {
                 if (variable.Sha256 is null)
                 {
