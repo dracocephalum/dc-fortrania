@@ -392,32 +392,14 @@ all at once**, byte for byte. That is what is tested: the reference
 sources translated in one run of the command, and again a project at a
 time in the order of their references, and the two folders compared.
 
-**What the settings are told, at the root and, where a project differs,
-in its entry:**
+**What the settings are told is built**: the required root `output`,
+`translate`, `scaffold` and `solution`, at the root and, where a project
+differs, in its entry; `DESIGN.md`, *What is translated is set out as
+projects and their sources*, has them. What the build adds to them:
 
-| Setting | Values | Default |
-|---|---|---|
-| `output` at the root | the folder projects are written under | **none: it is required**, so that nothing is written to a folder nobody named |
-| `output` of a project | the project's folder | a folder of its name under the root's |
-| `translate` | `never`, `ifChanged`, `always` | `ifChanged` |
-| `scaffold` | `always`, `once`, `never` | `once` |
-| `solution`, at the root only | the path of a solution file holding every project | none |
-
-- **Every relative path is taken from where the settings file lies**, a
-  source's, the root's, a project's and the solution's alike, so that
-  `p/A` beside `../q/B` is as good as two folders side by side.
-- **`translate` is how often**, after the values MSBuild has for copying
-  a file to the output. `never` compiles what is there even where the
-  sources are; `ifChanged` translates when the settings, a source or the
-  translator's version changed; `always` on every build. A build property,
-  `FortraniaTranslate`, and the command's `--force` override the file for
-  one run, which is where `always` is mostly wanted.
-- **`scaffold` is whether the translator writes the files around the
-  translation**: a project's file, and `Program.cs` for an executable.
-  `always` keeps them the translator's; `once` writes what is missing and
-  leaves the rest to whoever has it, as the translator does today; `never`
-  writes none, and only checks them. The solution follows the root's
-  `scaffold`, since it holds every project and belongs to none.
+- **A build property, `FortraniaTranslate`, overrides `translate` for one
+  run**, as the command's `--force` and `--project` do, which is where
+  `always` is mostly wanted.
 - **Whether a translation is kept or thrown away is where it lands.** In
   the project's folder the build only translates, since the SDK compiles
   every file there, and whether it is committed is the repository's
@@ -471,8 +453,8 @@ from either; what differs is around it:
    at once. Built.
 2. One project of the settings translated by the command, `--project`,
    and sources fetched only for the projects translated. Built.
-3. The settings above: the required root `output`, `translate`,
-   `scaffold` and `solution`.
+3. The settings: the required root `output`, `translate`, `scaffold` and
+   `solution`. Built.
 4. The package and its targets, fetching in restore among them.
 5. The translated library's repository taking it, with `scaffold: never`
    and project files of its own.

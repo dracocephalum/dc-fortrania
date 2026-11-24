@@ -1360,6 +1360,174 @@ public sealed class TranslatorTests : IDisposable
     }
 
     [Fact]
+    public void Run_WhenTheSettingsNameNoOutput_ShouldSaySoAndWriteNothing()
+    {
+        // Arrange
+        Put("core/core.f", Core);
+        var settings = Settings(Project("Example.Toolkit", Source("Core", "core/*.f")));
+        settings.Output = null;
+
+        // Act
+        var result = Translator.Run(settings, _root);
+
+        // Assert
+        result.Succeeded.ShouldBeFalse();
+        result.Messages.ShouldContain(message => message.IsError && message.Text.Contains("name no output", StringComparison.Ordinal));
+        result.Written.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void Run_WhenScaffoldIsNever_ShouldWriteNoProjectFileAndSayWhereOneIsMissingOrLacksAReference()
+    {
+        // Arrange: the library has no project file, and the program has
+        // one of somebody's own that refers to nothing.
+        Put("core/core.f", Core);
+        Put("tool/tool.f", Tool);
+        Put("out/Example.Tool/Example.Tool.csproj", "<Project Sdk=\"Microsoft.NET.Sdk\" />\n");
+        var settings = Settings(Project("Example.Toolkit", Source("Core", "core/*.f")), Project("Example.Tool", Source("ToolMain", "tool/*.f")));
+        settings.Scaffold = ScaffoldMode.Never;
+
+        // Act
+        var result = Translator.Run(settings, _root);
+
+        // Assert
+        result.Succeeded.ShouldBeTrue();
+        File.Exists(Path.Combine(_root, "out/Example.Toolkit/Example.Toolkit.csproj")).ShouldBeFalse();
+        File.Exists(Path.Combine(_root, "out/Example.Tool/Program.cs")).ShouldBeFalse();
+        Text("out/Example.Tool/Example.Tool.csproj").ShouldBe("<Project Sdk=\"Microsoft.NET.Sdk\" />\n");
+        result.Messages.ShouldContain(message => !message.IsError && message.Text.Contains("Example.Toolkit is to have a project file of somebody's own", StringComparison.Ordinal));
+        result.Messages.ShouldContain(message => !message.IsError && message.Text.Contains("calls into Example.Toolkit and its project file does not refer to it", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Run_WhenAProjectSaysScaffoldAlways_ShouldWriteItsProjectFileOverWhatIsThereAndLeaveTheOthers()
+    {
+        // Arrange
+        Put("core/core.f", Core);
+        Put("tool/tool.f", Tool);
+        Put("out/Example.Toolkit/Example.Toolkit.csproj", "<Project Sdk=\"Microsoft.NET.Sdk\" />\n");
+        Put("out/Example.Tool/Example.Tool.csproj", "<Project Sdk=\"Microsoft.NET.Sdk\" />\n");
+        var library = Project("Example.Toolkit", Source("Core", "core/*.f"));
+        library.Scaffold = ScaffoldMode.Always;
+        var settings = Settings(library, Project("Example.Tool", Source("ToolMain", "tool/*.f")));
+
+        // Act
+        var result = Translator.Run(settings, _root);
+
+        // Assert
+        result.Succeeded.ShouldBeTrue();
+        Text("out/Example.Toolkit/Example.Toolkit.csproj").ShouldContain("<AllowUnsafeBlocks>true</AllowUnsafeBlocks>");
+        Text("out/Example.Tool/Example.Tool.csproj").ShouldBe("<Project Sdk=\"Microsoft.NET.Sdk\" />\n");
+    }
+
+    [Fact]
+    public void Run_WhenTheSettingsNameASolution_ShouldWriteItOnceWithEveryProjectAndThenOnlyCheckIt()
+    {
+        // Arrange: the projects in two folders apart, and the solution in a
+        // third.
+        Put("core/core.f", Core);
+        Put("tool/tool.f", Tool);
+        var library = Project("Example.Toolkit", Source("Core", "core/*.f"));
+        library.Output = "p/A";
+        var program = Project("Example.Tool", Source("ToolMain", "tool/*.f"));
+        program.Output = "q/B";
+        var settings = Settings(library, program);
+        settings.Solution = "s/All.slnx";
+
+        // Act
+        var first = Translator.Run(settings, _root);
+        File.WriteAllText(Path.Combine(_root, "s/All.slnx"), "<Solution>\n  <Project Path=\"../p/A/Example.Toolkit.csproj\" />\n</Solution>\n");
+        var second = Translator.Run(settings, _root);
+
+        // Assert
+        first.Succeeded.ShouldBeTrue();
+        first.Written.ShouldContain(path => path.EndsWith("All.slnx", StringComparison.Ordinal));
+        second.Written.ShouldNotContain(path => path.EndsWith("All.slnx", StringComparison.Ordinal));
+        second.Messages.ShouldContain(message => !message.IsError && message.Text.Contains("does not hold the project Example.Tool", StringComparison.Ordinal));
+        Text("q/B/Example.Tool.csproj").ShouldContain("<ProjectReference Include=\"../../p/A/Example.Toolkit.csproj\" />");
+    }
+
+    [Fact]
+    public void Run_WhenScaffoldIsAlways_ShouldWriteTheSolutionWithEveryProjectEachTime()
+    {
+        // Arrange
+        Put("core/core.f", Core);
+        Put("tool/tool.f", Tool);
+        var settings = Settings(Project("Example.Toolkit", Source("Core", "core/*.f")), Project("Example.Tool", Source("ToolMain", "tool/*.f")));
+        settings.Solution = "Example.slnx";
+        settings.Scaffold = ScaffoldMode.Always;
+        Put("Example.slnx", "<Solution />\n");
+
+        // Act
+        var result = Translator.Run(settings, _root);
+
+        // Assert
+        result.Succeeded.ShouldBeTrue();
+        Text("Example.slnx").ShouldBe(
+            "<Solution>\n  <Project Path=\"out/Example.Toolkit/Example.Toolkit.csproj\" />\n  <Project Path=\"out/Example.Tool/Example.Tool.csproj\" />\n</Solution>\n");
+    }
+
+    [Fact]
+    public void Run_WhenTheSolutionIsNotAnSlnx_ShouldSaySoAndFail()
+    {
+        // Arrange
+        Put("core/core.f", Core);
+        var settings = Settings(Project("Example.Toolkit", Source("Core", "core/*.f")));
+        settings.Solution = "Example.sln";
+
+        // Act
+        var result = Translator.Run(settings, _root);
+
+        // Assert
+        result.Succeeded.ShouldBeFalse();
+        result.Messages.ShouldContain(message => message.IsError && message.Text.Contains("as an .slnx", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Run_WhenAProjectSaysTranslateNever_ShouldReadItFromItsSummaryUnlessForcedOrNamed()
+    {
+        // Arrange: both translated once; then the library says never, and
+        // its sources go.
+        Put("core/lib.f", Library);
+        Put("tool/main.f", Caller);
+        var library = Project("Example.Toolkit", Source("Core", "core/*.f"));
+        var settings = Settings(library, Project("Example.Tool", Source("ToolMain", "tool/*.f")));
+        Translator.Run(settings, _root).Succeeded.ShouldBeTrue();
+        library.Translate = TranslateMode.Never;
+        File.Delete(Path.Combine(_root, "core/lib.f"));
+
+        // Act
+        var plain = Translator.Run(settings, _root);
+        var named = Translator.Run(settings, _root, new TranslationOptions { Projects = ["Example.Toolkit"] });
+
+        // Assert: left out, the library is read from its summary; named,
+        // it is translated, and its sources are missed.
+        plain.Succeeded.ShouldBeTrue(string.Join('\n', plain.Messages));
+        plain.Units.ShouldBe(2);
+        named.Succeeded.ShouldBeFalse();
+        named.Messages.ShouldContain(message => message.IsError && message.Text.Contains("there is no such file", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Run_WhenAProjectSaysTranslateAlways_ShouldWriteEveryFileOfItAgainAndOnlyOfIt()
+    {
+        // Arrange
+        Put("core/core.f", Core);
+        Put("tool/tool.f", Tool);
+        var library = Project("Example.Toolkit", Source("Core", "core/*.f"));
+        var settings = Settings(library, Project("Example.Tool", Source("ToolMain", "tool/*.f")));
+        Translator.Run(settings, _root).Succeeded.ShouldBeTrue();
+        library.Translate = TranslateMode.Always;
+
+        // Act
+        var result = Translator.Run(settings, _root);
+
+        // Assert
+        result.Succeeded.ShouldBeTrue();
+        result.Written.Select(Path.GetFileName).Order(StringComparer.Ordinal).ShouldBe(["CPUT.g.cs", "Core.g.cs"]);
+    }
+
+    [Fact]
     public void Run_WhenAUnitHasEntryPoints_ShouldCountEachByWhatItsOwnStatementsTakeAndCall()
     {
         // Arrange: only KEEP names the array, and only PEEK calls LEAF.
