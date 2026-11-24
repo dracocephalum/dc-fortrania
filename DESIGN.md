@@ -846,15 +846,39 @@ elsewhere refuses such a file.
   can be said outright. An executable has one entry: with several main
   programs the project names the one, and until it does the translation is
   refused.
-- **A project file is written once.** Where the project has none, the
-  translator writes one, with a `Main` for an executable, and that is a
-  whole project from nothing. Where it has one, the translator writes
-  sources and nothing else, so a project made or changed by hand stays as
-  it is; the checks on an executable's entry are not made then, since no
-  `Main` is written. Translated sources go to a folder of their own in the
+- **A project file is written once, unless the settings say otherwise.**
+  Where the project has none, the translator writes one, with a `Main` for
+  an executable, and that is a whole project from nothing. Where it has
+  one, the translator writes sources and nothing else, so a project made
+  or changed by hand stays as it is; the checks on an executable's entry
+  are not made then, since no `Main` is written. Translated sources go to a folder of their own in the
   project, a folder per source, and a new translation removes there only
   files that say they were generated. The classes are partial, so
   hand-written files beside them add to the same classes.
+- **The root says where everything is written, and nothing has a
+  default.** `output` is required, so that nothing is written to a folder
+  nobody named; `"."` is the settings file's own. A project goes to a
+  folder of its name under it, or to its own `output`, and every relative
+  path is taken from where the settings file lies, so that `p/A` beside
+  `../q/B` is as good as two folders side by side.
+- **`translate` says when a project is translated**, after the values
+  MSBuild has for copying a file to the output: `never`, `ifChanged`, the
+  default, or `always`. `never` reads the project from its summary even
+  where its sources are there, unless the run is forced or names it;
+  `ifChanged` writes a file only where its translation changed; `always`
+  writes every file again. The root says it for every project and a
+  project may say otherwise.
+- **`scaffold` says whether the files around a translation are written**:
+  a project's file, and `Program.cs` for an executable. `always` keeps
+  them the translator's and writes them each time; `once`, the default,
+  writes what is missing and leaves it to whoever has it after; `never`
+  writes none, and only checks that a project file refers to what its
+  project calls into, saying so where there is no project file at all.
+  The root says it for every project and a project may say otherwise.
+- **`solution` names a solution that holds every project**, an `.slnx`,
+  written as the root's `scaffold` says, since it belongs to no one
+  project; with `never` it is only checked, and a project it lacks is
+  named.
 - **The runtime is referred to in one of three ways.** By default as its
   package, in the translator's own version, which needs nothing of the
   repository and holds wherever the project is put. As a project, where

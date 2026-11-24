@@ -12,6 +12,12 @@ public sealed class ProjectSettings
     /// <summary>Gets or sets the folder the project is written to; a folder of its name under the settings' output unless set.</summary>
     public string? Output { get; set; }
 
+    /// <summary>Gets or sets when the project is translated; as the settings' root says unless set.</summary>
+    public TranslateMode? Translate { get; set; }
+
+    /// <summary>Gets or sets whether the files around the project's translation are written; as the settings' root says unless set.</summary>
+    public ScaffoldMode? Scaffold { get; set; }
+
     /// <summary>
     /// Gets or sets what the project is. Unless set it follows from its
     /// sources: an executable when one of them has a main program, and a

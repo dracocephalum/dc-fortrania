@@ -65,13 +65,42 @@ public class TranslationSettingsTests
     }
 
     [Fact]
+    public void Parse_WhenTheRootAndAProjectSayWhenToTranslateAndScaffold_ShouldReadBoth()
+    {
+        // Act
+        var settings = TranslationSettings.Parse(
+            """
+            {
+              "output": ".",
+              "translate": "never",
+              "scaffold": "always",
+              "solution": "../All.slnx",
+              "projects": [
+                { "name": "P", "translate": "ifChanged", "scaffold": "never", "sources": [] },
+                { "name": "Q", "sources": [] }
+              ]
+            }
+            """);
+
+        // Assert
+        (settings.Translate, settings.Scaffold, settings.Solution).ShouldBe((TranslateMode.Never, ScaffoldMode.Always, "../All.slnx"));
+        (settings.Projects[0].Translate, settings.Projects[0].Scaffold).ShouldBe((TranslateMode.IfChanged, ScaffoldMode.Never));
+        (settings.Projects[1].Translate, settings.Projects[1].Scaffold).ShouldBe((null, null));
+    }
+
+    [Fact]
     public void Parse_WhenNothingButProjectsIsGiven_ShouldLeaveTheRestAsItIsByDefault()
     {
         // Act
         var settings = TranslationSettings.Parse("""{ "projects": [ { "name": "P", "sources": [ { "name": "S", "files": [ "a.f" ] } ] } ] }""");
 
         // Assert
-        settings.Output.ShouldBe(".");
+        settings.Output.ShouldBeNull();
+        settings.Translate.ShouldBe(TranslateMode.IfChanged);
+        settings.Scaffold.ShouldBe(ScaffoldMode.Once);
+        settings.Solution.ShouldBeNull();
+        settings.Projects[0].Translate.ShouldBeNull();
+        settings.Projects[0].Scaffold.ShouldBeNull();
         settings.Framework.ShouldBe("net10.0");
         settings.Runtime.Project.ShouldBeNull();
         settings.Projects[0].Sources[0].Includes.ShouldBeEmpty();

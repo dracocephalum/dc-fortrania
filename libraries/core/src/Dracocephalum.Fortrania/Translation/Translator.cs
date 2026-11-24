@@ -188,16 +188,34 @@ public static partial class Translator
 
         private static string ProjectFileOf(ProjectSettings project, string folder) => Path.Combine(folder, project.Name + ".csproj");
 
-        // A project that has a project file is one somebody made or
-        // changed, and is given sources and nothing else.
-        private static bool IsScaffolded(string folder) =>
-            !Directory.Exists(folder) || Directory.GetFiles(folder, "*.csproj").Length == 0;
+        private static bool HasProjectFile(string folder) => Directory.Exists(folder) && Directory.GetFiles(folder, "*.csproj").Length > 0;
+
+        // Whether the files around a project's translation are written this
+        // time: always, where none is there yet, or never. A project file
+        // that is there and is not the translator's to write is somebody's,
+        // and the project is given sources and nothing else.
+        private bool WillScaffold(ProjectSettings project) => (project.Scaffold ?? settings.Scaffold) switch
+        {
+            ScaffoldMode.Always => true,
+            ScaffoldMode.Once => !HasProjectFile(FolderOf(project)),
+            _ => false,
+        };
 
         private void CheckSettings()
         {
             if (settings.Projects.Count == 0)
             {
                 Error("The settings name no project.");
+            }
+
+            if (string.IsNullOrWhiteSpace(settings.Output))
+            {
+                Error("The settings name no output: say where the projects are written, \"output\": \".\" for the folder the settings file is in.");
+            }
+
+            if (settings.Solution is { } solution && !solution.EndsWith(".slnx", StringComparison.OrdinalIgnoreCase))
+            {
+                Error($"The settings name the solution {solution}; the translator writes a solution as an .slnx.");
             }
 
             if (settings.Runtime is { OmitPackageVersion: true, Package: not null })
@@ -291,7 +309,7 @@ public static partial class Translator
         // reported once and before anything is read. A project read from its
         // summary needs its folder and none of its sources.
         private IEnumerable<string?> Paths() =>
-            new[] { settings.Output, settings.Runtime.Project }
+            new[] { settings.Output, settings.Runtime.Project, settings.Solution }
                 .Concat(settings.Projects.Select(project => project.Output))
                 .Concat(settings.Projects.Where(IsTranslated).SelectMany(project => project.Sources).SelectMany(source => source.Files.Concat(source.Includes)));
 
@@ -565,7 +583,7 @@ public static partial class Translator
                     .ToList();
 
                 var kind = project.Kind ?? (mains.Count > 0 ? ProjectKind.Executable : ProjectKind.Library);
-                if (kind != ProjectKind.Executable || !IsScaffolded(FolderOf(project)))
+                if (kind != ProjectKind.Executable || !WillScaffold(project))
                 {
                     continue;
                 }
@@ -695,7 +713,7 @@ public static partial class Translator
             // What a project is, is decided before any is written: writing
             // one makes it a project that exists.
             var translated = _projects.Where(IsTranslated).ToList();
-            var scaffolded = translated.Where(project => IsScaffolded(FolderOf(project))).ToHashSet();
+            var scaffolded = translated.Where(WillScaffold).ToHashSet();
 
             foreach (var project in translated)
             {
@@ -709,7 +727,7 @@ public static partial class Translator
                     // differs from what it made last time, or the file is
                     // gone; a file a later step changed is otherwise kept.
                     var manifestPath = Path.Combine(generated, ManifestName);
-                    var before = options.Force ? [] : ReadManifest(manifestPath);
+                    var before = IsForced(project) ? [] : ReadManifest(manifestPath);
                     var after = new SortedDictionary<string, string>(StringComparer.Ordinal);
                     foreach (var (name, text) in source.Files)
                     {
@@ -759,6 +777,45 @@ public static partial class Translator
                 {
                     ReportMissingReferences(project, folder);
                 }
+            }
+
+            WriteSolution();
+        }
+
+        // The solution the settings name, holding every project of theirs in
+        // the order they come, written as the root's scaffold says: always,
+        // where it is missing, or never, and then only checked.
+        private void WriteSolution()
+        {
+            if (Expand(settings.Solution) is not { } named)
+            {
+                return;
+            }
+
+            var path = Path.GetFullPath(Path.Combine(baseDirectory, named));
+            var folder = Path.GetDirectoryName(path)!;
+            var projects = settings.Projects
+                .Select(project => Path.GetRelativePath(folder, ProjectFileOf(project, FolderOf(project))).Replace('\\', '/'))
+                .ToList();
+
+            if (settings.Scaffold == ScaffoldMode.Always || (settings.Scaffold == ScaffoldMode.Once && !File.Exists(path)))
+            {
+                Directory.CreateDirectory(folder);
+                var lines = projects.Select(project => $"  <Project Path=\"{project}\" />");
+                WriteIfChanged(path, "<Solution>\n" + string.Join("\n", lines) + "\n</Solution>\n");
+                return;
+            }
+
+            if (!File.Exists(path))
+            {
+                Warning($"The settings name the solution {named}, which is not there, and say not to write it.");
+                return;
+            }
+
+            var text = File.ReadAllText(path).Replace('\\', '/');
+            foreach (var missing in projects.Where(project => !text.Contains(Path.GetFileName(project), StringComparison.OrdinalIgnoreCase)))
+            {
+                Warning($"The solution does not hold the project {Path.GetFileNameWithoutExtension(missing)} of the settings.", path);
             }
         }
 
@@ -862,6 +919,12 @@ public static partial class Translator
         // references the calls need is said, for its owner to add.
         private void ReportMissingReferences(ProjectSettings project, string folder)
         {
+            if (!HasProjectFile(folder))
+            {
+                Warning($"The project {project.Name} is to have a project file of somebody's own, and its folder has none; make one, or say \"scaffold\": \"once\".", folder);
+                return;
+            }
+
             var file = Directory.GetFiles(folder, "*.csproj")[0];
             var text = File.ReadAllText(file);
             foreach (var reference in _references[project])

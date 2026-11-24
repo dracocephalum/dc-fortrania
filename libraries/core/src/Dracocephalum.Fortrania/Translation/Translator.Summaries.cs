@@ -26,7 +26,16 @@ public static partial class Translator
         // projects as well.
         private readonly Dictionary<ProjectSettings, ArgumentEffects> _effects = [];
 
-        private bool IsTranslated(ProjectSettings project) => options.Projects is not { } named || named.Contains(project.Name, StringComparer.Ordinal);
+        // A project named in the options is translated whatever its settings
+        // say; with none named, every project is but one whose settings say
+        // never, unless the run is forced.
+        private bool IsTranslated(ProjectSettings project) => options.Projects is { } named
+            ? named.Contains(project.Name, StringComparer.Ordinal)
+            : options.Force || (project.Translate ?? settings.Translate) != TranslateMode.Never;
+
+        // Whether every file of a project translated is written again,
+        // changed or not.
+        private bool IsForced(ProjectSettings project) => options.Force || (project.Translate ?? settings.Translate) == TranslateMode.Always;
 
         private string SummaryPathOf(ProjectSettings project) => Path.Combine(FolderOf(project), GeneratedFolder, ProjectSummary.FileName);
 
