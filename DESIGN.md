@@ -883,7 +883,11 @@ elsewhere refuses such a file.
   writes what is missing and leaves it to whoever has it after; `never`
   writes none, and only checks that a project file refers to what its
   project calls into, saying so where there is no project file at all.
-  The root says it for every project and a project may say otherwise.
+  A project's file is the one in its folder, or else the one of its
+  name beside the settings, where a project with a settings file of its
+  own keeps it while its translation lies elsewhere; `once` then writes
+  none. The root says it for every project and a project may say
+  otherwise.
 - **`solution` names a solution that holds every project**, an `.slnx`,
   written as the root's `scaffold` says, since it belongs to no one
   project; with `never` it is only checked, and a project it lacks is
@@ -1007,7 +1011,7 @@ translator's, a command line; *tool* is a word of this repository's
 layout already, for what is never published.
 
     fortrania translate csharp [settings] [--project <name>]... [--reference <assembly>]...
-                               [--force] [--offline] [--record <file>] [--compiled-by <project file>]
+                               [--force] [--offline] [--record <file>]
     fortrania restore [settings] [--project <name>]... [--if-needed]
     fortrania --version
 
@@ -1035,10 +1039,9 @@ layout already, for what is never published.
   translation wrote, as one left out is, so that what was translated is
   compiled as it is. One with neither fails and says to restore. A build
   translates so.
-- **`--record` and `--compiled-by` are for a build**: the record of what
-  was read and made, by which it tells when to translate again, and the
-  project file that compiles the translation when it lies apart from it;
-  *A project translates its FORTRAN as it builds* has both.
+- **`--record` is for a build**: the record of what was read and made,
+  by which it tells when to translate again; *A project translates its
+  FORTRAN as it builds* has it.
 - **The first word is what to do, and the second what to translate to.**
   Another thing to do, `restore`, and later `build` or `run`, is a word
   beside `translate`, and another target a word beside `csharp`, each
@@ -1101,7 +1104,9 @@ development dependency, which a package of the project does not pass on.
   "$(IntermediateOutput)/fortrania"` lies under `obj/`, per project and per
   configuration, and goes with `dotnet clean`; the command, which has no
   such folder, says the variable has no value. The project file is the
-  build's own, so none is scaffolded beside such a translation.
+  one beside the settings, which the translator takes for a project's own
+  where the project's folder has none, so none is scaffolded beside such
+  a translation.
 - **`FortraniaTranslate`**, `never`, `ifChanged` or `always`, is `translate`
   for one build: `never` compiles what is there, `always` translates every
   unit again. Empty, the settings decide.

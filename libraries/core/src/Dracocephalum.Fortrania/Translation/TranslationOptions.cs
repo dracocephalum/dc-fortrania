@@ -39,15 +39,6 @@ public sealed class TranslationOptions
     /// </summary>
     public IReadOnlyCollection<string>? References { get; set; }
 
-    /// <summary>
-    /// Gets or sets the project file that compiles the translation of the
-    /// projects translated, by its path, where it need not lie in their
-    /// folder: a build's own. It is the one checked for the references a
-    /// project's calls need, and no project file is scaffolded beside the
-    /// translation.
-    /// </summary>
-    public string? CompiledBy { get; set; }
-
     /// <summary>Gets or sets how long a download of sources may take; <see cref="DefaultDownloadTimeout"/> unless set.</summary>
     public TimeSpan DownloadTimeout { get; set; } = DefaultDownloadTimeout;
 

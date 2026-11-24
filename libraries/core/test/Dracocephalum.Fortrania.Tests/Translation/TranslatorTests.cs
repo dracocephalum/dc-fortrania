@@ -1560,24 +1560,26 @@ public sealed class TranslatorTests : IDisposable
     }
 
     [Fact]
-    public void Run_WhenCompiledByAProjectFileElsewhere_ShouldScaffoldNoneAndCheckThatOne()
+    public void Run_WhenAProjectFileOfTheProjectsNameLiesBesideTheSettings_ShouldScaffoldNoneAndCheckThatOne()
     {
-        // Arrange: a program whose project file, a build's, lies apart from
-        // its translation and does not refer to the library it calls.
+        // Arrange: a program whose project file lies beside the settings, as
+        // one with a settings file of its own keeps it, its translation
+        // apart, and does not refer to the library it calls.
         Put("core/lib.f", Library);
         Put("tool/main.f", Caller);
-        Put("build/Example.Tool.csproj", "<Project Sdk=\"Microsoft.NET.Sdk\" />");
+        Put("Example.Tool.csproj", "<Project Sdk=\"Microsoft.NET.Sdk\" />");
         var settings = Settings(Project("Example.Toolkit", Source("Core", "core/*.f")), Project("Example.Tool", Source("ToolMain", "tool/*.f")));
 
         // Act
-        var result = Translator.Run(settings, _root, new TranslationOptions { CompiledBy = "build/Example.Tool.csproj", Projects = ["Example.Toolkit", "Example.Tool"] });
+        var result = Translator.Run(settings, _root);
 
-        // Assert
+        // Assert: the library, whose file is nowhere, is scaffolded; the
+        // program is checked against the file beside the settings.
         result.Succeeded.ShouldBeTrue(string.Join('\n', result.Messages));
-        Directory.GetFiles(Path.Combine(_root, "out"), "*.csproj", SearchOption.AllDirectories).ShouldBeEmpty();
-        result.Messages.ShouldContain(message => !message.IsError && message.File == Full("build/Example.Tool.csproj")
+        File.Exists(Path.Combine(_root, "out/Example.Toolkit/Example.Toolkit.csproj")).ShouldBeTrue();
+        File.Exists(Path.Combine(_root, "out/Example.Tool/Example.Tool.csproj")).ShouldBeFalse();
+        result.Messages.ShouldContain(message => !message.IsError && message.File == Full("Example.Tool.csproj")
             && message.Text.Contains("calls into Example.Toolkit and its project file does not refer to it", StringComparison.Ordinal));
-        result.Messages.ShouldNotContain(message => message.Text.Contains("its folder has none", StringComparison.Ordinal));
     }
 
     [Fact]

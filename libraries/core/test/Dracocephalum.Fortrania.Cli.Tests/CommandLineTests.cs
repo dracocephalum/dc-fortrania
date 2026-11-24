@@ -406,17 +406,15 @@ public sealed class CommandLineTests : IDisposable
         File.Exists(Path.Combine(_root, "fortrania.record")).ShouldBeFalse();
     }
 
-    [Theory]
-    [InlineData("--record")]
-    [InlineData("--compiled-by")]
-    public void Run_WhenAnOptionThatTakesAPathIsGivenTwice_ShouldSaySo(string option)
+    [Fact]
+    public void Run_WhenTheRecordIsNamedTwice_ShouldSaySo()
     {
         // Act
-        var code = Run("translate", "csharp", option, "a", option, "b");
+        var code = Run("translate", "csharp", "--record", "a", "--record", "b");
 
         // Assert
         code.ShouldBe(CommandLine.Misused);
-        _error.ToString().ShouldContain($"{option} is given twice; it takes one.");
+        _error.ToString().ShouldContain("--record is given twice; it takes one.");
     }
 
     [Fact]

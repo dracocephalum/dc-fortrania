@@ -107,7 +107,7 @@
 
     <PropertyGroup>
       <_FortraniaArguments>"$(_FortraniaSettings)" --project "$(FortraniaProject)"</_FortraniaArguments>
-      <_FortraniaTranslateArguments>translate csharp $(_FortraniaArguments) --offline --record "$(_FortraniaRecord)" --compiled-by "$(MSBuildProjectFullPath)"</_FortraniaTranslateArguments>
+      <_FortraniaTranslateArguments>translate csharp $(_FortraniaArguments) --offline --record "$(_FortraniaRecord)"</_FortraniaTranslateArguments>
       <_FortraniaTranslateArguments Condition="'@(_FortraniaReference)' != ''">$(_FortraniaTranslateArguments) @(_FortraniaReference->'--reference "%(FullPath)"', ' ')</_FortraniaTranslateArguments>
       <_FortraniaRestoreArguments>restore $(_FortraniaArguments)</_FortraniaRestoreArguments>
       <_FortraniaRestoreArguments Condition="'$(FortraniaFetch)' == 'ifNeeded'">$(_FortraniaRestoreArguments) --if-needed</_FortraniaRestoreArguments>

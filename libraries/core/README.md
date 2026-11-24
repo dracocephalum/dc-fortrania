@@ -60,7 +60,7 @@ and, installed from its package, as
 
     dotnet tool install --global Dracocephalum.Fortrania.Cli
     fortrania translate csharp [settings] [--project <name>]... [--reference <assembly>]...
-                               [--force] [--offline] [--record <file>] [--compiled-by <project file>]
+                               [--force] [--offline] [--record <file>]
     fortrania restore [settings] [--project <name>]... [--if-needed]
 
 With no settings file named it takes the one `fortrania.json` or

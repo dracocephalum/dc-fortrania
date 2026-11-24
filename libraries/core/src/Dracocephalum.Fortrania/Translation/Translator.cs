@@ -255,12 +255,29 @@ public static partial class Translator
         // time: always, where none is there yet, or never. A project file
         // that is there and is not the translator's to write is somebody's,
         // and the project is given sources and nothing else.
-        private bool WillScaffold(ProjectSettings project) => options.CompiledBy is null && (project.Scaffold ?? settings.Scaffold) switch
+        private bool WillScaffold(ProjectSettings project) => (project.Scaffold ?? settings.Scaffold) switch
         {
             ScaffoldMode.Always => true,
-            ScaffoldMode.Once => !HasProjectFile(FolderOf(project)),
+            ScaffoldMode.Once => FindProjectFile(project, FolderOf(project)) is null,
             _ => false,
         };
+
+        // The project file that compiles a project's translation: the one in
+        // its folder, or else the one of its name beside the settings, where
+        // a project whose settings file is its own keeps it, its translation
+        // lying elsewhere, under obj/ for one. Beside the settings only the
+        // name is taken, since a file of several projects may lie beside
+        // somebody's other project.
+        private string? FindProjectFile(ProjectSettings project, string folder)
+        {
+            if (HasProjectFile(folder))
+            {
+                return Directory.GetFiles(folder, "*.csproj")[0];
+            }
+
+            var beside = Path.Combine(baseDirectory, project.Name + ".csproj");
+            return File.Exists(beside) ? beside : null;
+        }
 
         private void CheckSettings()
         {
@@ -1019,13 +1036,12 @@ public static partial class Translator
         // references the calls need is said, for its owner to add.
         private void ReportMissingReferences(ProjectSettings project, string folder)
         {
-            if (options.CompiledBy is null && !HasProjectFile(folder))
+            if (FindProjectFile(project, folder) is not { } file)
             {
-                Warning($"The project {project.Name} is to have a project file of somebody's own, and its folder has none; make one, or say \"scaffold\": \"once\".", folder);
+                Warning($"The project {project.Name} is to have a project file of somebody's own, and neither its folder nor the settings' has one; make one, or say \"scaffold\": \"once\".", folder);
                 return;
             }
 
-            var file = options.CompiledBy is { } compiledBy ? Path.GetFullPath(compiledBy, baseDirectory) : Directory.GetFiles(folder, "*.csproj")[0];
             var text = File.ReadAllText(file);
             foreach (var reference in _references[project].Where(reference => !_external.Contains(reference)))
             {
