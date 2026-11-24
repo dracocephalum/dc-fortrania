@@ -34,12 +34,15 @@ internal static class CommandLine
 
     private const string Usage =
         """
-        Usage: fortrania cs [settings] [--force]
+        Usage: fortrania cs [settings] [--project <name>]... [--force]
                fortrania --version
 
           cs          translates to C# as the settings file says
           settings    the settings file; where none is given, the one
                       fortrania.json or *.fortrania.json in this folder
+          --project   translates the project of that name, and reads each
+                      other project from the summary its last translation
+                      wrote; may be given more than once
           --force     translates every unit, whether it changed or not
           --version   says which version this is
         """;
@@ -72,15 +75,28 @@ internal static class CommandLine
         }
     }
 
-    private static int TranslateToCSharp(IReadOnlyList<string> arguments, TextWriter output, TextWriter error, string workingDirectory)
+    private static int TranslateToCSharp(string[] arguments, TextWriter output, TextWriter error, string workingDirectory)
     {
         var force = false;
         string? named = null;
-        foreach (var argument in arguments)
+        List<string>? projects = null;
+        for (var index = 0; index < arguments.Length; index++)
         {
+            var argument = arguments[index];
             if (argument == "--force")
             {
                 force = true;
+            }
+            else if (argument == "--project")
+            {
+                if (index + 1 == arguments.Length || arguments[index + 1].StartsWith('-'))
+                {
+                    error.WriteLine("fortrania: error: --project is to be followed by the name of a project of the settings.");
+                    error.WriteLine(Usage);
+                    return Misused;
+                }
+
+                (projects ??= []).Add(arguments[++index]);
             }
             else if (argument.StartsWith('-') || named is not null)
             {
@@ -112,7 +128,7 @@ internal static class CommandLine
 
         // Every path in the settings is taken from where the file lies, so
         // that a translation is the same from whatever folder it is run.
-        var result = Translator.Run(settings, Path.GetDirectoryName(path)!, new TranslationOptions { Force = force });
+        var result = Translator.Run(settings, Path.GetDirectoryName(path)!, new TranslationOptions { Force = force, Projects = projects });
         foreach (var message in result.Messages)
         {
             error.WriteLine(message);

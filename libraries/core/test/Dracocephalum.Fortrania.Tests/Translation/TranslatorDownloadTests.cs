@@ -204,6 +204,32 @@ public sealed class TranslatorDownloadTests : IDisposable
         (fetched.Path, fetched.Url?.ToString(), fetched.Sha256, fetched.Strip).ShouldBe(("sources", "https://example.org/toolkit.tar", "ab12", 1));
     }
 
+    [Fact]
+    public void Run_WhenTheProjectWhoseSourcesAreToBeFetchedIsLeftOut_ShouldFetchNothing()
+    {
+        // Arrange: a second project of the settings, translated, with
+        // sources of its own on disk; the first, whose sources are to be
+        // downloaded, is left out and has no summary.
+        var archive = MakeArchive("toolkit.tar", ("toolkit/src/core/core.f", Core));
+        var server = new FakeServer(archive);
+        var settings = Settings(Variable("toolkit.tar", archive, strip: 1));
+        settings.Projects.Add(new ProjectSettings
+        {
+            Name = "Example.Mine",
+            Sources = [new SourceSettings { Name = "Own", Files = ["own/*.f"] }],
+        });
+        Put("own/own.f", "      SUBROUTINE OWN ( N )\n      INTEGER N\n      N = 1\n      END\n");
+
+        // Act
+        var result = Translator.Run(settings, _root, new TranslationOptions { HttpHandler = server, Projects = ["Example.Mine"] });
+
+        // Assert
+        result.Succeeded.ShouldBeTrue(string.Join('\n', result.Messages));
+        server.Requests.ShouldBe(0);
+        Directory.Exists(Path.Combine(_root, "sources")).ShouldBeFalse();
+        File.Exists(Path.Combine(_root, "out/Example.Mine/Generated/Own/OWN.g.cs")).ShouldBeTrue();
+    }
+
     private static VariableSettings Variable(string name, byte[] archive, int strip) => new()
     {
         Path = "sources",

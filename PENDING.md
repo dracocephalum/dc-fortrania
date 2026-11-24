@@ -291,7 +291,8 @@ word*, has what is built. Left to do:
 
 - **`fortrania restore`**, which fetches the sources a translation needs
   and does nothing else, for a pipeline that wants fetching as a step of
-  its own.
+  its own. Held until the command's words are looked at again: whether
+  `cs` is to have a word before it, and `restore` beside that.
 - **Whether one tool package can give more than one command**, should a
   short name of its own, `f2cs`, ever be wanted beside `fortrania`.
 - **A program that stands alone**, for a machine without the .NET tool
@@ -437,11 +438,19 @@ from either; what differs is around it:
 - **The build skips the step when nothing changed**, by the inputs and
   outputs MSBuild compares, where the command reads everything and writes
   nothing.
-- **The build never downloads sources.** Where they are missing it
-  compiles the translation that is there, and where there is none it
-  fails and says the sources are needed; a pipeline is not to reach a
-  server or need the sources at all. The command downloads what the
-  settings say where to find.
+- **Restore fetches what the build will need, and the build fetches
+  nothing.** .NET reaches the network in `dotnet restore`, which `dotnet
+  build` runs unless told `--no-restore`, and builds offline after it;
+  fetching the sources is the same kind of step. So restore fetches a
+  project's sources where there is no translation to compile, and leaves
+  them where there is one: the translated library's pipeline, with its
+  translation committed, never reaches the toolkit's server, and a
+  pipeline that throws its translation away fetches on a clean machine
+  and then translates. A build with neither sources nor a translation
+  fails and says to restore. A build property, `FortraniaFetch`, with
+  `never`, `ifNeeded` and `always`, overrides the rule for a machine that
+  is never to reach a server or one that is to fetch again whatever is
+  there. The command fetches what the settings say where to find.
 
 **How the targets are made:**
 
@@ -462,11 +471,10 @@ from either; what differs is around it:
    the test that a project translated apart gives the same files as all
    at once. Built.
 2. One project of the settings translated by the command, `--project`,
-   and sources fetched only for the projects translated: a run that
-   leaves a project out still fetches every folder the settings name.
+   and sources fetched only for the projects translated. Built.
 3. The settings above: the required root `output`, `translate`,
    `scaffold` and `solution`.
-4. The package and its targets.
+4. The package and its targets, fetching in restore among them.
 5. The translated library's repository taking it, with `scaffold: never`
    and project files of its own.
 

@@ -972,7 +972,7 @@ translation's own. The package is named for what it is beside the
 translator's, a command line; *tool* is a word of this repository's
 layout already, for what is never published.
 
-    fortrania cs [settings] [--force]
+    fortrania cs [settings] [--project <name>]... [--force]
     fortrania --version
 
 - **The settings file is named, or found.** With none named, the command
@@ -980,6 +980,10 @@ layout already, for what is never published.
   is run in, and refuses none or several. Its paths are taken from where
   it lies, as `Translator.Run`'s are, so a translation is the same from
   whatever folder it is started.
+- **`--project` translates one project, or several**, and reads every
+  other from its summary, as `TranslationOptions.Projects` does; *A
+  project is translated apart by the summaries of those it calls into*
+  has how. Only the sources of the projects translated are fetched.
 - **What to produce is the first word**, so that another target or
   another thing to do, `fortrania restore` say, is a word beside it. A
   name made of the target, as `f2c` and `f2j` are, needs a name for each,
