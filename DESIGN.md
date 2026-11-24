@@ -997,18 +997,33 @@ translation's own. The package is named for what it is beside the
 translator's, a command line; *tool* is a word of this repository's
 layout already, for what is never published.
 
-    fortrania translate csharp [settings] [--project <name>]... [--force]
+    fortrania translate csharp [settings] [--project <name>]... [--force] [--offline]
+    fortrania restore [settings] [--project <name>]... [--if-needed]
     fortrania --version
 
-- **The settings file is named, or found.** With none named, the command
-  takes the one `fortrania.json` or `*.fortrania.json` in the folder it
-  is run in, and refuses none or several. Its paths are taken from where
+- **The settings file is named, or found.** Named as a folder, or not at
+  all, the command takes the one `fortrania.json` or `*.fortrania.json` in
+  that folder, or the one it is run in, or in the nearest folder above,
+  as a build finds its own files, and refuses several in one folder. Its paths are taken from where
   it lies, as `Translator.Run`'s are, so a translation is the same from
   whatever folder it is started.
 - **`--project` translates one project, or several**, and reads every
   other from its summary, as `TranslationOptions.Projects` does; *A
   project is translated apart by the summaries of those it calls into*
   has how. Only the sources of the projects translated are fetched.
+- **`restore` fetches and translates nothing**, for a pipeline that wants
+  fetching as a step of its own and for a build's restore: the sources of
+  the projects named, or of all, that say where to download them and are
+  not on the machine. `--if-needed` passes over a project that has a
+  translation, its summary beside it, so a build fetches only what it
+  could not compile otherwise. Two fetches of the same sources at once,
+  as two projects of one build may make, each download to a folder of
+  their own, and the one that finishes second takes the first's folder.
+- **`--offline` reaches no server**: nothing is fetched, and a project
+  whose sources are not on the machine is read from the summary its last
+  translation wrote, as one left out is, so that what was translated is
+  compiled as it is. One with neither fails and says to restore. A build
+  translates so.
 - **The first word is what to do, and the second what to translate to.**
   Another thing to do, `restore`, and later `build` or `run`, is a word
   beside `translate`, and another target a word beside `csharp`, each

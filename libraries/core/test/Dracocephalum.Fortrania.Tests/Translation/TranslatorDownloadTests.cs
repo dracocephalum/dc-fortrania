@@ -205,6 +205,71 @@ public sealed class TranslatorDownloadTests : IDisposable
     }
 
     [Fact]
+    public void Restore_WhenTheSourcesAreNotThere_ShouldFetchThemAndTranslateNothing()
+    {
+        // Arrange
+        var archive = MakeArchive("toolkit.tar", ("toolkit/src/core/core.f", Core));
+        var server = new FakeServer(archive);
+        var settings = Settings(Variable("toolkit.tar", archive, strip: 1));
+
+        // Act
+        var result = Translator.Restore(settings, _root, new TranslationOptions { HttpHandler = server }, onlyWhereNotTranslated: false);
+
+        // Assert
+        result.Succeeded.ShouldBeTrue(string.Join('\n', result.Messages));
+        server.Requests.ShouldBe(1);
+        result.Fetched.ShouldBe([Path.Combine(_root, "sources")]);
+        result.Written.ShouldBeEmpty();
+        Directory.Exists(Path.Combine(_root, "out")).ShouldBeFalse();
+    }
+
+    [Fact]
+    public void Restore_WhenOnlyWhereNotTranslatedAndThereIsATranslation_ShouldFetchNothing()
+    {
+        // Arrange: translated once from a download, then the sources go.
+        var archive = MakeArchive("toolkit.tar", ("toolkit/src/core/core.f", Core));
+        var server = new FakeServer(archive);
+        var settings = Settings(Variable("toolkit.tar", archive, strip: 1));
+        Translator.Run(settings, _root, new TranslationOptions { HttpHandler = server }).Succeeded.ShouldBeTrue();
+        Directory.Delete(Path.Combine(_root, "sources"), recursive: true);
+
+        // Act
+        var needed = Translator.Restore(settings, _root, new TranslationOptions { HttpHandler = server }, onlyWhereNotTranslated: true);
+        var offline = Translator.Run(settings, _root, new TranslationOptions { HttpHandler = server, Offline = true });
+
+        // Assert: neither reaches the server again, and offline the
+        // project is read from what was translated.
+        needed.Succeeded.ShouldBeTrue();
+        offline.Succeeded.ShouldBeTrue(string.Join('\n', offline.Messages));
+        server.Requests.ShouldBe(1);
+        offline.Units.ShouldBe(0);
+    }
+
+    [Fact]
+    public void Run_WhenAnotherFetchOfTheSameSourcesFinishesFirst_ShouldTakeItsFolderAndSucceed()
+    {
+        // Arrange: while this download is under way, the folder appears,
+        // as another build's fetch of the same archive puts it there.
+        var archive = MakeArchive("toolkit.tar", ("toolkit/src/core/core.f", Core));
+        var server = new FakeServer(archive)
+        {
+            WhileSending = () =>
+            {
+                Directory.CreateDirectory(Path.Combine(_root, "sources/src/core"));
+                File.WriteAllText(Path.Combine(_root, "sources/src/core/core.f"), Core);
+            },
+        };
+        var settings = Settings(Variable("toolkit.tar", archive, strip: 1));
+
+        // Act
+        var result = Translator.Run(settings, _root, new TranslationOptions { HttpHandler = server });
+
+        // Assert
+        result.Succeeded.ShouldBeTrue(string.Join('\n', result.Messages));
+        Directory.GetFileSystemEntries(_root).Select(Path.GetFileName).Order(StringComparer.Ordinal).ShouldBe(["out", "sources"]);
+    }
+
+    [Fact]
     public void Run_WhenTheProjectWhoseSourcesAreToBeFetchedIsLeftOut_ShouldFetchNothing()
     {
         // Arrange: a second project of the settings, translated, with
@@ -299,9 +364,13 @@ public sealed class TranslatorDownloadTests : IDisposable
 
         public string? UserAgent { get; private set; }
 
+        // Done as the answer is given, for what happens elsewhere meanwhile.
+        public Action? WhileSending { get; init; }
+
         protected override HttpResponseMessage Send(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             Requests++;
+            WhileSending?.Invoke();
             UserAgent = request.Headers.UserAgent.ToString();
             return new HttpResponseMessage(status) { Content = new ByteArrayContent(archive) };
         }

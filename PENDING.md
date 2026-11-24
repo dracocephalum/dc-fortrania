@@ -289,9 +289,6 @@ the output against the reference compiler's.
 `DESIGN.md`, *The command is `fortrania`, and its first word what to
 do*, has what is built. Left to do:
 
-- **`fortrania restore`**, which fetches the sources a translation needs
-  and does nothing else, for a pipeline that wants fetching as a step of
-  its own: `fortrania restore`, a word beside `translate`.
 - **Whether one tool package can give more than one command**, should a
   short name of its own, `f2cs`, ever be wanted beside `fortrania`.
 - **A program that stands alone**, for a machine without the .NET tool
@@ -455,16 +452,18 @@ from either; what differs is around it:
    and sources fetched only for the projects translated. Built.
 3. The settings: the required root `output`, `translate`, `scaffold` and
    `solution`. Built.
-4. The package and its targets, fetching in restore among them.
-5. The translated library's repository taking it, with `scaffold: never`
+4. What the package needs of the command: the settings found from a
+   project's folder, `--offline`, and `fortrania restore` with
+   `--if-needed`. Built.
+5. The package and its targets, fetching in restore among them.
+6. The translated library's repository taking it, with `scaffold: never`
    and project files of its own.
 
 **Sources can be fetched**, as `DESIGN.md` describes under *A variable can
 say where to download the folder it names*; it is done as part of a
-translation by the command, and does nothing when the folder is there.
-Still to come: `fortrania restore`, under *What the command does not do
-yet*, and the archive format of the toolkit's own packages, `.tar.Z`,
-which .NET does not read.
+translation by the command, or by `fortrania restore` alone, and does
+nothing when the folder is there. Still to come: the archive format of
+the toolkit's own packages, `.tar.Z`, which .NET does not read.
 
 ## Input and output still to build
 

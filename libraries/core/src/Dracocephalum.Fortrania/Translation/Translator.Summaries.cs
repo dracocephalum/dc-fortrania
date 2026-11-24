@@ -29,9 +29,9 @@ public static partial class Translator
         // A project named in the options is translated whatever its settings
         // say; with none named, every project is but one whose settings say
         // never, unless the run is forced.
-        private bool IsTranslated(ProjectSettings project) => options.Projects is { } named
+        private bool IsTranslated(ProjectSettings project) => !_summaries.ContainsKey(project) && (options.Projects is { } named
             ? named.Contains(project.Name, StringComparer.Ordinal)
-            : options.Force || (project.Translate ?? settings.Translate) != TranslateMode.Never;
+            : options.Force || (project.Translate ?? settings.Translate) != TranslateMode.Never);
 
         // Whether every file of a project translated is written again,
         // changed or not.
@@ -48,13 +48,13 @@ public static partial class Translator
         }
 
         // A project left out is read from its summary where there is one;
-        // its sources are not read at all.
-        private void ReadSummary(ProjectSettings project)
+        // its sources are not read at all. Says whether there was one.
+        private bool ReadSummary(ProjectSettings project)
         {
             var path = SummaryPathOf(project);
             if (!File.Exists(path))
             {
-                return;
+                return false;
             }
 
             ProjectSummary summary;
@@ -65,14 +65,14 @@ public static partial class Translator
             catch (Exception exception) when (exception is JsonException or IOException)
             {
                 Error(exception.Message, path);
-                return;
+                return true;
             }
 
             var names = project.Sources.Select(source => source.Name).ToList();
             if (summary.Project != project.Name || !summary.Sources.Select(source => source.Name).SequenceEqual(names, StringComparer.Ordinal))
             {
                 Error($"The summary is of the project {summary.Project} with the sources {string.Join(", ", summary.Sources.Select(source => source.Name))}, where the settings have {project.Name} with {string.Join(", ", names)}; translate {project.Name} again.", path);
-                return;
+                return true;
             }
 
             _summaries[project] = summary;
@@ -87,6 +87,8 @@ public static partial class Translator
                     source.Summarized[procedure.Name] = procedure;
                 }
             }
+
+            return true;
         }
 
         // A project the options leave out and that has no summary can still

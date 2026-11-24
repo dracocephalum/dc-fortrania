@@ -51,6 +51,29 @@ public static partial class Translator
         return new Translation(settings, Path.GetFullPath(baseDirectory), options).Run();
     }
 
+    /// <summary>
+    /// Fetches the sources a translation would read and translates nothing:
+    /// those of every project the options name, or of every project, that
+    /// say where to download them and are not on the machine.
+    /// </summary>
+    /// <param name="settings">What would be translated.</param>
+    /// <param name="baseDirectory">The folder the paths in the settings are taken from: where the settings file lies.</param>
+    /// <param name="options">How the run is to go; <see cref="TranslationOptions.Projects"/> limits it to the projects named.</param>
+    /// <param name="onlyWhereNotTranslated">
+    /// Whether a project that has a translation already, its summary beside
+    /// it, is passed over: a build then fetches only for a project it could
+    /// not compile otherwise.
+    /// </param>
+    /// <returns>What was fetched, and what there is to say about it; nothing is written but the sources.</returns>
+    public static TranslationResult Restore(TranslationSettings settings, string baseDirectory, TranslationOptions options, bool onlyWhereNotTranslated)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(settings);
+        ArgumentException.ThrowIfNullOrEmpty(baseDirectory);
+
+        return new Translation(settings, Path.GetFullPath(baseDirectory), options).Restore(onlyWhereNotTranslated);
+    }
+
     [GeneratedRegex(@"^[A-Za-z_][A-Za-z0-9_]*$")]
     private static partial Regex Identifier();
 
@@ -111,20 +134,26 @@ public static partial class Translator
         private readonly Dictionary<ProjectSettings, string> _entries = [];
         private readonly Dictionary<string, IncludeFile?> _includes = new(StringComparer.Ordinal);
         private readonly List<string> _written = [];
+        private readonly List<string> _fetched = [];
         private readonly List<string> _removed = [];
         private readonly List<StackUse> _stackUse = [];
         private readonly List<UnalignedPlace> _unaligned = [];
         private readonly List<WidenedPlace> _widened = [];
 
+        // Which projects' sources this run reads: those translated, worked
+        // out before anything is read.
+        private Func<ProjectSettings, bool>? _readsSources;
+
         private bool HasErrors => _messages.Any(message => message.IsError);
 
         public TranslationResult Run()
         {
+            _readsSources = IsTranslated;
             CheckSettings();
             CheckProjectsNamed();
             CheckVariables();
             CheckCommands();
-            if (!HasErrors)
+            if (!HasErrors && !options.Offline)
             {
                 FetchSources();
             }
@@ -176,7 +205,22 @@ public static partial class Translator
                     WorkingRegions = _workingRegions,
                     UnalignedPlaces = _unaligned,
                     WidenedPlaces = _widened,
+                    Fetched = _fetched,
                 };
+        }
+
+        public TranslationResult Restore(bool onlyWhereNotTranslated)
+        {
+            _readsSources = project => IsTranslated(project) && !(onlyWhereNotTranslated && File.Exists(SummaryPathOf(project)));
+            CheckSettings();
+            CheckProjectsNamed();
+            CheckVariables();
+            if (!HasErrors)
+            {
+                FetchSources();
+            }
+
+            return new TranslationResult(_messages, [], [], 0) { Fetched = _fetched };
         }
 
         private void Error(string text, string? file = null, int line = 0) => _messages.Add(new TranslationMessage(true, file, line, text));
@@ -311,7 +355,7 @@ public static partial class Translator
         private IEnumerable<string?> Paths() =>
             new[] { settings.Output, settings.Runtime.Project, settings.Solution }
                 .Concat(settings.Projects.Select(project => project.Output))
-                .Concat(settings.Projects.Where(IsTranslated).SelectMany(project => project.Sources).SelectMany(source => source.Files.Concat(source.Includes)));
+                .Concat(settings.Projects.Where(_readsSources!).SelectMany(project => project.Sources).SelectMany(source => source.Files.Concat(source.Includes)));
 
         private HashSet<string> VariablesNamed() =>
         [
@@ -355,9 +399,18 @@ public static partial class Translator
                 }
 
                 var folder = Path.GetFullPath(Path.Combine(baseDirectory, variable.Path));
-                if (!Directory.Exists(folder) && fetcher.Fill(variable, folder) is { } problem)
+                if (Directory.Exists(folder))
+                {
+                    continue;
+                }
+
+                if (fetcher.Fill(variable, folder) is { } problem)
                 {
                     Error($"The variable {name}: {problem}");
+                }
+                else
+                {
+                    _fetched.Add(folder);
                 }
             }
         }
@@ -383,6 +436,18 @@ public static partial class Translator
                     continue;
                 }
 
+                // Offline, a project whose sources are not here is compiled
+                // as it was translated last, where there is a translation.
+                if (options.Offline && !HasSources(project))
+                {
+                    if (!ReadSummary(project))
+                    {
+                        Error($"The sources of the project {project.Name} are not on this machine, and it has no translation to read instead; restore them first.");
+                    }
+
+                    continue;
+                }
+
                 _projects.Add(project);
                 foreach (var sourceSettings in project.Sources)
                 {
@@ -396,6 +461,12 @@ public static partial class Translator
                 }
             }
         }
+
+        // Whether any file a project's sources name is on the machine.
+        private bool HasSources(ProjectSettings project) => project.Sources
+            .SelectMany(source => source.Files)
+            .Select(entry => Path.GetFullPath(Path.Combine(baseDirectory, Expand(entry)!)))
+            .Any(path => Path.GetDirectoryName(path) is { } folder && Directory.Exists(folder) && Directory.GetFiles(folder, Path.GetFileName(path)).Length > 0);
 
         private List<string> FilesOf(SourceSettings source, ProjectSettings project)
         {

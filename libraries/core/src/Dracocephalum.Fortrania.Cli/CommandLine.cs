@@ -6,19 +6,20 @@ namespace Dracocephalum.Fortrania.Cli;
 
 /// <summary>
 /// The <c>fortrania</c> command: reads its command line, and hands a
-/// translation to <see cref="Translator"/>. It holds no rule of a
-/// translation's own; what to translate, and to what, is the settings
+/// translation or a restore to <see cref="Translator"/>. It holds no rule of
+/// a translation's own; what to translate, and to what, is the settings
 /// file's to say.
 /// </summary>
 /// <remarks>
-/// The first word is what to do, <c>translate</c>, and the word after it
-/// what to translate to, <c>csharp</c> for C#, so that another thing to do or
-/// another target is a word beside its kind. Each word and option may be
-/// shortened as <see cref="UniquePrefix"/> allows. What is written to the
-/// error stream is for whoever reads it, in the form a build reads for a
-/// file and line; what is written to the output is the outcome. The exit
-/// code is zero when it did what it was asked, one when it could not, and
-/// two when the command line is not one it takes.
+/// The first word is what to do, <c>translate</c> or <c>restore</c>, and
+/// after <c>translate</c> the word for what to translate to, <c>csharp</c>
+/// for C#, so that another thing to do or another target is a word beside
+/// its kind. Each word and option may be shortened as
+/// <see cref="UniquePrefix"/> allows. What is written to the error stream is
+/// for whoever reads it, in the form a build reads for a file and line; what
+/// is written to the output is the outcome. The exit code is zero when it
+/// did what it was asked, one when it could not, and two when the command
+/// line is not one it takes.
 /// </remarks>
 internal static class CommandLine
 {
@@ -36,16 +37,24 @@ internal static class CommandLine
 
     private const string Usage =
         """
-        Usage: fortrania translate csharp [settings] [--project <name>]... [--force]
+        Usage: fortrania translate csharp [settings] [--project <name>]... [--force] [--offline]
+               fortrania restore [settings] [--project <name>]... [--if-needed]
                fortrania --version
 
           translate csharp   translates to C# as the settings file says
-          settings           the settings file; where none is given, the one
-                             fortrania.json or *.fortrania.json in this folder
-          --project          translates the project of that name, and reads
-                             each other project from the summary its last
-                             translation wrote; may be given more than once
+          restore            fetches the sources a translation would read, where
+                             the settings say where from, and translates nothing
+          settings           the settings file, or a folder to look for it in; the
+                             one fortrania.json or *.fortrania.json found there or
+                             in the nearest folder above, this one where none is
+                             given
+          --project          only the project of that name; each other project is
+                             read from the summary its last translation wrote;
+                             may be given more than once
           --force            translates every unit, whether it changed or not
+          --offline          fetches nothing, and reads a project whose sources
+                             are not here from its last translation's summary
+          --if-needed        fetches only for a project that has no translation
           --version          says which version this is
 
         At a prompt, a word or an option may be shortened to any start of it
@@ -53,16 +62,17 @@ internal static class CommandLine
         spells each in full, since a word added later may share the start.
         """;
 
-    private static readonly string[] Commands = ["help", "translate"];
+    private static readonly string[] Commands = ["help", "restore", "translate"];
     private static readonly string[] Options = ["--help", "--version"];
     private static readonly string[] Targets = ["csharp"];
-    private static readonly string[] TranslateOptions = ["--force", "--project"];
+    private static readonly string[] TranslateOptions = ["--force", "--offline", "--project"];
+    private static readonly string[] RestoreOptions = ["--if-needed", "--project"];
 
     /// <summary>Runs the command.</summary>
     /// <param name="arguments">The command line, without the command's own name.</param>
     /// <param name="output">Where the outcome is written.</param>
     /// <param name="error">Where messages and complaints are written.</param>
-    /// <param name="workingDirectory">The folder a settings file is looked for in, and a relative one taken from.</param>
+    /// <param name="workingDirectory">The folder a settings file is looked for from, and a relative one taken from.</param>
     /// <returns>The exit code.</returns>
     public static int Run(string[] arguments, TextWriter output, TextWriter error, string workingDirectory)
     {
@@ -92,11 +102,16 @@ internal static class CommandLine
             case "translate" when arguments.Length > 1 && !arguments[1].StartsWith('-'):
                 return Resolve(arguments[1], Targets, "a target of translate", error) switch
                 {
-                    "csharp" => TranslateToCSharp(arguments[2..], output, error, workingDirectory),
+                    "csharp" when Parse(arguments[2..], TranslateOptions, "translate csharp", error) is { } parsed =>
+                        TranslateToCSharp(parsed, output, error, workingDirectory),
                     _ => Misused,
                 };
             case "translate":
                 return Refuse(error, "translate is to be followed by what to translate to: csharp.");
+            case "restore":
+                return Parse(arguments[1..], RestoreOptions, "restore", error) is { } restore
+                    ? RestoreSources(restore, output, error, workingDirectory)
+                    : Misused;
             default:
                 return Refuse(error, $"{first} takes nothing after it.");
         }
@@ -124,64 +139,74 @@ internal static class CommandLine
         return Misused;
     }
 
-    private static int TranslateToCSharp(string[] arguments, TextWriter output, TextWriter error, string workingDirectory)
+    // The settings named, the projects named and the flags given after a
+    // command, or nothing, said, where the words are not ones it takes.
+    private static Arguments? Parse(string[] arguments, IReadOnlyList<string> options, string command, TextWriter error)
     {
-        var force = false;
-        string? named = null;
+        string? settings = null;
         List<string>? projects = null;
+        var flags = new HashSet<string>(StringComparer.Ordinal);
         for (var index = 0; index < arguments.Length; index++)
         {
             var argument = arguments[index];
-            var option = argument.StartsWith("--", StringComparison.Ordinal) && argument.Length > 2
-                ? Resolve(argument, TranslateOptions, "an option of translate csharp", error) ?? "refused"
-                : argument;
-            if (option == "refused")
+            if (argument.StartsWith('-'))
             {
-                return Misused;
-            }
+                var option = argument.StartsWith("--", StringComparison.Ordinal) && argument.Length > 2
+                    ? Resolve(argument, options, $"an option of {command}", error)
+                    : null;
+                if (option is null)
+                {
+                    if (!argument.StartsWith("--", StringComparison.Ordinal) || argument.Length == 2)
+                    {
+                        Refuse(error, $"{argument} is not an option of {command}.");
+                    }
 
-            if (option == "--force")
-            {
-                force = true;
-            }
-            else if (option == "--project")
-            {
+                    return null;
+                }
+
+                if (option != "--project")
+                {
+                    flags.Add(option);
+                    continue;
+                }
+
                 if (index + 1 == arguments.Length || arguments[index + 1].StartsWith('-'))
                 {
-                    return Refuse(error, "--project is to be followed by the name of a project of the settings.");
+                    Refuse(error, "--project is to be followed by the name of a project of the settings.");
+                    return null;
                 }
 
                 (projects ??= []).Add(arguments[++index]);
             }
-            else if (argument.StartsWith('-') || named is not null)
+            else if (settings is null)
             {
-                return Refuse(error, $"{argument} is not an option of translate csharp, or is a second settings file.");
+                settings = argument;
             }
             else
             {
-                named = argument;
+                Refuse(error, $"{argument} is a second settings file; {command} takes one.");
+                return null;
             }
         }
 
-        if (FindSettings(named, workingDirectory, error) is not { } path)
-        {
-            return Failed;
-        }
+        return new Arguments(settings, projects, flags);
+    }
 
-        TranslationSettings settings;
-        try
+    private static int TranslateToCSharp(Arguments arguments, TextWriter output, TextWriter error, string workingDirectory)
+    {
+        if (Load(arguments.Settings, workingDirectory, error) is not var (path, settings))
         {
-            settings = TranslationSettings.Load(path);
-        }
-        catch (Exception exception) when (exception is JsonException or IOException or UnauthorizedAccessException)
-        {
-            error.WriteLine($"{path}: error: {exception.Message}");
             return Failed;
         }
 
         // Every path in the settings is taken from where the file lies, so
         // that a translation is the same from whatever folder it is run.
-        var result = Translator.Run(settings, Path.GetDirectoryName(path)!, new TranslationOptions { Force = force, Projects = projects });
+        var result = Translator.Run(settings, Path.GetDirectoryName(path)!, new TranslationOptions
+        {
+            Force = arguments.Flags.Contains("--force"),
+            Offline = arguments.Flags.Contains("--offline"),
+            Projects = arguments.Projects,
+        });
         foreach (var message in result.Messages)
         {
             error.WriteLine(message);
@@ -192,12 +217,55 @@ internal static class CommandLine
         return result.Succeeded ? Done : Failed;
     }
 
+    private static int RestoreSources(Arguments arguments, TextWriter output, TextWriter error, string workingDirectory)
+    {
+        if (Load(arguments.Settings, workingDirectory, error) is not var (path, settings))
+        {
+            return Failed;
+        }
+
+        var result = Translator.Restore(
+            settings,
+            Path.GetDirectoryName(path)!,
+            new TranslationOptions { Projects = arguments.Projects },
+            onlyWhereNotTranslated: arguments.Flags.Contains("--if-needed"));
+        foreach (var message in result.Messages)
+        {
+            error.WriteLine(message);
+        }
+
+        output.WriteLine($"{(result.Succeeded ? "Restored" : "Not restored")}: {result.Fetched.Count} folders of sources fetched.");
+        return result.Succeeded ? Done : Failed;
+    }
+
+    // The settings file found, and what it says; nothing, said, where there
+    // is none or it is not settings.
+    private static (string Path, TranslationSettings Settings)? Load(string? named, string workingDirectory, TextWriter error)
+    {
+        if (FindSettings(named, workingDirectory, error) is not { } path)
+        {
+            return null;
+        }
+
+        try
+        {
+            return (path, TranslationSettings.Load(path));
+        }
+        catch (Exception exception) when (exception is JsonException or IOException or UnauthorizedAccessException)
+        {
+            error.WriteLine($"{path}: error: {exception.Message}");
+            return null;
+        }
+    }
+
     // The settings file named, taken from the working folder where it is
-    // relative; or where none is named, the one in the working folder with
-    // the name a settings file has. None, or several to choose from, is
+    // relative; or, where a folder is named or nothing is, the one with the
+    // name a settings file has in that folder or the nearest above it, as a
+    // build finds its own files. Several in one folder are refused; none is
     // said and is nothing.
     private static string? FindSettings(string? named, string workingDirectory, TextWriter error)
     {
+        var start = workingDirectory;
         if (named is not null)
         {
             var path = Path.GetFullPath(named, workingDirectory);
@@ -206,26 +274,35 @@ internal static class CommandLine
                 return path;
             }
 
-            error.WriteLine($"fortrania: error: there is no settings file {path}.");
-            return null;
+            if (!Directory.Exists(path))
+            {
+                error.WriteLine($"fortrania: error: there is no settings file {path}.");
+                return null;
+            }
+
+            start = path;
         }
 
-        var found = Directory.EnumerateFiles(workingDirectory, "*" + SettingsName)
-            .Where(file => Path.GetFileName(file) is var name
-                && (name.Equals(SettingsName, StringComparison.OrdinalIgnoreCase) || name.EndsWith("." + SettingsName, StringComparison.OrdinalIgnoreCase)))
-            .Order(StringComparer.Ordinal)
-            .ToList();
-        switch (found)
+        for (var folder = new DirectoryInfo(start); folder is not null; folder = folder.Parent)
         {
-            case [var only]:
-                return only;
-            case []:
-                error.WriteLine($"fortrania: error: there is no {SettingsName} or *.{SettingsName} in {workingDirectory}; name the settings file.");
-                return null;
-            default:
-                error.WriteLine($"fortrania: error: {workingDirectory} has several settings files, {string.Join(", ", found.Select(Path.GetFileName))}; name the one to use.");
-                return null;
+            var found = folder.EnumerateFiles("*" + SettingsName)
+                .Select(file => file.FullName)
+                .Where(file => Path.GetFileName(file) is var name
+                    && (name.Equals(SettingsName, StringComparison.OrdinalIgnoreCase) || name.EndsWith("." + SettingsName, StringComparison.OrdinalIgnoreCase)))
+                .Order(StringComparer.Ordinal)
+                .ToList();
+            switch (found)
+            {
+                case [var only]:
+                    return only;
+                case [_, ..]:
+                    error.WriteLine($"fortrania: error: {folder.FullName} has several settings files, {string.Join(", ", found.Select(Path.GetFileName))}; name the one to use.");
+                    return null;
+            }
         }
+
+        error.WriteLine($"fortrania: error: there is no {SettingsName} or *.{SettingsName} in {start} or above it; name the settings file.");
+        return null;
     }
 
     // The version the package was built as, with the commit it was built
@@ -234,4 +311,7 @@ internal static class CommandLine
         typeof(CommandLine).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
             ?? typeof(CommandLine).Assembly.GetName().Version?.ToString()
             ?? "unknown";
+
+    // What a command was told after its own words.
+    private sealed record Arguments(string? Settings, IReadOnlyCollection<string>? Projects, IReadOnlySet<string> Flags);
 }

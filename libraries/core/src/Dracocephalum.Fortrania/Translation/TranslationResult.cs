@@ -41,4 +41,7 @@ public sealed record TranslationResult(
     /// when there are none or the translation was not done.
     /// </summary>
     public IReadOnlyList<WidenedPlace> WidenedPlaces { get; init; } = [];
+
+    /// <summary>Gets the folders of sources downloaded by the run, in full.</summary>
+    public IReadOnlyList<string> Fetched { get; init; } = [];
 }
