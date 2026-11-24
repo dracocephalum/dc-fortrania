@@ -883,7 +883,11 @@ elsewhere refuses such a file.
   writes what is missing and leaves it to whoever has it after; `never`
   writes none, and only checks that a project file refers to what its
   project calls into, saying so where there is no project file at all.
-  The root says it for every project and a project may say otherwise.
+  A project's file is the one in its folder, or else the one of its
+  name beside the settings, where a project with a settings file of its
+  own keeps it while its translation lies elsewhere; `once` then writes
+  none. The root says it for every project and a project may say
+  otherwise.
 - **`solution` names a solution that holds every project**, an `.slnx`,
   written as the root's `scaffold` says, since it belongs to no one
   project; with `never` it is only checked, and a project it lacks is
@@ -1006,7 +1010,8 @@ translation's own. The package is named for what it is beside the
 translator's, a command line; *tool* is a word of this repository's
 layout already, for what is never published.
 
-    fortrania translate csharp [settings] [--project <name>]... [--reference <assembly>]... [--force] [--offline]
+    fortrania translate csharp [settings] [--project <name>]... [--reference <assembly>]...
+                               [--force] [--offline] [--record <file>]
     fortrania restore [settings] [--project <name>]... [--if-needed]
     fortrania --version
 
@@ -1034,6 +1039,9 @@ layout already, for what is never published.
   translation wrote, as one left out is, so that what was translated is
   compiled as it is. One with neither fails and says to restore. A build
   translates so.
+- **`--record` is for a build**: the record of what was read and made,
+  by which it tells when to translate again; *A project translates its
+  FORTRAN as it builds* has it.
 - **The first word is what to do, and the second what to translate to.**
   Another thing to do, `restore`, and later `build` or `run`, is a word
   beside `translate`, and another target a word beside `csharp`, each
@@ -1058,6 +1066,85 @@ layout already, for what is never published.
   and its line, and the outcome to the output. It exits with zero when
   it did as asked, one when the settings or the translation failed, and
   two for a command line it does not take.
+
+## A project translates its FORTRAN as it builds
+
+`Dracocephalum.Fortrania.Build` is a package of build targets: a project
+that references it translates its own FORTRAN before it compiles, the way
+a project compiles `.proto` files, and comes after the projects it
+references, so that a build of a solution, of one project or of several
+finds everything in order. It is built in `libraries/core` with the
+translator and the runtime, so that the three keep one version, and is a
+development dependency, which a package of the project does not pass on.
+
+- **Each project has its settings file beside it**, the one
+  `fortrania.json` or `*.fortrania.json` in its folder, or the one
+  `FortraniaSettings` names, and is the project of it that
+  `FortraniaProject` names, its own name unless set. A file holds
+  everything about its project's translation, its download among them;
+  nothing is inherited from another, so two projects that read one
+  download each say where it is.
+- **References are what the project references.** The build passes the
+  translator the assemblies its project and package references resolve
+  to, the framework's left out, and the translator reads the summary each
+  translated one carries; *A summary can come in an assembly*, above, has
+  it. MSBuild is the one place references are said, and a program that
+  has a translated library only as a package is translated against it
+  rightly.
+- **The summary is embedded in what is compiled**, as
+  `Fortrania.Summary.json`, for a project that references this one, and
+  a copy is put beside the assembly for that project's build to watch.
+- **Whether a translation is kept is where it lands.** In the project's
+  folder the SDK compiles it as any file there, and the build adds only
+  what it wrote there for the first time, which the SDK did not see when
+  it listed the folder; whether it is committed is the repository's
+  `.gitignore`'s to say. Anywhere else the build adds the whole
+  translation to the compilation. The variable `$(IntermediateOutput)`
+  is the build's intermediate folder, so that `"output":
+  "$(IntermediateOutput)/fortrania"` lies under `obj/`, per project and per
+  configuration, and goes with `dotnet clean`; the command, which has no
+  such folder, says the variable has no value. The project file is the
+  one beside the settings, which the translator takes for a project's own
+  where the project's folder has none, so none is scaffolded beside such
+  a translation.
+- **`FortraniaTranslate`**, `never`, `ifChanged` or `always`, is `translate`
+  for one build: `never` compiles what is there, `always` translates every
+  unit again. Empty, the settings decide.
+
+**The step runs only when its outcome could differ.** A translation that
+changes nothing still reads and analyses every unit, eighteen seconds for
+the toolkit's library, so the build does not ask the translator. The
+command writes a record of each translation, `--record`: every file it
+read, the file patterns its sources name, and every file the translation
+is made of. The build runs the step when one of those it read is newer
+than the record, when a file comes to match a pattern or one read or made
+is gone, when the command line changes, a new version of the package or
+other references among it, or when the copy of a referenced project's
+summary changes, which it does only when the summary does, so that a
+library compiled again for any other reason translates nothing that calls
+into it. A variable's value taken from the environment is not watched; a
+build told `always` translates whatever is there.
+
+**Sources are fetched before translating, and only where needed.** A
+package's targets are imported once restore has run, so its first
+restore, on a clean machine, cannot fetch anything; the step fetches
+instead, before it translates, and only when it is to translate. The
+build fetches with `fortrania restore --if-needed`, which passes over a
+project that has a translation to compile, and then translates with
+`--offline`, which fetches nothing and reads a project whose sources are
+not there from its summary: a pipeline whose translation is committed
+never reaches the toolkit's server. `FortraniaFetch`, `never`, `ifNeeded`
+or `always`, overrides that for a machine that is never to reach a server,
+or one that is to fetch whatever is not there.
+
+**The targets run the command as a program of its own**, carried in the
+package under `tools/`, with the `dotnet` the build runs on, and load
+nothing into the build: Visual Studio and `dotnet build` load build tasks
+into different runtimes, and a separate program is the same one for both.
+The translator knows nothing of MSBuild. A source generator is not the
+way either: one runs inside the editor as the user types, and is not meant
+to read thousands of files and write a hundred thousand lines. Its
+messages, in the form a build reads, are the build's errors and warnings.
 
 ## A package's version is in the code, and the build says what kind it is
 

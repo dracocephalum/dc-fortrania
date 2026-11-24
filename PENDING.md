@@ -351,133 +351,25 @@ a whole translation from them. Left to do:
 
 ## Translating as a step of the build
 
-Next to be built. A project is to translate FORTRAN as it builds, the way
-a project compiles `.proto` files: each project owns its sources, makes
-its C# as part of its own build, and comes after the projects it
-references, so that a build of a solution, of one project or of several
-at once finds everything in order. The package is to be
-`Dracocephalum.Fortrania.Build`, in `libraries/core` with the translator
-and the runtime, so that the three keep one version. Its first user is
-the translated library's repository, whose translation is kept in its
-projects' folders and committed.
+Built: `DESIGN.md`, *A project translates its FORTRAN as it builds*, has
+the package. Left to do:
 
-**A settings file for each project, beside it, and references from what
-the project references.** Settled in discussion after the plan's first
-form, which had one file for every project, found by looking upward:
-
-- **Each translated project has its own `*.fortrania.json`**, in its own
-  folder, holding everything about its translation, its download among
-  them. The project's build names it, `FortraniaSettings`, or takes the
-  one in the project's folder; no folder above is looked in. A file of
-  several projects keeps working for the command and for a program
-  translated whole.
-- **No settings are inherited.** Two projects that read one download each
-  say where it is, in a few lines; one run that sees both, the same
-  variable naming the same folder with another address or hash, is to be
-  refused. An `extends`, as TypeScript's settings have, can come later if
-  a repository of many projects wants it.
-- **References are what the project references.** Each translated
-  assembly carries its project's summary as a resource, which the
-  package's targets embed; a build passes the translator the assemblies
-  its project and package references resolve to, the framework's left
-  out, and the translator reads a summary out of each without loading
-  it. MSBuild is then the one place references are said, and a program
-  that has a translated library only as a package is translated against
-  it rightly. The command takes them as `--reference`; the translator's
-  side is built, `DESIGN.md` has it.
-
-**A project is translated apart from what calls into it**, by the
-summary each translation writes of the projects it translates; `DESIGN.md`,
-*A project is translated apart by the summaries of those it calls into*,
-has it. The summary is kept and committed where the translation is, so
-that a project translates on a machine that has its own sources and none
-of what it calls into. Still to come: the summary carried in a package, so
-that a program of someone else's that calls a translated library it has
-only as a package is translated against it rightly.
-
-**Translating one project at a time gives the same files as translating
-all at once**, byte for byte. That is what is tested: the reference
-sources translated in one run of the command, and again a project at a
-time in the order of their references, and the two folders compared.
-
-**What the settings are told is built**: the required root `output`,
-`translate`, `scaffold` and `solution`, at the root and, where a project
-differs, in its entry; `DESIGN.md`, *What is translated is set out as
-projects and their sources*, has them. What the build adds to them:
-
-- **A build property, `FortraniaTranslate`, overrides `translate` for one
-  run**, as the command's `--force` and `--project` do, which is where
-  `always` is mostly wanted.
-- **Whether a translation is kept or thrown away is where it lands.** In
-  the project's folder the build only translates, since the SDK compiles
-  every file there, and whether it is committed is the repository's
-  `.gitignore`'s to say. Anywhere else the build adds what was written to
-  the compilation itself. For a translation that is to be thrown away, the
-  build gives the translator its own folders as variables,
-  `$(IntermediateOutput)` among them, so that `"output":
-  "$(IntermediateOutput)/fortrania"` lies under `obj/`, per project and per
-  configuration, and goes with `dotnet clean`. The command has no such
-  folder, and refuses the variable.
-
-**What the build and the command do apart.** The translation is the same
-from either; what differs is around it:
-
-- **The build translates the project it builds**, the command the whole
-  file unless told one project.
-- **The build skips the step when nothing changed**, by the inputs and
-  outputs MSBuild compares, where the command reads everything and writes
-  nothing.
-- **Restore fetches what the build will need, and the build fetches
-  nothing.** .NET reaches the network in `dotnet restore`, which `dotnet
-  build` runs unless told `--no-restore`, and builds offline after it;
-  fetching the sources is the same kind of step. So restore fetches a
-  project's sources where there is no translation to compile, and leaves
-  them where there is one: the translated library's pipeline, with its
-  translation committed, never reaches the toolkit's server, and a
-  pipeline that throws its translation away fetches on a clean machine
-  and then translates. A build with neither sources nor a translation
-  fails and says to restore. A build property, `FortraniaFetch`, with
-  `never`, `ifNeeded` and `always`, overrides the rule for a machine that
-  is never to reach a server or one that is to fetch again whatever is
-  there. The command fetches what the settings say where to find.
-
-**How the targets are made:**
-
-- **They run the command as a program of its own**, carried in the
-  package, and load nothing into the build. Visual Studio and `dotnet
-  build` load build tasks into different runtimes, and a separate program
-  is the same one for both; the translator knows nothing of MSBuild.
-- **A source generator is not the way.** One runs inside the editor as the
-  user types, and is not meant to read thousands of files and write a
-  hundred thousand lines.
+- **The translated library's repository taking it**, with a settings file
+  and a project file of its own for each project, and `scaffold: never`.
+- **Two settings files that name one download differently are refused**:
+  one run that sees both, the same variable naming the same folder with
+  another address or hash. A build sees one file at a time, so this is
+  for a check of the repository's or a run of the command over several.
 - **The runtime as source** can come the same way: the package adds the
   runtime's files to the compilation, as *The runtime can be handed out as
   source* describes.
-
-**The order it is built in**, one pull request each:
-
-1. The summary file, written by a translation and read by the next, and
-   the test that a project translated apart gives the same files as all
-   at once. Built.
-2. One project of the settings translated by the command, `--project`,
-   and sources fetched only for the projects translated. Built.
-3. The settings: the required root `output`, `translate`, `scaffold` and
-   `solution`. Built.
-4. What the package needs of the command: `--offline`, and `fortrania
-   restore` with `--if-needed`. Built.
-5. Summaries read out of referenced assemblies, `--reference`. Built.
-6. The package and its targets: the translator carried in it, the step
-   before compiling, the summary embedded in what is compiled, fetching
-   in restore, and what is written outside the project's folder added to
-   the compilation.
-7. The translated library's repository taking it, with a settings file
-   and a project file of its own for each project, and `scaffold: never`.
-
-**Sources can be fetched**, as `DESIGN.md` describes under *A variable can
-say where to download the folder it names*; it is done as part of a
-translation by the command, or by `fortrania restore` alone, and does
-nothing when the folder is there. Still to come: the archive format of
-the toolkit's own packages, `.tar.Z`, which .NET does not read.
+- **An editor's build of a project's design** runs no translation, and a
+  translation that lies outside the project's folder is not seen by the
+  editor until a build has written its record.
+- **Sources can be fetched**, as `DESIGN.md` describes under *A variable
+  can say where to download the folder it names*. Still to come: the
+  archive format of the toolkit's own packages, `.tar.Z`, which .NET does
+  not read.
 
 ## Input and output still to build
 

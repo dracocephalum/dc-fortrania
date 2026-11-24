@@ -37,7 +37,7 @@ internal static class CommandLine
 
     private const string Usage =
         """
-        Usage: fortrania translate csharp [settings] [--project <name>]... [--reference <assembly>]... [--force] [--offline]
+        Usage: fortrania translate csharp [settings] [--project <name>]... [--reference <assembly>]... [--force] [--offline] [--record <file>]
                fortrania restore [settings] [--project <name>]... [--if-needed]
                fortrania --version
 
@@ -56,6 +56,10 @@ internal static class CommandLine
           --force            translates every unit, whether it changed or not
           --offline          fetches nothing, and reads a project whose sources
                              are not here from its last translation's summary
+          --record           writes to the file what was read and what the
+                             translation is made of, for a build to tell when
+                             to translate again; removes it if it fails
+
           --if-needed        fetches only for a project that has no translation
           --version          says which version this is
 
@@ -67,7 +71,7 @@ internal static class CommandLine
     private static readonly string[] Commands = ["help", "restore", "translate"];
     private static readonly string[] Options = ["--help", "--version"];
     private static readonly string[] Targets = ["csharp"];
-    private static readonly string[] TranslateOptions = ["--force", "--offline", "--project", "--reference"];
+    private static readonly string[] TranslateOptions = ["--force", "--offline", "--project", "--record", "--reference"];
     private static readonly string[] RestoreOptions = ["--if-needed", "--project"];
 
     /// <summary>Runs the command.</summary>
@@ -148,6 +152,8 @@ internal static class CommandLine
         string? settings = null;
         List<string>? projects = null;
         List<string>? references = null;
+        string? record = null;
+
         var flags = new HashSet<string>(StringComparer.Ordinal);
         for (var index = 0; index < arguments.Length; index++)
         {
@@ -167,7 +173,7 @@ internal static class CommandLine
                     return null;
                 }
 
-                if (option is not ("--project" or "--reference"))
+                if (option is not ("--project" or "--record" or "--reference"))
                 {
                     flags.Add(option);
                     continue;
@@ -175,20 +181,31 @@ internal static class CommandLine
 
                 if (index + 1 == arguments.Length || arguments[index + 1].StartsWith('-'))
                 {
-                    Refuse(error, option == "--project"
-                        ? "--project is to be followed by the name of a project of the settings."
-                        : "--reference is to be followed by the path of an assembly.");
+                    Refuse(error, option switch
+                    {
+                        "--project" => "--project is to be followed by the name of a project of the settings.",
+                        "--record" => "--record is to be followed by the path of the file to write.",
+
+                        _ => "--reference is to be followed by the path of an assembly.",
+                    });
                     return null;
                 }
 
                 var value = arguments[++index];
-                if (option == "--project")
+                switch (option)
                 {
-                    (projects ??= []).Add(value);
-                }
-                else
-                {
-                    (references ??= []).Add(value);
+                    case "--project":
+                        (projects ??= []).Add(value);
+                        break;
+                    case "--reference":
+                        (references ??= []).Add(value);
+                        break;
+                    case "--record" when record is not null:
+                        Refuse(error, "--record is given twice; it takes one.");
+                        return null;
+                    default:
+                        record = value;
+                        break;
                 }
             }
             else if (settings is null)
@@ -202,7 +219,7 @@ internal static class CommandLine
             }
         }
 
-        return new Arguments(settings, projects, references, flags);
+        return new Arguments(settings, projects, references, record, flags);
     }
 
     private static int TranslateToCSharp(Arguments arguments, TextWriter output, TextWriter error, string workingDirectory)
@@ -229,9 +246,46 @@ internal static class CommandLine
             error.WriteLine(message);
         }
 
+        if (arguments.Record is { } record && !WriteRecord(Path.GetFullPath(record, workingDirectory), path, result, error))
+        {
+            return Failed;
+        }
+
         output.WriteLine(
             $"{(result.Succeeded ? "Translated" : "Not translated")}: {result.Units} program units, {result.Written.Count} files written, {result.Removed.Count} removed.");
         return result.Succeeded ? Done : Failed;
+    }
+
+    // What a build reads to tell when to translate again, a line a file:
+    // "read" for what the translation was made from, the settings among it,
+    // "pattern" for a file pattern its sources name, and "file" for what the
+    // translation is made of. It is written only for a translation that was
+    // done, and one that was not removes the last, so that a build that
+    // failed is not taken for one that needs nothing.
+    private static bool WriteRecord(string record, string settingsPath, TranslationResult result, TextWriter error)
+    {
+        try
+        {
+            if (!result.Succeeded)
+            {
+                File.Delete(record);
+                return true;
+            }
+
+            var local = TranslationSettings.LocalFileOf(settingsPath);
+            var read = File.Exists(local) ? [settingsPath, local] : new[] { settingsPath };
+            var lines = read.Concat(result.Read).Select(file => "read " + file)
+                .Concat(result.Patterns.Select(pattern => "pattern " + pattern))
+                .Concat(result.Files.Select(file => "file " + file));
+            Directory.CreateDirectory(Path.GetDirectoryName(record) ?? ".");
+            File.WriteAllLines(record, lines);
+            return true;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            error.WriteLine($"{record}: error: {exception.Message}");
+            return false;
+        }
     }
 
     private static int RestoreSources(Arguments arguments, TextWriter output, TextWriter error, string workingDirectory)
@@ -326,5 +380,5 @@ internal static class CommandLine
             ?? "unknown";
 
     // What a command was told after its own words.
-    private sealed record Arguments(string? Settings, IReadOnlyCollection<string>? Projects, IReadOnlyCollection<string>? References, IReadOnlySet<string> Flags);
+    private sealed record Arguments(string? Settings, IReadOnlyCollection<string>? Projects, IReadOnlyCollection<string>? References, string? Record, IReadOnlySet<string> Flags);
 }

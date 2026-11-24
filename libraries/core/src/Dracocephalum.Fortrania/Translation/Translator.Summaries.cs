@@ -64,6 +64,7 @@ public static partial class Translator
                 return false;
             }
 
+            NoteRead(path);
             ProjectSummary summary;
             try
             {
@@ -129,6 +130,7 @@ public static partial class Translator
                     continue;
                 }
 
+                NoteRead(path);
                 if (settings.Projects.Any(project => project.Name == summary.Project) || _external.Any(project => project.Name == summary.Project))
                 {
                     Error($"The assembly holds the project {summary.Project}, which the settings or another assembly have as well.", path);

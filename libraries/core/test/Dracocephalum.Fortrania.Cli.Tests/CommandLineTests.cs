@@ -366,6 +366,58 @@ public sealed class CommandLineTests : IDisposable
     }
 
     [Fact]
+    public void Run_WhenToldToRecord_ShouldWriteWhatWasReadMatchedAndMade()
+    {
+        // Arrange
+        Put("src/twice.f", Source);
+        Put("fortrania.json", Settings);
+
+        // Act
+        var code = Run("translate", "csharp", "--record", "obj/fortrania.record");
+
+        // Assert
+        code.ShouldBe(CommandLine.Done, _error.ToString());
+        File.ReadAllLines(Path.Combine(_root, "obj/fortrania.record")).ShouldBe(
+            [
+                "read " + Path.Combine(_root, "fortrania.json"),
+                "read " + Path.GetFullPath(Path.Combine(_root, "src/twice.f")),
+                "pattern " + Path.GetFullPath(Path.Combine(_root, "src/*.f")),
+                "file " + Path.GetFullPath(Path.Combine(_root, "out/Example.Toolkit/Generated/Core/TWICE.g.cs")),
+                "file " + Path.GetFullPath(Path.Combine(_root, "out/Example.Toolkit/Generated/Core/Core.g.cs")),
+                "file " + Path.GetFullPath(Path.Combine(_root, "out/Example.Toolkit/Generated/.fortrania-summary.json")),
+            ]);
+    }
+
+    [Fact]
+    public void Run_WhenATranslationToBeRecordedFails_ShouldRemoveTheLastRecord()
+    {
+        // Arrange: a record of a translation that was done, then its
+        // sources gone.
+        Put("src/twice.f", Source);
+        Put("fortrania.json", Settings);
+        Run("translate", "csharp", "--record", "fortrania.record").ShouldBe(CommandLine.Done);
+        File.Delete(Path.Combine(_root, "src/twice.f"));
+
+        // Act
+        var code = Run("translate", "csharp", "--record", "fortrania.record");
+
+        // Assert
+        code.ShouldBe(CommandLine.Failed);
+        File.Exists(Path.Combine(_root, "fortrania.record")).ShouldBeFalse();
+    }
+
+    [Fact]
+    public void Run_WhenTheRecordIsNamedTwice_ShouldSaySo()
+    {
+        // Act
+        var code = Run("translate", "csharp", "--record", "a", "--record", "b");
+
+        // Assert
+        code.ShouldBe(CommandLine.Misused);
+        _error.ToString().ShouldContain("--record is given twice; it takes one.");
+    }
+
+    [Fact]
     public void Run_WhenAReferenceIsNotAnAssembly_ShouldSayWhichAndFail()
     {
         // Arrange

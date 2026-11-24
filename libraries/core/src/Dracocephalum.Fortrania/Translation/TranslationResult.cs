@@ -44,4 +44,30 @@ public sealed record TranslationResult(
 
     /// <summary>Gets the folders of sources downloaded by the run, in full.</summary>
     public IReadOnlyList<string> Fetched { get; init; } = [];
+
+    /// <summary>
+    /// Gets every file the run read, in full and in the order first read:
+    /// the sources and included files of the projects translated, the
+    /// summaries of those read instead, and the assemblies that brought a
+    /// summary. Empty when the translation was not done. With
+    /// <see cref="Patterns"/> and <see cref="Files"/>, what a build needs to
+    /// tell whether a translation would come out the same without running it.
+    /// </summary>
+    public IReadOnlyList<string> Read { get; init; } = [];
+
+    /// <summary>
+    /// Gets the file patterns the sources of the projects translated name,
+    /// in full, each as the settings give it with its variables put in: a
+    /// file that comes to match one, or that matched and is gone, is a
+    /// change no file of <see cref="Read"/> shows.
+    /// </summary>
+    public IReadOnlyList<string> Patterns { get; init; } = [];
+
+    /// <summary>
+    /// Gets every file the translation of the projects translated is made
+    /// of, in full, written this time or kept from the last: each project's
+    /// translated sources, its summary, and the program a scaffold gives it
+    /// where this run scaffolds one.
+    /// </summary>
+    public IReadOnlyList<string> Files { get; init; } = [];
 }
