@@ -963,16 +963,17 @@ how a file the translator no longer makes is told from one somebody wrote.
 The settings file, the command line and the build step all read into the
 same description, kept in the translator's library and not in any of them.
 
-## The command is `fortrania`, and what to produce its first word
+## The command is `fortrania`, and its first word what to do
 
 `Dracocephalum.Fortrania.Cli` is a .NET tool whose command is
-`fortrania`, and `fortrania cs` translates to C# as a settings file says.
+`fortrania`, and `fortrania translate csharp` translates to C# as a
+settings file says.
 It is a thin program over `Translator.Run` and holds no rule of a
 translation's own. The package is named for what it is beside the
 translator's, a command line; *tool* is a word of this repository's
 layout already, for what is never published.
 
-    fortrania cs [settings] [--project <name>]... [--force]
+    fortrania translate csharp [settings] [--project <name>]... [--force]
     fortrania --version
 
 - **The settings file is named, or found.** With none named, the command
@@ -984,13 +985,26 @@ layout already, for what is never published.
   other from its summary, as `TranslationOptions.Projects` does; *A
   project is translated apart by the summaries of those it calls into*
   has how. Only the sources of the projects translated are fetched.
-- **What to produce is the first word**, so that another target or
-  another thing to do, `fortrania restore` say, is a word beside it. A
-  name made of the target, as `f2c` and `f2j` are, needs a name for each,
-  and the obvious ones are not all free: `f2fs` is a file system, and
-  `f2` alone renames files. The short names stay where they clash with
-  nothing: a program standing alone may be released as `f2cs`, and the
-  project is to be tagged `f2cs` and `f2csharp`.
+- **The first word is what to do, and the second what to translate to.**
+  Another thing to do, `restore`, and later `build` or `run`, is a word
+  beside `translate`, and another target a word beside `csharp`, each
+  with options of its own. `translate` is the repository's own word for
+  the job, its translator and its translations; `transpile` would say it
+  compiles, which it does not. `csharp` is spelled out as other tools
+  spell it, and `cs` stays at hand as a shortening.
+- **A word or an option may be shortened at a prompt** to any start of
+  it that no other shares, as the consoles of network switches and
+  `diskpart` take one: `fortrania t cs --f`. A word given in full is
+  always that word; a start that several share is refused with each of
+  them named. Since a word added later may share a start, a script, a
+  build file and the build package spell every word in full. No library
+  was taken for it: the common ones for .NET have no such matching, and
+  the rule is a few lines.
+- **Not a name made of the target**, as `f2c` and `f2j` are: that needs
+  a name for each, and the obvious ones are not all free, `f2fs` being a
+  file system and `f2` alone a tool that renames files. The short names
+  stay where they clash with nothing: a program standing alone may be
+  released as `f2cs`, and the project is tagged `f2cs` and `f2csharp`.
 - **Messages go to the error stream** in the form a build reads, a file
   and its line, and the outcome to the output. It exits with zero when
   it did as asked, one when the settings or the translation failed, and

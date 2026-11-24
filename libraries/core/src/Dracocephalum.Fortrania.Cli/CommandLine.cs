@@ -11,12 +11,14 @@ namespace Dracocephalum.Fortrania.Cli;
 /// file's to say.
 /// </summary>
 /// <remarks>
-/// The first word is what to produce, <c>cs</c> for C#, so that another
-/// target or another thing to do is a word beside it. What is written to
-/// the error stream is for whoever reads it, in the form a build reads
-/// for a file and line; what is written to the output is the outcome.
-/// The exit code is zero when it did what it was asked, one when it
-/// could not, and two when the command line is not one it takes.
+/// The first word is what to do, <c>translate</c>, and the word after it
+/// what to translate to, <c>csharp</c> for C#, so that another thing to do or
+/// another target is a word beside its kind. Each word and option may be
+/// shortened as <see cref="UniquePrefix"/> allows. What is written to the
+/// error stream is for whoever reads it, in the form a build reads for a
+/// file and line; what is written to the output is the outcome. The exit
+/// code is zero when it did what it was asked, one when it could not, and
+/// two when the command line is not one it takes.
 /// </remarks>
 internal static class CommandLine
 {
@@ -34,18 +36,27 @@ internal static class CommandLine
 
     private const string Usage =
         """
-        Usage: fortrania cs [settings] [--project <name>]... [--force]
+        Usage: fortrania translate csharp [settings] [--project <name>]... [--force]
                fortrania --version
 
-          cs          translates to C# as the settings file says
-          settings    the settings file; where none is given, the one
-                      fortrania.json or *.fortrania.json in this folder
-          --project   translates the project of that name, and reads each
-                      other project from the summary its last translation
-                      wrote; may be given more than once
-          --force     translates every unit, whether it changed or not
-          --version   says which version this is
+          translate csharp   translates to C# as the settings file says
+          settings           the settings file; where none is given, the one
+                             fortrania.json or *.fortrania.json in this folder
+          --project          translates the project of that name, and reads
+                             each other project from the summary its last
+                             translation wrote; may be given more than once
+          --force            translates every unit, whether it changed or not
+          --version          says which version this is
+
+        At a prompt, a word or an option may be shortened to any start of it
+        that no other shares: fortrania t cs --f. A script or a build file
+        spells each in full, since a word added later may share the start.
         """;
+
+    private static readonly string[] Commands = ["help", "translate"];
+    private static readonly string[] Options = ["--help", "--version"];
+    private static readonly string[] Targets = ["csharp"];
+    private static readonly string[] TranslateOptions = ["--force", "--project"];
 
     /// <summary>Runs the command.</summary>
     /// <param name="arguments">The command line, without the command's own name.</param>
@@ -59,20 +70,58 @@ internal static class CommandLine
         ArgumentNullException.ThrowIfNull(output);
         ArgumentNullException.ThrowIfNull(error);
 
-        switch (arguments)
+        if (arguments is [] or ["-h" or "-?"])
         {
-            case ["--help" or "-h" or "-?" or "help"]:
+            (arguments.Length == 0 ? error : output).WriteLine(Usage);
+            return arguments.Length == 0 ? Misused : Done;
+        }
+
+        var first = arguments[0].StartsWith('-')
+            ? Resolve(arguments[0], Options, "an option", error)
+            : Resolve(arguments[0], Commands, "a command", error);
+        switch (first)
+        {
+            case null:
+                return Misused;
+            case "--help" or "help" when arguments.Length == 1:
                 output.WriteLine(Usage);
                 return Done;
-            case ["--version"]:
+            case "--version" when arguments.Length == 1:
                 output.WriteLine(ReadVersion());
                 return Done;
-            case ["cs", .. var rest]:
-                return TranslateToCSharp(rest, output, error, workingDirectory);
+            case "translate" when arguments.Length > 1 && !arguments[1].StartsWith('-'):
+                return Resolve(arguments[1], Targets, "a target of translate", error) switch
+                {
+                    "csharp" => TranslateToCSharp(arguments[2..], output, error, workingDirectory),
+                    _ => Misused,
+                };
+            case "translate":
+                return Refuse(error, "translate is to be followed by what to translate to: csharp.");
             default:
-                error.WriteLine(Usage);
-                return Misused;
+                return Refuse(error, $"{first} takes nothing after it.");
         }
+    }
+
+    // The word a typed one stands for, or nothing, said, where it stands for
+    // none or for several.
+    private static string? Resolve(string typed, IReadOnlyList<string> words, string kind, TextWriter error)
+    {
+        if (UniquePrefix.Resolve(typed, words, out var candidates) is { } word)
+        {
+            return word;
+        }
+
+        Refuse(error, candidates.Count > 0
+            ? $"{typed} could be {string.Join(" or ", candidates)}; give more of it."
+            : $"{typed} is not {kind}.");
+        return null;
+    }
+
+    private static int Refuse(TextWriter error, string message)
+    {
+        error.WriteLine("fortrania: error: " + message);
+        error.WriteLine(Usage);
+        return Misused;
     }
 
     private static int TranslateToCSharp(string[] arguments, TextWriter output, TextWriter error, string workingDirectory)
@@ -83,26 +132,30 @@ internal static class CommandLine
         for (var index = 0; index < arguments.Length; index++)
         {
             var argument = arguments[index];
-            if (argument == "--force")
+            var option = argument.StartsWith("--", StringComparison.Ordinal) && argument.Length > 2
+                ? Resolve(argument, TranslateOptions, "an option of translate csharp", error) ?? "refused"
+                : argument;
+            if (option == "refused")
+            {
+                return Misused;
+            }
+
+            if (option == "--force")
             {
                 force = true;
             }
-            else if (argument == "--project")
+            else if (option == "--project")
             {
                 if (index + 1 == arguments.Length || arguments[index + 1].StartsWith('-'))
                 {
-                    error.WriteLine("fortrania: error: --project is to be followed by the name of a project of the settings.");
-                    error.WriteLine(Usage);
-                    return Misused;
+                    return Refuse(error, "--project is to be followed by the name of a project of the settings.");
                 }
 
                 (projects ??= []).Add(arguments[++index]);
             }
             else if (argument.StartsWith('-') || named is not null)
             {
-                error.WriteLine($"fortrania: error: {argument} is not an option of cs, or is a second settings file.");
-                error.WriteLine(Usage);
-                return Misused;
+                return Refuse(error, $"{argument} is not an option of translate csharp, or is a second settings file.");
             }
             else
             {
