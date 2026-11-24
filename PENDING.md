@@ -286,13 +286,12 @@ the output against the reference compiler's.
 
 ## What the command does not do yet
 
-`DESIGN.md`, *The command is `fortrania`, and what to produce its first
-word*, has what is built. Left to do:
+`DESIGN.md`, *The command is `fortrania`, and its first word what to
+do*, has what is built. Left to do:
 
 - **`fortrania restore`**, which fetches the sources a translation needs
   and does nothing else, for a pipeline that wants fetching as a step of
-  its own. Held until the command's words are looked at again: whether
-  `cs` is to have a word before it, and `restore` beside that.
+  its own: `fortrania restore`, a word beside `translate`.
 - **Whether one tool package can give more than one command**, should a
   short name of its own, `f2cs`, ever be wanted beside `fortrania`.
 - **A program that stands alone**, for a machine without the .NET tool
@@ -710,9 +709,9 @@ In this order, because each step changes what the next one looks at:
    so that what it tidies is the code that stays. A published type is a
    promise, so what is `public` is decided type by type here, the
    translation settings above all.
-5. **The command**, `fortrania cs`, published as a .NET tool. Built;
-   `DESIGN.md` has it under *The command is `fortrania`, and what to
-   produce its first word*.
+5. **The command**, `fortrania translate csharp`, published as a .NET
+   tool. Built; `DESIGN.md` has it under *The command is `fortrania`,
+   and its first word what to do*.
 6. **Which runtime a translation runs on.** Emitted code calls the
    runtime's API, so a package's user has to know which runtime goes with
    which translator. The rule already decided for a scaffolded library,

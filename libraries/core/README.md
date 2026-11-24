@@ -54,17 +54,18 @@ there fails with `MSB1003` on purpose.
 
 The command is a .NET tool. From a build of this folder it runs as
 
-    dotnet run --project src/Dracocephalum.Fortrania.Cli -- cs path/to/settings.json
+    dotnet run --project src/Dracocephalum.Fortrania.Cli -- translate csharp path/to/settings.json
 
 and, installed from its package, as
 
     dotnet tool install --global Dracocephalum.Fortrania.Cli
-    fortrania cs [settings] [--project <name>]... [--force]
+    fortrania translate csharp [settings] [--project <name>]... [--force]
 
 With no settings file named it takes the one `fortrania.json` or
 `*.fortrania.json` in the folder it is run in. `fortrania --help` says
 the rest; [`DESIGN.md`](../../DESIGN.md), *The command is `fortrania`,
-and what to produce its first word*, has why it is shaped so.
+and its first word what to do*, has why it is shaped so; at a prompt
+`fortrania t cs` will do.
 
 ## Configuration
 

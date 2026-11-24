@@ -42,7 +42,7 @@ public sealed class CommandLineTests : IDisposable
         Put("example.fortrania.json", Settings);
 
         // Act
-        var code = Run("cs");
+        var code = Run("translate", "csharp");
 
         // Assert
         code.ShouldBe(CommandLine.Done, _error.ToString());
@@ -60,7 +60,7 @@ public sealed class CommandLineTests : IDisposable
         Directory.CreateDirectory(Path.Combine(_root, "elsewhere"));
 
         // Act
-        var code = RunIn(Path.Combine(_root, "elsewhere"), "cs", "../project/settings.json");
+        var code = RunIn(Path.Combine(_root, "elsewhere"), "translate", "csharp", "../project/settings.json");
 
         // Assert
         code.ShouldBe(CommandLine.Done, _error.ToString());
@@ -73,12 +73,12 @@ public sealed class CommandLineTests : IDisposable
         // Arrange
         Put("src/twice.f", Source);
         Put("fortrania.json", Settings);
-        Run("cs").ShouldBe(CommandLine.Done);
+        Run("translate", "csharp").ShouldBe(CommandLine.Done);
 
         // Act
-        Run("cs").ShouldBe(CommandLine.Done);
+        Run("translate", "csharp").ShouldBe(CommandLine.Done);
         var again = _output.ToString();
-        Run("cs", "--force").ShouldBe(CommandLine.Done);
+        Run("translate", "csharp", "--force").ShouldBe(CommandLine.Done);
         var forced = _output.ToString()[again.Length..];
 
         // Assert
@@ -94,7 +94,7 @@ public sealed class CommandLineTests : IDisposable
         Put("fortrania.json", Settings);
 
         // Act
-        var code = Run("cs");
+        var code = Run("translate", "csharp");
 
         // Assert
         code.ShouldBe(CommandLine.Failed);
@@ -114,7 +114,7 @@ public sealed class CommandLineTests : IDisposable
         }
 
         // Act
-        var code = Run("cs");
+        var code = Run("translate", "csharp");
 
         // Assert
         code.ShouldBe(CommandLine.Failed);
@@ -128,7 +128,7 @@ public sealed class CommandLineTests : IDisposable
         Put("fortrania.json", """{ "projects": [], "colour": "red" }""");
 
         // Act
-        var code = Run("cs");
+        var code = Run("translate", "csharp");
 
         // Assert
         code.ShouldBe(CommandLine.Failed);
@@ -138,8 +138,8 @@ public sealed class CommandLineTests : IDisposable
     [Theory]
     [InlineData]
     [InlineData("vb")]
-    [InlineData("cs", "--quick")]
-    [InlineData("cs", "a.json", "b.json")]
+    [InlineData("translate", "csharp", "--quick")]
+    [InlineData("translate", "csharp", "a.json", "b.json")]
     public void Run_WhenTheCommandLineIsNotOneItTakes_ShouldShowHowToUseItAndSaySo(params string[] arguments)
     {
         // Act
@@ -147,7 +147,7 @@ public sealed class CommandLineTests : IDisposable
 
         // Assert
         code.ShouldBe(CommandLine.Misused);
-        _error.ToString().ShouldContain("Usage: fortrania cs");
+        _error.ToString().ShouldContain("Usage: fortrania translate csharp");
     }
 
     [Fact]
@@ -169,12 +169,12 @@ public sealed class CommandLineTests : IDisposable
               ]
             }
             """);
-        Run("cs").ShouldBe(CommandLine.Done, _error.ToString());
+        Run("translate", "csharp").ShouldBe(CommandLine.Done, _error.ToString());
         File.Delete(Path.Combine(_root, "lib/twice.f"));
         var before = _output.ToString().Length;
 
         // Act
-        var code = Run("cs", "--project", "Example.App", "--force");
+        var code = Run("translate", "csharp", "--project", "Example.App", "--force");
 
         // Assert
         code.ShouldBe(CommandLine.Done, _error.ToString());
@@ -182,8 +182,8 @@ public sealed class CommandLineTests : IDisposable
     }
 
     [Theory]
-    [InlineData("cs", "--project")]
-    [InlineData("cs", "--project", "--force")]
+    [InlineData("translate", "csharp", "--project")]
+    [InlineData("translate", "csharp", "--project", "--force")]
     public void Run_WhenToldOfAProjectWithoutItsName_ShouldShowHowToUseItAndSaySo(params string[] arguments)
     {
         // Act
@@ -202,11 +202,81 @@ public sealed class CommandLineTests : IDisposable
         Put("fortrania.json", Settings);
 
         // Act
-        var code = Run("cs", "--project", "Example.Other");
+        var code = Run("translate", "csharp", "--project", "Example.Other");
 
         // Assert
         code.ShouldBe(CommandLine.Failed);
         _error.ToString().ShouldContain("the project Example.Other to translate");
+    }
+
+    [Theory]
+    [InlineData("t", "cs")]
+    [InlineData("tr", "c", "--f")]
+    [InlineData("translate", "csh", "--fo")]
+    public void Run_WhenWordsAndOptionsAreShortenedToAStartNoOtherShares_ShouldTakeThemForTheWholeWords(params string[] arguments)
+    {
+        // Arrange
+        Put("src/twice.f", Source);
+        Put("fortrania.json", Settings);
+
+        // Act
+        var code = Run(arguments);
+
+        // Assert
+        code.ShouldBe(CommandLine.Done, _error.ToString());
+        _output.ToString().ShouldStartWith("Translated: 1 program units,");
+    }
+
+    [Theory]
+    [InlineData("--v")]
+    [InlineData("--vers")]
+    public void Run_WhenAnOptionOfItsOwnIsShortened_ShouldTakeItForTheWholeOption(string typed)
+    {
+        // Act
+        var code = Run(typed);
+
+        // Assert
+        code.ShouldBe(CommandLine.Done);
+        _output.ToString().ShouldMatch(@"^\d+\.\d+\.\d+");
+    }
+
+    [Theory]
+    [InlineData("translate")]
+    [InlineData("translate", "--force")]
+    public void Run_WhenTranslateIsGivenNoTarget_ShouldSayWhatItCanTranslateTo(params string[] arguments)
+    {
+        // Act
+        var code = Run(arguments);
+
+        // Assert
+        code.ShouldBe(CommandLine.Misused);
+        _error.ToString().ShouldContain("translate is to be followed by what to translate to: csharp.");
+    }
+
+    [Fact]
+    public void Run_WhenAWordIsNoneOfThoseItTakes_ShouldSaySo()
+    {
+        // Act
+        var code = Run("translate", "vb");
+
+        // Assert
+        code.ShouldBe(CommandLine.Misused);
+        _error.ToString().ShouldContain("vb is not a target of translate.");
+    }
+
+    [Theory]
+    [InlineData("help")]
+    [InlineData("he")]
+    [InlineData("-h")]
+    [InlineData("--h")]
+    public void Run_WhenAskedForHelpInAnyOfItsSpellings_ShouldShowHowToUseItAndSucceed(string typed)
+    {
+        // Act
+        var code = Run(typed);
+
+        // Assert
+        code.ShouldBe(CommandLine.Done);
+        _output.ToString().ShouldContain("Usage: fortrania translate csharp");
     }
 
     [Fact]
@@ -217,7 +287,7 @@ public sealed class CommandLineTests : IDisposable
 
         // Assert
         code.ShouldBe(CommandLine.Done);
-        _output.ToString().ShouldContain("Usage: fortrania cs");
+        _output.ToString().ShouldContain("Usage: fortrania translate csharp");
     }
 
     [Fact]
