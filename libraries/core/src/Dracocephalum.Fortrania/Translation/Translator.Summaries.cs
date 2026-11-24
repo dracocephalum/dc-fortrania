@@ -116,7 +116,7 @@ public static partial class Translator
                 ProjectSummary? summary;
                 try
                 {
-                    summary = ReadSummaryOf(path);
+                    summary = ReadEmbeddedSummary(path);
                 }
                 catch (Exception exception) when (exception is JsonException or IOException or BadImageFormatException or UnauthorizedAccessException)
                 {
@@ -156,7 +156,7 @@ public static partial class Translator
 
         // The summary an assembly carries, read from its metadata without
         // loading it; nothing for one that carries none.
-        private static ProjectSummary? ReadSummaryOf(string path)
+        private static ProjectSummary? ReadEmbeddedSummary(string path)
         {
             using var stream = File.OpenRead(path);
             using var image = new PEReader(stream);
