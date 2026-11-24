@@ -13,6 +13,15 @@ public sealed class TranslationOptions
     /// </summary>
     public bool Force { get; set; }
 
+    /// <summary>
+    /// Gets or sets the projects to translate, by name; every project of the
+    /// settings unless set. A project left out is not read: what the
+    /// projects translated need of it is read from the summary its last
+    /// translation wrote beside its translated sources, and it is not
+    /// written. One left out that has no summary takes no part.
+    /// </summary>
+    public IReadOnlyCollection<string>? Projects { get; set; }
+
     /// <summary>Gets or sets how long a download of sources may take; <see cref="DefaultDownloadTimeout"/> unless set.</summary>
     public TimeSpan DownloadTimeout { get; set; } = DefaultDownloadTimeout;
 

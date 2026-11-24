@@ -765,6 +765,41 @@ have the operating system run a command, which it may not unless the host
 says so. `EXIT` throws as `STOP` does. A procedure of the program that has
 one of these names is the program's own and is called as any other.
 
+## A project is translated apart by the summaries of those it calls into
+
+What a unit shows another is its summary, above; what a project shows
+another is the same, gathered. Each project a translation translates
+writes `Generated/.fortrania-summary.json` beside its translated sources:
+for each of its sources the class it became, and for each procedure its
+interface, what it does with each argument, how deep a call of it can go
+and how deep beneath it a procedure it was passed can be called; and the
+project's working region, its own bytes and what a call into it can
+reach. `TranslationOptions.Projects` names the projects to translate, and
+every other is read from its summary and not from its sources, which then
+need not be on the machine.
+
+- **What each argument is used for is the effect, not the uses.** A unit's
+  summary says what its own statements do with an argument and where they
+  pass it on; a caller in another project cannot follow where it is passed,
+  since it reads none of the project's sources. So the summary carries the
+  answer `ArgumentEffects` works out over the whole project, the projects
+  it calls into counted too, and where each argument is passed is left
+  out.
+- **Translated one project at a time, a translation gives the same files
+  as all at once**, byte for byte. Verified on the reference sources: the
+  test program translated against the toolkit's summary, with the
+  toolkit's sources gone, gave the same 593 files and the same stack use
+  as the two translated together, in 44 seconds where the two take 2
+  minutes 46.
+- **A procedure to a line.** The toolkit's summary is some 2,000 lines and
+  1.1 MB, and is read in a diff as well; the same text is written for the
+  same project, so a translation that changes nothing a caller sees
+  rewrites nothing.
+- **A project left out with no summary takes no part.** One the translated
+  projects only might call is then missing as any undefined procedure is;
+  one that the settings say a translated project refers to is an error,
+  which names the file to make.
+
 ## What is translated is set out as projects and their sources
 
 One settings file names everything a translation produces, and
