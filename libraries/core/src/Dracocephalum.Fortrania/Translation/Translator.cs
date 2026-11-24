@@ -76,6 +76,14 @@ public static partial class Translator
 
         public SourceSettings Settings { get; } = settings;
 
+        // Whether the source was read from its project's summary and not
+        // from its files; it is then not translated or written.
+        public bool IsSummarized { get; init; }
+
+        // The procedures of a source read from a summary, by the name each
+        // is called by; empty for a source that is translated.
+        public Dictionary<string, ProcedureSummary> Summarized { get; } = new(StringComparer.Ordinal);
+
         public string Namespace { get; } = project.Namespace ?? project.Name;
 
         public string ClassName { get; } = settings.Class ?? settings.Name;
@@ -113,6 +121,7 @@ public static partial class Translator
         public TranslationResult Run()
         {
             CheckSettings();
+            CheckProjectsNamed();
             CheckVariables();
             CheckCommands();
             if (!HasErrors)
@@ -127,8 +136,14 @@ public static partial class Translator
 
             if (!HasErrors)
             {
+                CheckSummarizedReferences();
+            }
+
+            if (!HasErrors)
+            {
                 CheckCalls();
                 WorkOutReferences();
+                WorkOutEffects();
                 WorkOutEntries();
             }
 
@@ -155,7 +170,7 @@ public static partial class Translator
 
             return HasErrors
                 ? new TranslationResult(_messages, _written, _removed, 0)
-                : new TranslationResult(_messages, _written, _removed, _sources.Sum(source => source.Units.Count))
+                : new TranslationResult(_messages, _written, _removed, _sources.Where(source => !source.IsSummarized).Sum(source => source.Units.Count))
                 {
                     StackUse = _stackUse,
                     WorkingRegions = _workingRegions,
@@ -336,6 +351,13 @@ public static partial class Translator
         {
             foreach (var project in settings.Projects)
             {
+                if (!IsTranslated(project))
+                {
+                    ReadSummary(project);
+                    continue;
+                }
+
+                _projects.Add(project);
                 foreach (var sourceSettings in project.Sources)
                 {
                     var source = new Source(project, sourceSettings);
@@ -475,8 +497,16 @@ public static partial class Translator
 
         private void WorkOutReferences()
         {
-            foreach (var project in settings.Projects)
+            foreach (var project in _projects)
             {
+                // A project read from its summary refers to what it did
+                // when it was translated.
+                if (_summaries.TryGetValue(project, out var summary))
+                {
+                    _references[project] = [.. _projects.Where(other => summary.References.Contains(other.Name, StringComparer.Ordinal))];
+                    continue;
+                }
+
                 var used = _sources
                     .Where(source => source.Project == project)
                     .SelectMany(Used)
@@ -492,16 +522,16 @@ public static partial class Translator
                         Error($"The project {project.Name} calls into {missing.Name} and does not refer to it.");
                     }
 
-                    _references[project] = [.. settings.Projects.Where(other => given.Contains(other.Name, StringComparer.Ordinal))];
+                    _references[project] = [.. _projects.Where(other => given.Contains(other.Name, StringComparer.Ordinal))];
                 }
                 else
                 {
-                    _references[project] = [.. settings.Projects.Where(used.Contains)];
+                    _references[project] = [.. _projects.Where(used.Contains)];
                 }
             }
 
             // Assemblies cannot refer to each other in a circle.
-            foreach (var project in settings.Projects)
+            foreach (var project in _projects)
             {
                 if (Reaches(project, project, []))
                 {
@@ -519,7 +549,7 @@ public static partial class Translator
         // written, so there is nothing to choose.
         private void WorkOutEntries()
         {
-            foreach (var project in settings.Projects)
+            foreach (var project in _projects.Where(IsTranslated))
             {
                 var mains = _sources
                     .Where(source => source.Project == project)
@@ -561,7 +591,7 @@ public static partial class Translator
 
         private void Emit()
         {
-            foreach (var source in _sources)
+            foreach (var source in _sources.Where(source => !source.IsSummarized))
             {
                 var options = new EmitOptions(source.Namespace, source.ClassName)
                 {
@@ -607,7 +637,7 @@ public static partial class Translator
         // it asks of its context for them.
         private void WriteWithPlaces()
         {
-            foreach (var source in _sources)
+            foreach (var source in _sources.Where(source => !source.IsSummarized))
             {
                 // In the order of the files' names, so that a constant has
                 // the same place however the units came to be read.
@@ -656,9 +686,10 @@ public static partial class Translator
         {
             // What a project is, is decided before any is written: writing
             // one makes it a project that exists.
-            var scaffolded = settings.Projects.Where(project => IsScaffolded(FolderOf(project))).ToHashSet();
+            var translated = _projects.Where(IsTranslated).ToList();
+            var scaffolded = translated.Where(project => IsScaffolded(FolderOf(project))).ToHashSet();
 
-            foreach (var project in settings.Projects)
+            foreach (var project in translated)
             {
                 var folder = FolderOf(project);
                 foreach (var source in _sources.Where(source => source.Project == project))
@@ -702,6 +733,11 @@ public static partial class Translator
                         }
                     }
                 }
+
+                // What the projects that call into this one need of it, for
+                // a translation that leaves this one out.
+                Directory.CreateDirectory(Path.Combine(folder, GeneratedFolder));
+                WriteIfChanged(SummaryPathOf(project), SummarizeProject(project).ToJson());
 
                 if (scaffolded.Contains(project))
                 {

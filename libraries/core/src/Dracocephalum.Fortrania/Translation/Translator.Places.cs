@@ -30,21 +30,30 @@ public static partial class Translator
         // that led to it.
         private void WorkOutPlaces()
         {
+            // A project read from its summary brings its sizes with it.
             var sizes = new Dictionary<ProjectSettings, long>();
-            foreach (var project in settings.Projects)
+            var reaches = new Dictionary<ProjectSettings, long>();
+            foreach (var project in _projects)
             {
-                sizes[project] = PlaceProceduresOf(project);
+                if (_summaries.TryGetValue(project, out var summary))
+                {
+                    sizes[project] = summary.OwnBytes;
+                    reaches[project] = summary.ReachBytes;
+                }
+                else
+                {
+                    sizes[project] = PlaceProceduresOf(project);
+                }
             }
 
             // What a project can need when it is the first to be called: its
             // own region and, after it, the most any chain of the projects
             // it refers to needs.
-            var reaches = new Dictionary<ProjectSettings, long>();
             long ReachOf(ProjectSettings project) => reaches.TryGetValue(project, out var known)
                 ? known
                 : reaches[project] = sizes[project] + _references.GetValueOrDefault(project, []).Select(ReachOf).DefaultIfEmpty(0).Max();
 
-            _workingRegions.AddRange(settings.Projects
+            _workingRegions.AddRange(_projects
                 .OrderBy(project => project.Name, StringComparer.Ordinal)
                 .Select(project => new WorkingRegion(project.Name, sizes[project], ReachOf(project))));
         }

@@ -68,6 +68,11 @@ public static partial class Translator
                 return known;
             }
 
+            if (source.Summarized.TryGetValue(name, out var summarized))
+            {
+                return _depths[key] = summarized.Deepest is { } deepestSummarized ? ToDepth(deepestSummarized) : new Depth(0, [], false);
+            }
+
             if (!_onChain.Add(key))
             {
                 return new Depth(0, [], IsRecursive: true);
@@ -115,6 +120,11 @@ public static partial class Translator
             if (_throughDepths.TryGetValue(key, out var known))
             {
                 return known;
+            }
+
+            if (source.Summarized.TryGetValue(name, out var summarized))
+            {
+                return _throughDepths[key] = summarized.Through is { } through ? ToDepth(through) : null;
             }
 
             if (!_onThroughChain.Add(key))
@@ -165,7 +175,12 @@ public static partial class Translator
         // project's first. None for the compiler's library, which is the
         // runtime's, or a procedure no source defines, warned of already.
         private Source? FindOwner(Source from, string name) =>
-            from.Methods.ContainsKey(name) ? from : Visible(from).FirstOrDefault(other => other.Methods.ContainsKey(name));
+            HasMethod(from, name) ? from : Visible(from).FirstOrDefault(other => HasMethod(other, name));
+
+        // A procedure translated this time has a method; one read from a
+        // summary has what its method took, where it had one.
+        private static bool HasMethod(Source source, string name) =>
+            source.Methods.ContainsKey(name) || (source.Summarized.TryGetValue(name, out var summarized) && summarized.Deepest is not null);
 
         private sealed record Depth(long Bytes, IReadOnlyList<string> Chain, bool IsRecursive);
     }

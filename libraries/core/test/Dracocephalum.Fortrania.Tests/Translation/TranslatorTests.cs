@@ -20,6 +20,45 @@ public sealed class TranslatorTests : IDisposable
               END
         """;
 
+    // A library that calls a function it is passed beneath a buffer of its
+    // own, and a function of its own that is called by name.
+    private const string Library =
+        """
+              SUBROUTINE APPLY ( F, X, Y )
+              DOUBLE PRECISION F, X, Y, W ( 8 )
+              EXTERNAL F
+              INTEGER I
+              DO I = 1, 8
+                 W ( I ) = X
+              END DO
+              Y = F ( W ( 3 ) )
+              END
+
+              DOUBLE PRECISION FUNCTION TWICE ( X )
+              DOUBLE PRECISION X
+              TWICE = 2 * X
+              END
+        """;
+
+    // A program that passes a function of its own to the library, and
+    // calls another of the library's by name.
+    private const string Caller =
+        """
+              PROGRAM TOOL
+              DOUBLE PRECISION Y, SQUARE, A ( 4 ), TWICE
+              EXTERNAL SQUARE
+              A ( 1 ) = 3
+              CALL APPLY ( SQUARE, A ( 1 ), Y )
+              CALL EXIT ( INT ( Y + TWICE ( 1.0D0 ) ) )
+              END
+
+              DOUBLE PRECISION FUNCTION SQUARE ( X )
+              DOUBLE PRECISION X, B ( 16 )
+              B ( 1 ) = X
+              SQUARE = B ( 1 ) * B ( 1 )
+              END
+        """;
+
     private const string Tool =
         """
               PROGRAM TOOL
@@ -54,16 +93,18 @@ public sealed class TranslatorTests : IDisposable
         Files("out").ShouldBe(
         [
             "out/Example.Tool/Example.Tool.csproj",
+            "out/Example.Tool/Generated/.fortrania-summary.json",
             "out/Example.Tool/Generated/ToolMain/.fortrania.json",
             "out/Example.Tool/Generated/ToolMain/TOOL.g.cs",
             "out/Example.Tool/Generated/ToolMain/ToolMain.g.cs",
             "out/Example.Tool/Program.cs",
             "out/Example.Toolkit/Example.Toolkit.csproj",
+            "out/Example.Toolkit/Generated/.fortrania-summary.json",
             "out/Example.Toolkit/Generated/Core/.fortrania.json",
             "out/Example.Toolkit/Generated/Core/CPUT.g.cs",
             "out/Example.Toolkit/Generated/Core/Core.g.cs",
         ]);
-        result.Written.Count.ShouldBe(7);
+        result.Written.Count.ShouldBe(9);
 
         var library = Text("out/Example.Toolkit/Example.Toolkit.csproj");
         library.ShouldContain("<TargetFramework>net10.0</TargetFramework>");
@@ -142,6 +183,7 @@ public sealed class TranslatorTests : IDisposable
         result.Removed.Select(Path.GetFileName).ShouldBe(["EXTRA.g.cs"]);
         Files("out/Example.Toolkit/Generated").ShouldBe(
         [
+            "out/Example.Toolkit/Generated/.fortrania-summary.json",
             "out/Example.Toolkit/Generated/Core/.fortrania.json",
             "out/Example.Toolkit/Generated/Core/CPUT.g.cs",
             "out/Example.Toolkit/Generated/Core/Core.g.cs",
@@ -530,7 +572,7 @@ public sealed class TranslatorTests : IDisposable
         result.Messages.ShouldBeEmpty();
         Text("output.txt").Trim().ShouldBe(Path.Combine(_root, "out"));
         File.ReadAllLines(Path.Combine(_root, "written.txt")).Select(Path.GetFileName).Order(StringComparer.Ordinal)
-            .ShouldBe(["CPUT.g.cs", "Core.g.cs", "Example.Toolkit.csproj"]);
+            .ShouldBe([".fortrania-summary.json", "CPUT.g.cs", "Core.g.cs", "Example.Toolkit.csproj"]);
     }
 
     [Fact]
@@ -1208,6 +1250,116 @@ public sealed class TranslatorTests : IDisposable
     }
 
     [Fact]
+    public void Run_WhenAProjectIsReadFromItsSummary_ShouldWriteTheOthersAsTranslatingAllAtOnceDoes()
+    {
+        // Arrange: the tool passes a function of its own to the library,
+        // which calls it beneath a buffer of its own, so that the tool's
+        // stack use, its region and its calls all lean on what the library
+        // shows of itself.
+        Put("core/lib.f", Library);
+        Put("tool/main.f", Caller);
+        var settings = Settings(Project("Example.Toolkit", Source("Core", "core/*.f")), Project("Example.Tool", Source("ToolMain", "tool/*.f")));
+        var whole = Translator.Run(settings, _root);
+        whole.Succeeded.ShouldBeTrue();
+        var files = Contents("out/Example.Tool");
+        var stack = StackOf(whole, "Example.Tool");
+
+        // The tool's translation goes, and so do the library's sources.
+        Directory.Delete(Path.Combine(_root, "out/Example.Tool"), recursive: true);
+        File.Delete(Path.Combine(_root, "core/lib.f"));
+
+        // Act
+        var apart = Translator.Run(settings, _root, new TranslationOptions { Projects = ["Example.Tool"] });
+
+        // Assert
+        apart.Succeeded.ShouldBeTrue(string.Join('\n', apart.Messages));
+        apart.Units.ShouldBe(2);
+        Contents("out/Example.Tool").ShouldBe(files);
+        StackOf(apart, "Example.Tool").ShouldBe(stack);
+        StackOf(apart, "Example.Toolkit").ShouldBeEmpty();
+        apart.WorkingRegions.ShouldBe(whole.WorkingRegions);
+        apart.Written.ShouldNotContain(path => path.Contains("Example.Toolkit", StringComparison.Ordinal));
+
+        var compiled = TranslatedProgram.FromSources(
+            Directory.GetFiles(Path.Combine(_root, "out"), "*.cs", SearchOption.AllDirectories).Select(File.ReadAllText));
+        compiled.RunMain("Example.Tool.Program").ShouldBe(9 + 2);
+    }
+
+    [Fact]
+    public void Run_WhenATranslatedProjectIsUnchanged_ShouldWriteTheSameSummaryAndSayWhatCallersNeed()
+    {
+        // Arrange
+        Put("core/lib.f", Library);
+        var settings = Settings(Project("Example.Toolkit", Source("Core", "core/*.f")));
+        Translator.Run(settings, _root).Succeeded.ShouldBeTrue();
+        var first = Text("out/Example.Toolkit/Generated/.fortrania-summary.json");
+
+        // Act
+        var again = Translator.Run(settings, _root, new TranslationOptions { Force = true });
+
+        // Assert: nothing a caller sees changed, so the file is not
+        // written again; and it says how APPLY is called and how deep a
+        // procedure passed to it is called.
+        again.Written.ShouldNotContain(path => path.EndsWith(".fortrania-summary.json", StringComparison.Ordinal));
+        Text("out/Example.Toolkit/Generated/.fortrania-summary.json").ShouldBe(first);
+        first.ShouldContain("\"project\": \"Example.Toolkit\"");
+        first.ShouldContain("{\"name\":\"APPLY\",");
+        first.ShouldContain("\"kind\":\"function\"");
+        first.ShouldContain("\"through\":{");
+    }
+
+    [Fact]
+    public void Run_WhenAProjectLeftOutHasNoSummaryAndAnotherRefersToIt_ShouldSaySoAndFail()
+    {
+        // Arrange
+        Put("tool/main.f", Caller);
+        var tool = Project("Example.Tool", Source("ToolMain", "tool/*.f"));
+        tool.References = ["Example.Toolkit"];
+        var settings = Settings(Project("Example.Toolkit", Source("Core", "core/*.f")), tool);
+
+        // Act
+        var result = Translator.Run(settings, _root, new TranslationOptions { Projects = ["Example.Tool"] });
+
+        // Assert
+        result.Succeeded.ShouldBeFalse();
+        result.Messages.ShouldContain(message => message.IsError && message.Text.Contains("refers to Example.Toolkit, which is not translated this time and has no summary", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Run_WhenTheOptionsNameAProjectTheSettingsLack_ShouldSaySoAndFail()
+    {
+        // Arrange
+        Put("core/lib.f", Library);
+        var settings = Settings(Project("Example.Toolkit", Source("Core", "core/*.f")));
+
+        // Act
+        var result = Translator.Run(settings, _root, new TranslationOptions { Projects = ["Example.Other"] });
+
+        // Assert
+        result.Succeeded.ShouldBeFalse();
+        result.Messages.ShouldContain(message => message.IsError && message.Text.Contains("the project Example.Other to translate", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Run_WhenASummaryIsOfOtherSourcesThanTheSettingsHave_ShouldSayToTranslateItAgain()
+    {
+        // Arrange
+        Put("core/lib.f", Library);
+        Put("tool/main.f", Caller);
+        var library = Project("Example.Toolkit", Source("Core", "core/*.f"));
+        var settings = Settings(library, Project("Example.Tool", Source("ToolMain", "tool/*.f")));
+        Translator.Run(settings, _root).Succeeded.ShouldBeTrue();
+        library.Sources[0].Name = "Renamed";
+
+        // Act
+        var result = Translator.Run(settings, _root, new TranslationOptions { Projects = ["Example.Tool"] });
+
+        // Assert
+        result.Succeeded.ShouldBeFalse();
+        result.Messages.ShouldContain(message => message.IsError && message.Text.Contains("translate Example.Toolkit again", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void Run_WhenAUnitHasEntryPoints_ShouldCountEachByWhatItsOwnStatementsTakeAndCall()
     {
         // Arrange: only KEEP names the array, and only PEEK calls LEAF.
@@ -1386,6 +1538,19 @@ public sealed class TranslatorTests : IDisposable
     }
 
     private string Text(string path) => File.ReadAllText(Path.Combine(_root, path));
+
+    // Every file under a folder, by its path from the root, with its bytes
+    // as text.
+    private Dictionary<string, string> Contents(string folder) => Files(folder).ToDictionary(path => path, Text);
+
+    // A project's stack use as text, the chain of each spelled out, since a
+    // record that holds a list compares the list by reference.
+    private static string[] StackOf(TranslationResult result, string project) =>
+    [
+        .. result.StackUse
+            .Where(use => use.Project == project)
+            .Select(use => $"{use.Source} {use.Procedure} {use.OwnBytes} {use.DeepestBytes} {use.Place} {use.TakesProcedures} {use.IsRecursive}: {string.Join(' ', use.DeepestChain)}"),
+    ];
 
     private string[] Files(string folder) =>
     [

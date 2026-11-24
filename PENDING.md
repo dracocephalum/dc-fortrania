@@ -378,18 +378,14 @@ entry alone, and compiles what it wrote:
   which and fails, as the translator already reports a reference a
   project file lacks.
 
-**A project is translated apart from what calls into it.** Today every
-source of the settings is read in one run, because a call into another
-project needs to know how that procedure is called. So each project's
-translation writes a summary of itself beside its code: each procedure's
-interface, what it reads and writes through its arguments, and what it
-can take from the stack; and the project's working region, its own bytes
-and what it reaches. A project that calls into it reads that file and not
-its sources. The summary is kept and committed where the translation is,
-so that a project translates on a machine that has its own sources and
-none of what it calls into; and it can travel in a package, so that a
-program of someone else's that calls a translated library it has only as
-a package is translated against it rightly.
+**A project is translated apart from what calls into it**, by the
+summary each translation writes of the projects it translates; `DESIGN.md`,
+*A project is translated apart by the summaries of those it calls into*,
+has it. The summary is kept and committed where the translation is, so
+that a project translates on a machine that has its own sources and none
+of what it calls into. Still to come: the summary carried in a package, so
+that a program of someone else's that calls a translated library it has
+only as a package is translated against it rightly.
 
 **Translating one project at a time gives the same files as translating
 all at once**, byte for byte. That is what is tested: the reference
@@ -462,9 +458,12 @@ from either; what differs is around it:
 
 **The order it is built in**, one pull request each:
 
-1. The summary file, written by a translation and read by the next.
-2. One project of the settings translated by the command, and the test
-   that it gives the same files as all at once.
+1. The summary file, written by a translation and read by the next, and
+   the test that a project translated apart gives the same files as all
+   at once. Built.
+2. One project of the settings translated by the command, `--project`,
+   and sources fetched only for the projects translated: a run that
+   leaves a project out still fetches every folder the settings name.
 3. The settings above: the required root `output`, `translate`,
    `scaffold` and `solution`.
 4. The package and its targets.

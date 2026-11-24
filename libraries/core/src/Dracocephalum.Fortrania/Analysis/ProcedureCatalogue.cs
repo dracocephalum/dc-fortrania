@@ -20,10 +20,21 @@ public sealed class ProcedureCatalogue
 
         foreach (var entry in unit.EntryPoints)
         {
-            if (!_byName.TryAdd(entry.Name, entry))
-            {
-                throw new FortranAnalysisException(entry.Line, null, $"{entry.Name} is defined by another program unit as well.");
-            }
+            Add(entry);
+        }
+    }
+
+    /// <summary>
+    /// Adds one entry point, as a summary of a library translated before
+    /// has it, where the unit that defines it is not read.
+    /// </summary>
+    /// <param name="entry">How the procedure is called.</param>
+    /// <exception cref="FortranAnalysisException">A procedure of the same name was added before.</exception>
+    internal void Add(ProcedureInterface entry)
+    {
+        if (!_byName.TryAdd(entry.Name, entry))
+        {
+            throw new FortranAnalysisException(entry.Line, null, $"{entry.Name} is defined by another program unit as well.");
         }
     }
 
