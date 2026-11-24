@@ -22,6 +22,15 @@ public sealed class TranslationOptions
     /// </summary>
     public IReadOnlyCollection<string>? Projects { get; set; }
 
+    /// <summary>
+    /// Gets or sets a value indicating whether the run reaches no server:
+    /// nothing is downloaded, and a project to translate whose sources are
+    /// not on the machine is read from the summary its last translation
+    /// wrote, as one left out is. One that has no summary then fails. A
+    /// build runs so, and fetches in its restore.
+    /// </summary>
+    public bool Offline { get; set; }
+
     /// <summary>Gets or sets how long a download of sources may take; <see cref="DefaultDownloadTimeout"/> unless set.</summary>
     public TimeSpan DownloadTimeout { get; set; } = DefaultDownloadTimeout;
 

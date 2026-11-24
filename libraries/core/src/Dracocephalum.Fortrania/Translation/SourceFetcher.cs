@@ -34,8 +34,12 @@ internal sealed class SourceFetcher(TranslationOptions options)
 
         var parent = Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(folder)) ?? folder;
         Directory.CreateDirectory(parent);
-        var archive = Path.Combine(parent, "." + Path.GetFileName(folder) + ".download");
-        var partial = Path.Combine(parent, "." + Path.GetFileName(folder) + ".partial-" + Guid.NewGuid().ToString("N"));
+
+        // Each fetch has a download and a folder of its own, so that two
+        // builds fetching the same sources at once do not meet.
+        var attempt = Guid.NewGuid().ToString("N");
+        var archive = Path.Combine(parent, "." + Path.GetFileName(folder) + ".download-" + attempt);
+        var partial = Path.Combine(parent, "." + Path.GetFileName(folder) + ".partial-" + attempt);
 
         try
         {
@@ -54,7 +58,17 @@ internal sealed class SourceFetcher(TranslationOptions options)
                 }
             }
 
-            Directory.Move(partial, folder);
+            try
+            {
+                Directory.Move(partial, folder);
+            }
+            catch (IOException) when (Directory.Exists(folder))
+            {
+                // Another fetch of the same sources finished first; its
+                // folder holds the same archive, checked against the same
+                // hash, and this one goes.
+            }
+
             return null;
         }
         catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException or IOException or InvalidDataException or UnauthorizedAccessException)

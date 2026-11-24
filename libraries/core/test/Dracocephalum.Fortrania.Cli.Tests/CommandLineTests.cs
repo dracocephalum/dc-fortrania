@@ -280,6 +280,103 @@ public sealed class CommandLineTests : IDisposable
     }
 
     [Fact]
+    public void Run_WhenRunBelowTheSettingsFile_ShouldNotLookAboveAndSaySo()
+    {
+        // Arrange
+        Put("fortrania.json", Settings);
+        Directory.CreateDirectory(Path.Combine(_root, "deep"));
+
+        // Act
+        var code = RunIn(Path.Combine(_root, "deep"), "translate", "csharp");
+
+        // Assert
+        code.ShouldBe(CommandLine.Failed);
+        _error.ToString().ShouldContain("there is no fortrania.json or *.fortrania.json in");
+    }
+
+    [Fact]
+    public void Run_WhenAFolderIsNamedForTheSettings_ShouldTakeTheOneInIt()
+    {
+        // Arrange: the settings beside the sources, named by their folder
+        // from elsewhere, as a build names its project's.
+        Put("project/src/twice.f", Source);
+        Put("project/my.fortrania.json", Settings);
+        Directory.CreateDirectory(Path.Combine(_root, "elsewhere"));
+
+        // Act
+        var code = RunIn(Path.Combine(_root, "elsewhere"), "translate", "csharp", "../project");
+
+        // Assert
+        code.ShouldBe(CommandLine.Done, _error.ToString());
+        File.Exists(Path.Combine(_root, "project/out/Example.Toolkit/Generated/Core/TWICE.g.cs")).ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Run_WhenOfflineAndTheSourcesAreGone_ShouldCompileWhatWasTranslatedAndWriteNothing()
+    {
+        // Arrange
+        Put("src/twice.f", Source);
+        Put("fortrania.json", Settings);
+        Run("translate", "csharp").ShouldBe(CommandLine.Done);
+        File.Delete(Path.Combine(_root, "src/twice.f"));
+        var before = _output.ToString().Length;
+
+        // Act
+        var offline = Run("translate", "csharp", "--offline");
+        var online = Run("translate", "csharp");
+
+        // Assert
+        offline.ShouldBe(CommandLine.Done, _error.ToString());
+        _output.ToString()[before..].ShouldStartWith("Translated: 0 program units, 0 files written");
+        online.ShouldBe(CommandLine.Failed);
+        _error.ToString().ShouldContain("there is no such file");
+    }
+
+    [Fact]
+    public void Run_WhenOfflineAndNeitherSourcesNorATranslationAreThere_ShouldSayToRestoreAndFail()
+    {
+        // Arrange
+        Put("fortrania.json", Settings);
+
+        // Act
+        var code = Run("translate", "csharp", "--offline");
+
+        // Assert
+        code.ShouldBe(CommandLine.Failed);
+        _error.ToString().ShouldContain("restore them first");
+    }
+
+    [Theory]
+    [InlineData("restore")]
+    [InlineData("restore", "--if-needed")]
+    [InlineData("res", "--project", "Example.Toolkit", "--if")]
+    public void Run_WhenToldToRestoreWhatNeedsNoDownload_ShouldFetchNothingAndSucceed(params string[] arguments)
+    {
+        // Arrange
+        Put("src/twice.f", Source);
+        Put("fortrania.json", Settings);
+
+        // Act
+        var code = Run(arguments);
+
+        // Assert
+        code.ShouldBe(CommandLine.Done, _error.ToString());
+        _output.ToString().ShouldStartWith("Restored: 0 folders of sources fetched.");
+        Directory.Exists(Path.Combine(_root, "out")).ShouldBeFalse();
+    }
+
+    [Fact]
+    public void Run_WhenRestoreIsGivenAnOptionOfTranslate_ShouldSaySo()
+    {
+        // Act
+        var code = Run("restore", "--force");
+
+        // Assert
+        code.ShouldBe(CommandLine.Misused);
+        _error.ToString().ShouldContain("--force is not an option of restore.");
+    }
+
+    [Fact]
     public void Run_WhenAskedForHelp_ShouldShowHowToUseItAndSucceed()
     {
         // Act
