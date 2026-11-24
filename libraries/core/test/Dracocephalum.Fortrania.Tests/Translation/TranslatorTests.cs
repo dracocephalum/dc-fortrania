@@ -1,5 +1,8 @@
+using System.Text;
 using Dracocephalum.Fortrania.Tests.Emit;
 using Dracocephalum.Fortrania.Translation;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Shouldly;
 
 namespace Dracocephalum.Fortrania.Tests.Translation;
@@ -1528,6 +1531,86 @@ public sealed class TranslatorTests : IDisposable
     }
 
     [Fact]
+    public void Run_WhenALibraryIsReferencedAsAnAssemblyCarryingItsSummary_ShouldTranslateTheCallerAsWithTheLibraryInTheSettings()
+    {
+        // Arrange: both translated together; then the library is an
+        // assembly that carries its summary, and the settings have the
+        // program alone, as a build of the program sees it.
+        Put("core/lib.f", Library);
+        Put("tool/main.f", Caller);
+        var tool = Project("Example.Tool", Source("ToolMain", "tool/*.f"));
+        Translator.Run(Settings(Project("Example.Toolkit", Source("Core", "core/*.f")), tool), _root).Succeeded.ShouldBeTrue();
+        var generated = Contents("out/Example.Tool/Generated");
+        var assembly = MakeAssembly("Example.Toolkit", Text("out/Example.Toolkit/Generated/.fortrania-summary.json"));
+        Directory.Delete(Path.Combine(_root, "out/Example.Tool"), recursive: true);
+        File.Delete(Path.Combine(_root, "core/lib.f"));
+
+        // Act
+        var result = Translator.Run(Settings(tool), _root, new TranslationOptions { References = [assembly] });
+
+        // Assert: the same translation; the project file refers to no
+        // project, since whoever passed the assembly refers to it.
+        result.Succeeded.ShouldBeTrue(string.Join('\n', result.Messages));
+        Contents("out/Example.Tool/Generated").ShouldBe(generated);
+        Text("out/Example.Tool/Example.Tool.csproj").ShouldNotContain("Example.Toolkit");
+        result.WorkingRegions.Select(region => region.Project).ShouldBe(["Example.Tool", "Example.Toolkit"], ignoreOrder: true);
+
+        var compiled = TranslatedProgram.FromSources(
+            Directory.GetFiles(Path.Combine(_root, "out"), "*.cs", SearchOption.AllDirectories).Select(File.ReadAllText));
+        compiled.RunMain("Example.Tool.Program").ShouldBe(9 + 2);
+    }
+
+    [Fact]
+    public void Run_WhenAReferencedAssemblyCarriesNoSummary_ShouldPassItOver()
+    {
+        // Arrange
+        Put("tool/main.f", Caller);
+        var assembly = MakeAssembly("Plain", summary: null);
+
+        // Act
+        var result = Translator.Run(Settings(Project("Example.Tool", Source("ToolMain", "tool/*.f"))), _root, new TranslationOptions { References = [assembly] });
+
+        // Assert: what the program calls is then defined nowhere.
+        result.Messages.ShouldContain(message => !message.IsError && message.Text.Contains("calls APPLY, which no source of the settings defines", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Run_WhenTwoReferencedAssembliesDefineOneProcedure_ShouldSayWhichAndFail()
+    {
+        // Arrange: one library's summary under two projects' names.
+        Put("core/lib.f", Library);
+        Put("tool/main.f", Caller);
+        Translator.Run(Settings(Project("Example.Toolkit", Source("Core", "core/*.f"))), _root).Succeeded.ShouldBeTrue();
+        var summary = Text("out/Example.Toolkit/Generated/.fortrania-summary.json");
+        var first = MakeAssembly("Example.First", summary.Replace("\"Example.Toolkit\"", "\"Example.First\"", StringComparison.Ordinal));
+        var second = MakeAssembly("Example.Second", summary.Replace("\"Example.Toolkit\"", "\"Example.Second\"", StringComparison.Ordinal));
+
+        // Act
+        var result = Translator.Run(Settings(Project("Example.Tool", Source("ToolMain", "tool/*.f"))), _root, new TranslationOptions { References = [first, second] });
+
+        // Assert
+        result.Succeeded.ShouldBeFalse();
+        result.Messages.ShouldContain(message => message.IsError && message.Text.Contains("APPLY is defined by Example.First and by Example.Second", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Run_WhenAReferencedAssemblyHoldsAProjectOfTheSettings_ShouldSaySoAndFail()
+    {
+        // Arrange
+        Put("core/lib.f", Library);
+        var settings = Settings(Project("Example.Toolkit", Source("Core", "core/*.f")));
+        Translator.Run(settings, _root).Succeeded.ShouldBeTrue();
+        var assembly = MakeAssembly("Example.Toolkit", Text("out/Example.Toolkit/Generated/.fortrania-summary.json"));
+
+        // Act
+        var result = Translator.Run(settings, _root, new TranslationOptions { References = [assembly] });
+
+        // Assert
+        result.Succeeded.ShouldBeFalse();
+        result.Messages.ShouldContain(message => message.IsError && message.Text.Contains("holds the project Example.Toolkit, which the settings or another assembly have as well", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void Run_WhenAUnitHasEntryPoints_ShouldCountEachByWhatItsOwnStatementsTakeAndCall()
     {
         // Arrange: only KEEP names the array, and only PEEK calls LEAF.
@@ -1706,6 +1789,25 @@ public sealed class TranslatorTests : IDisposable
     }
 
     private string Text(string path) => File.ReadAllText(Path.Combine(_root, path));
+
+    // An assembly of the name given that carries a summary as its resource,
+    // as the build package is to embed one; or none.
+    private string MakeAssembly(string name, string? summary)
+    {
+        var compilation = CSharpCompilation.Create(
+            name,
+            [],
+            [MetadataReference.CreateFromFile(typeof(object).Assembly.Location)],
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+        var path = Path.Combine(_root, name + ".dll");
+        using var file = File.Create(path);
+        var bytes = summary is null ? null : Encoding.UTF8.GetBytes(summary);
+        var result = compilation.Emit(
+            file,
+            manifestResources: bytes is null ? null : [new ResourceDescription(ProjectSummary.ResourceName, () => new MemoryStream(bytes), isPublic: true)]);
+        result.Success.ShouldBeTrue();
+        return path;
+    }
 
     // Every file under a folder, by its path from the root, with its bytes
     // as text.

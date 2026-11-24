@@ -366,6 +366,33 @@ public sealed class CommandLineTests : IDisposable
     }
 
     [Fact]
+    public void Run_WhenAReferenceIsNotAnAssembly_ShouldSayWhichAndFail()
+    {
+        // Arrange
+        Put("src/twice.f", Source);
+        Put("fortrania.json", Settings);
+        Put("lib/not-an-assembly.dll", "text");
+
+        // Act
+        var code = Run("translate", "csharp", "--reference", "lib/not-an-assembly.dll");
+
+        // Assert
+        code.ShouldBe(CommandLine.Failed);
+        _error.ToString().ShouldContain(Path.Combine(_root, "lib", "not-an-assembly.dll") + ": error:");
+    }
+
+    [Fact]
+    public void Run_WhenAReferenceHasNoPath_ShouldShowHowToUseItAndSaySo()
+    {
+        // Act
+        var code = Run("translate", "csharp", "--reference");
+
+        // Assert
+        code.ShouldBe(CommandLine.Misused);
+        _error.ToString().ShouldContain("--reference is to be followed by the path of an assembly.");
+    }
+
+    [Fact]
     public void Run_WhenRestoreIsGivenAnOptionOfTranslate_ShouldSaySo()
     {
         // Act

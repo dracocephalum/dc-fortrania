@@ -59,7 +59,7 @@ The command is a .NET tool. From a build of this folder it runs as
 and, installed from its package, as
 
     dotnet tool install --global Dracocephalum.Fortrania.Cli
-    fortrania translate csharp [settings] [--project <name>]... [--force] [--offline]
+    fortrania translate csharp [settings] [--project <name>]... [--reference <assembly>]... [--force] [--offline]
     fortrania restore [settings] [--project <name>]... [--if-needed]
 
 With no settings file named it takes the one `fortrania.json` or

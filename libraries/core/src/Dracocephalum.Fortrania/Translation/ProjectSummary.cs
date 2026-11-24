@@ -37,6 +37,9 @@ internal sealed record ProjectSummary(
     /// <summary>The name of the file, in a project's folder of translated sources.</summary>
     public const string FileName = ".fortrania-summary.json";
 
+    /// <summary>The name of the resource that carries the summary in the assembly its project compiles to.</summary>
+    public const string ResourceName = "Fortrania.Summary.json";
+
     // The settings' own form, leaving out what is not there. A summary is
     // written a procedure to a line, since that of a large library is a few
     // thousand of them and is read by people in a diff as well.
@@ -51,9 +54,15 @@ internal sealed record ProjectSummary(
     /// <param name="path">The file.</param>
     /// <returns>The summary.</returns>
     /// <exception cref="JsonException">The file is not a summary, or one of a form this translator does not read.</exception>
-    public static ProjectSummary Load(string path)
+    public static ProjectSummary Load(string path) => Parse(File.ReadAllText(path));
+
+    /// <summary>Reads a summary from its text.</summary>
+    /// <param name="json">The text of a summary.</param>
+    /// <returns>The summary.</returns>
+    /// <exception cref="JsonException">The text is not a summary, or one of a form this translator does not read.</exception>
+    public static ProjectSummary Parse(string json)
     {
-        var summary = JsonSerializer.Deserialize<ProjectSummary>(File.ReadAllText(path), Json)
+        var summary = JsonSerializer.Deserialize<ProjectSummary>(json, Json)
             ?? throw new JsonException("The summary is empty.");
         return summary.Format == CurrentFormat
             ? summary

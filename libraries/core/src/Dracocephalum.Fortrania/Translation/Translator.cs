@@ -161,6 +161,7 @@ public static partial class Translator
             if (!HasErrors)
             {
                 Read();
+                ReadReferences();
             }
 
             if (!HasErrors)
@@ -614,12 +615,14 @@ public static partial class Translator
 
                 if (project.References is { } given)
                 {
-                    foreach (var missing in used.Where(other => !given.Contains(other.Name, StringComparer.Ordinal)))
+                    // A project an assembly brings is referred to by whoever
+                    // passed the assembly, a build by its own references.
+                    foreach (var missing in used.Where(other => !given.Contains(other.Name, StringComparer.Ordinal) && !_external.Contains(other)))
                     {
                         Error($"The project {project.Name} calls into {missing.Name} and does not refer to it.");
                     }
 
-                    _references[project] = [.. _projects.Where(other => given.Contains(other.Name, StringComparer.Ordinal))];
+                    _references[project] = [.. _projects.Where(other => given.Contains(other.Name, StringComparer.Ordinal) || (used.Contains(other) && _external.Contains(other)))];
                 }
                 else
                 {
@@ -998,7 +1001,7 @@ public static partial class Translator
 
             var file = Directory.GetFiles(folder, "*.csproj")[0];
             var text = File.ReadAllText(file);
-            foreach (var reference in _references[project])
+            foreach (var reference in _references[project].Where(reference => !_external.Contains(reference)))
             {
                 if (!text.Contains(reference.Name + ".csproj", StringComparison.OrdinalIgnoreCase))
                 {
@@ -1054,7 +1057,9 @@ public static partial class Translator
                 runtime,
             ]);
 
-            lines.AddRange(_references[project].Select(reference =>
+            // A project an assembly brings has no folder here; it is
+            // referred to by whoever passed the assembly.
+            lines.AddRange(_references[project].Where(reference => !_external.Contains(reference)).Select(reference =>
                 $"    <ProjectReference Include=\"{Relative(ProjectFileOf(reference, FolderOf(reference)))}\" />"));
             lines.AddRange(["  </ItemGroup>", string.Empty, "</Project>", string.Empty]);
             return string.Join('\n', lines);

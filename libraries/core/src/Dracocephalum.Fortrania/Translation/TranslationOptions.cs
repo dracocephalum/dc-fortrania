@@ -31,6 +31,14 @@ public sealed class TranslationOptions
     /// </summary>
     public bool Offline { get; set; }
 
+    /// <summary>
+    /// Gets or sets assemblies a translation may call into, by their paths:
+    /// each one a translation of another project compiled, carrying that
+    /// project's summary, as a build's project and package references do.
+    /// An assembly that carries none is passed over.
+    /// </summary>
+    public IReadOnlyCollection<string>? References { get; set; }
+
     /// <summary>Gets or sets how long a download of sources may take; <see cref="DefaultDownloadTimeout"/> unless set.</summary>
     public TimeSpan DownloadTimeout { get; set; } = DefaultDownloadTimeout;
 
