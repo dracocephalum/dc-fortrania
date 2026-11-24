@@ -44,10 +44,9 @@ internal static class CommandLine
           translate csharp   translates to C# as the settings file says
           restore            fetches the sources a translation would read, where
                              the settings say where from, and translates nothing
-          settings           the settings file, or a folder to look for it in; the
-                             one fortrania.json or *.fortrania.json found there or
-                             in the nearest folder above, this one where none is
-                             given
+          settings           the settings file, or a folder holding the one
+                             fortrania.json or *.fortrania.json; this folder
+                             where none is given
           --project          only the project of that name; each other project is
                              read from the summary its last translation wrote;
                              may be given more than once
@@ -260,12 +259,12 @@ internal static class CommandLine
 
     // The settings file named, taken from the working folder where it is
     // relative; or, where a folder is named or nothing is, the one with the
-    // name a settings file has in that folder or the nearest above it, as a
-    // build finds its own files. Several in one folder are refused; none is
-    // said and is nothing.
+    // name a settings file has in that folder or the working one. None, or
+    // several to choose from, is said and is nothing: no folder above is
+    // looked in, so that no file is taken that nobody pointed at.
     private static string? FindSettings(string? named, string workingDirectory, TextWriter error)
     {
-        var start = workingDirectory;
+        var folder = workingDirectory;
         if (named is not null)
         {
             var path = Path.GetFullPath(named, workingDirectory);
@@ -280,29 +279,25 @@ internal static class CommandLine
                 return null;
             }
 
-            start = path;
+            folder = path;
         }
 
-        for (var folder = new DirectoryInfo(start); folder is not null; folder = folder.Parent)
+        var found = Directory.EnumerateFiles(folder, "*" + SettingsName)
+            .Where(file => Path.GetFileName(file) is var name
+                && (name.Equals(SettingsName, StringComparison.OrdinalIgnoreCase) || name.EndsWith("." + SettingsName, StringComparison.OrdinalIgnoreCase)))
+            .Order(StringComparer.Ordinal)
+            .ToList();
+        switch (found)
         {
-            var found = folder.EnumerateFiles("*" + SettingsName)
-                .Select(file => file.FullName)
-                .Where(file => Path.GetFileName(file) is var name
-                    && (name.Equals(SettingsName, StringComparison.OrdinalIgnoreCase) || name.EndsWith("." + SettingsName, StringComparison.OrdinalIgnoreCase)))
-                .Order(StringComparer.Ordinal)
-                .ToList();
-            switch (found)
-            {
-                case [var only]:
-                    return only;
-                case [_, ..]:
-                    error.WriteLine($"fortrania: error: {folder.FullName} has several settings files, {string.Join(", ", found.Select(Path.GetFileName))}; name the one to use.");
-                    return null;
-            }
+            case [var only]:
+                return only;
+            case []:
+                error.WriteLine($"fortrania: error: there is no {SettingsName} or *.{SettingsName} in {folder}; name the settings file.");
+                return null;
+            default:
+                error.WriteLine($"fortrania: error: {folder} has several settings files, {string.Join(", ", found.Select(Path.GetFileName))}; name the one to use.");
+                return null;
         }
-
-        error.WriteLine($"fortrania: error: there is no {SettingsName} or *.{SettingsName} in {start} or above it; name the settings file.");
-        return null;
     }
 
     // The version the package was built as, with the commit it was built

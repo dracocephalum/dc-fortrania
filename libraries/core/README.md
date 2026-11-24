@@ -63,7 +63,7 @@ and, installed from its package, as
     fortrania restore [settings] [--project <name>]... [--if-needed]
 
 With no settings file named it takes the one `fortrania.json` or
-`*.fortrania.json` in the folder it is run in, or the nearest above. `fortrania --help` says
+`*.fortrania.json` in the folder it is run in. `fortrania --help` says
 the rest; [`DESIGN.md`](../../DESIGN.md), *The command is `fortrania`,
 and its first word what to do*, has why it is shaped so; at a prompt
 `fortrania t cs` will do.

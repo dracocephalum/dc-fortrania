@@ -280,33 +280,31 @@ public sealed class CommandLineTests : IDisposable
     }
 
     [Fact]
-    public void Run_WhenRunBelowTheSettingsFile_ShouldFindItInTheNearestFolderAbove()
+    public void Run_WhenRunBelowTheSettingsFile_ShouldNotLookAboveAndSaySo()
     {
         // Arrange
-        Put("src/twice.f", Source);
         Put("fortrania.json", Settings);
-        Directory.CreateDirectory(Path.Combine(_root, "deep/er"));
+        Directory.CreateDirectory(Path.Combine(_root, "deep"));
 
         // Act
-        var code = RunIn(Path.Combine(_root, "deep/er"), "translate", "csharp");
+        var code = RunIn(Path.Combine(_root, "deep"), "translate", "csharp");
 
         // Assert
-        code.ShouldBe(CommandLine.Done, _error.ToString());
-        File.Exists(Path.Combine(_root, "out/Example.Toolkit/Generated/Core/TWICE.g.cs")).ShouldBeTrue();
+        code.ShouldBe(CommandLine.Failed);
+        _error.ToString().ShouldContain("there is no fortrania.json or *.fortrania.json in");
     }
 
     [Fact]
-    public void Run_WhenAFolderIsNamedForTheSettings_ShouldLookInItAndAbove()
+    public void Run_WhenAFolderIsNamedForTheSettings_ShouldTakeTheOneInIt()
     {
-        // Arrange: the settings beside the sources, and a folder below
-        // them named from elsewhere, as a build names its project's.
+        // Arrange: the settings beside the sources, named by their folder
+        // from elsewhere, as a build names its project's.
         Put("project/src/twice.f", Source);
         Put("project/my.fortrania.json", Settings);
-        Directory.CreateDirectory(Path.Combine(_root, "project/libraries/one"));
         Directory.CreateDirectory(Path.Combine(_root, "elsewhere"));
 
         // Act
-        var code = RunIn(Path.Combine(_root, "elsewhere"), "translate", "csharp", "../project/libraries/one");
+        var code = RunIn(Path.Combine(_root, "elsewhere"), "translate", "csharp", "../project");
 
         // Assert
         code.ShouldBe(CommandLine.Done, _error.ToString());

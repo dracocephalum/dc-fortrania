@@ -1001,10 +1001,11 @@ layout already, for what is never published.
     fortrania restore [settings] [--project <name>]... [--if-needed]
     fortrania --version
 
-- **The settings file is named, or found.** Named as a folder, or not at
-  all, the command takes the one `fortrania.json` or `*.fortrania.json` in
-  that folder, or the one it is run in, or in the nearest folder above,
-  as a build finds its own files, and refuses several in one folder. Its paths are taken from where
+- **The settings file is named, or found in one folder.** Named as a
+  folder, or not at all, the command takes the one `fortrania.json` or
+  `*.fortrania.json` in that folder or the one it is run in, and refuses
+  none or several. It looks in no folder above, so that no file is taken
+  that nobody pointed at; a project's build names its own. Its paths are taken from where
   it lies, as `Translator.Run`'s are, so a translation is the same from
   whatever folder it is started.
 - **`--project` translates one project, or several**, and reads every

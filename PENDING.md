@@ -452,9 +452,8 @@ from either; what differs is around it:
    and sources fetched only for the projects translated. Built.
 3. The settings: the required root `output`, `translate`, `scaffold` and
    `solution`. Built.
-4. What the package needs of the command: the settings found from a
-   project's folder, `--offline`, and `fortrania restore` with
-   `--if-needed`. Built.
+4. What the package needs of the command: `--offline`, and `fortrania
+   restore` with `--if-needed`. Built.
 5. The package and its targets, fetching in restore among them.
 6. The translated library's repository taking it, with `scaffold: never`
    and project files of its own.
