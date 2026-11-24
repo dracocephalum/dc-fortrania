@@ -4,37 +4,76 @@ using System.Text.Json.Serialization;
 namespace Dracocephalum.Fortrania.Translation;
 
 /// <summary>
-/// Everything one translation produces: the projects, and the FORTRAN
-/// sources each is made from. It is what the settings file holds, and what
-/// the command line and a build step read into.
+/// One project of a translation, as a settings file describes it: an
+/// assembly, made of one or more FORTRAN sources, and where and how it is
+/// written. It is what the settings file holds, and what the command line
+/// and a build step read into.
 /// </summary>
+/// <remarks>
+/// A run translates one project or several, each from settings of its own;
+/// a project calls into the others of the run, and into those the
+/// assemblies it is translated against carry.
+/// </remarks>
 public sealed class TranslationSettings
 {
     /// <summary>
-    /// Gets or sets the folder the projects are written under, each in a
-    /// folder of its own name unless it names another. Like every path in
-    /// the settings it is taken from where the settings file lies. It has
-    /// no default, so that nothing is written to a folder nobody named:
+    /// Gets or sets the folder the settings file lies in, which every path
+    /// of the settings is taken from. <see cref="Load"/> sets it; settings
+    /// made otherwise are to be given one before they are translated.
+    /// </summary>
+    [JsonIgnore]
+    public string? Folder { get; set; }
+
+    /// <summary>
+    /// Gets or sets the project's name, which names its project file and
+    /// its assembly. Unless set it is the name of the one project file
+    /// beside the settings file.
+    /// </summary>
+    public string? Name { get; set; }
+
+    /// <summary>Gets or sets the namespace of the project's classes; the project's name unless set.</summary>
+    public string? Namespace { get; set; }
+
+    /// <summary>
+    /// Gets or sets the folder the project's translation is written to,
+    /// taken like every path of the settings from <see cref="Folder"/>. It
+    /// has no default, so that nothing is written to a folder nobody named:
     /// <c>"."</c> is the folder of the settings file itself.
     /// </summary>
     public string? Output { get; set; }
 
-    /// <summary>Gets or sets when a project is translated, where its own entry does not say; <see cref="TranslateMode.IfChanged"/> unless set.</summary>
+    /// <summary>Gets or sets when the project is translated; <see cref="TranslateMode.IfChanged"/> unless set.</summary>
     public TranslateMode Translate { get; set; } = TranslateMode.IfChanged;
 
-    /// <summary>
-    /// Gets or sets whether the files around a translation are written,
-    /// where a project's own entry does not say, and whether the solution
-    /// is; <see cref="ScaffoldMode.Once"/> unless set.
-    /// </summary>
+    /// <summary>Gets or sets whether the files around the project's translation are written; <see cref="ScaffoldMode.Once"/> unless set.</summary>
     public ScaffoldMode Scaffold { get; set; } = ScaffoldMode.Once;
 
     /// <summary>
-    /// Gets or sets the solution file that holds every project of the
-    /// settings, an <c>.slnx</c>; none unless set. It is written as
-    /// <see cref="Scaffold"/> says, since it belongs to no one project.
+    /// Gets or sets what the project is. Unless set it follows from its
+    /// sources: an executable when one of them has a main program, and a
+    /// library otherwise.
     /// </summary>
-    public string? Solution { get; set; }
+    public ProjectKind? Kind { get; set; }
+
+    /// <summary>
+    /// Gets or sets the main program an executable starts with, by its
+    /// name. It has to be set where the sources have more than one.
+    /// </summary>
+    public string? Entry { get; set; }
+
+    /// <summary>
+    /// Gets or sets the names of the projects this one calls into. Unless
+    /// set they are worked out from the calls; set, they are checked
+    /// against them.
+    /// </summary>
+    public IList<string>? References { get; set; }
+
+    /// <summary>
+    /// Gets or sets MSBuild properties written into the project file when
+    /// the translator writes one, after its own, by name; none unless set.
+    /// A project file that exists is not changed, so they do nothing there.
+    /// </summary>
+    public IDictionary<string, string> Properties { get; set; } = new Dictionary<string, string>(StringComparer.Ordinal);
 
     /// <summary>Gets or sets the target framework of a project file that is written; .NET 10 unless set.</summary>
     public string Framework { get; set; } = "net10.0";
@@ -81,29 +120,31 @@ public sealed class TranslationSettings
     [JsonIgnore]
     public IDictionary<string, string> LocalVariables { get; set; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>Gets or sets the projects.</summary>
-    public IList<ProjectSettings> Projects { get; set; } = [];
+    /// <summary>Gets or sets the FORTRAN libraries the project is made from, each a class.</summary>
+    public IList<SourceSettings> Sources { get; set; } = [];
 
     /// <summary>
-    /// Gets or sets the commands run once the whole translation has been
-    /// written, in order, each when the one before has ended well. A
-    /// command runs in the folder of the settings file, and finds in its
-    /// environment <c>FORTRANIA_SETTINGS</c>, that file's folder,
-    /// <c>FORTRANIA_OUTPUT</c>, the folder the projects are written under,
-    /// and <c>FORTRANIA_WRITTEN</c>, a file that lists every file the
-    /// translation wrote, a full path a line. A command that changes a
-    /// translated file keeps its first line, which says it was generated.
+    /// Gets or sets the commands run once the whole run has been written,
+    /// in order, each when the one before has ended well. A command runs
+    /// in the folder of the settings file, and finds in its environment
+    /// <c>FORTRANIA_SETTINGS</c>, that file's folder,
+    /// <c>FORTRANIA_OUTPUT</c>, the folder the project is written to, and
+    /// <c>FORTRANIA_WRITTEN</c>, a file that lists every file of the
+    /// project the translation wrote, a full path a line. A command that
+    /// changes a translated file keeps its first line, which says it was
+    /// generated.
     /// </summary>
     public IList<CommandSettings> OnSuccess { get; set; } = [];
 
-    /// <summary>Reads settings from a file.</summary>
+    /// <summary>Reads settings from a file, and the local settings file beside it where there is one.</summary>
     /// <param name="path">The settings file.</param>
-    /// <returns>The settings.</returns>
+    /// <returns>The settings, with <see cref="Folder"/> the file's folder.</returns>
     /// <exception cref="JsonException">The file is not settings: it is not JSON, or has a property the settings do not.</exception>
     public static TranslationSettings Load(string path)
     {
         ArgumentException.ThrowIfNullOrEmpty(path);
         var settings = Parse(File.ReadAllText(path));
+        settings.Folder = Path.GetDirectoryName(Path.GetFullPath(path));
 
         var local = LocalFileOf(path);
         if (File.Exists(local))
@@ -127,7 +168,7 @@ public sealed class TranslationSettings
 
     /// <summary>Reads settings from their text.</summary>
     /// <param name="json">The text of a settings file.</param>
-    /// <returns>The settings.</returns>
+    /// <returns>The settings, with no <see cref="Folder"/>.</returns>
     /// <exception cref="JsonException">The text is not settings: it is not JSON, or has a property the settings do not.</exception>
     public static TranslationSettings Parse(string json)
     {

@@ -31,8 +31,8 @@ public static partial class Translator
         private void WorkOutPlaces()
         {
             // A project read from its summary brings its sizes with it.
-            var sizes = new Dictionary<ProjectSettings, long>();
-            var reaches = new Dictionary<ProjectSettings, long>();
+            var sizes = new Dictionary<Project, long>();
+            var reaches = new Dictionary<Project, long>();
             foreach (var project in _projects)
             {
                 if (_summaries.TryGetValue(project, out var summary))
@@ -49,7 +49,7 @@ public static partial class Translator
             // What a project can need when it is the first to be called: its
             // own region and, after it, the most any chain of the projects
             // it refers to needs.
-            long ReachOf(ProjectSettings project) => reaches.TryGetValue(project, out var known)
+            long ReachOf(Project project) => reaches.TryGetValue(project, out var known)
                 ? known
                 : reaches[project] = sizes[project] + _references.GetValueOrDefault(project, []).Select(ReachOf).DefaultIfEmpty(0).Max();
 
@@ -58,7 +58,7 @@ public static partial class Translator
                 .Select(project => new WorkingRegion(project.Name, sizes[project], ReachOf(project))));
         }
 
-        private long PlaceProceduresOf(ProjectSettings project)
+        private long PlaceProceduresOf(Project project)
         {
             var callees = new Dictionary<(Source Source, string Name), HashSet<(Source Source, string Name)>>();
             var callers = new Dictionary<(Source Source, string Name), int>();

@@ -37,19 +37,17 @@ internal static class CommandLine
 
     private const string Usage =
         """
-        Usage: fortrania translate csharp [settings] [--project <name>]... [--reference <assembly>]... [--force] [--offline] [--record <file>]
-               fortrania restore [settings] [--project <name>]... [--if-needed]
+        Usage: fortrania translate csharp [settings]... [--reference <assembly>]... [--force] [--offline] [--record <file>]
+               fortrania restore [settings]... [--if-needed]
                fortrania --version
 
-          translate csharp   translates to C# as the settings file says
+          translate csharp   translates to C# the project each settings file says
           restore            fetches the sources a translation would read, where
                              the settings say where from, and translates nothing
-          settings           the settings file, or a folder holding the one
-                             fortrania.json or *.fortrania.json; this folder
-                             where none is given
-          --project          only the project of that name; each other project is
-                             read from the summary its last translation wrote;
-                             may be given more than once
+          settings           a project's settings file, or a folder holding the
+                             one fortrania.json or *.fortrania.json; this folder
+                             where none is given; several are translated together,
+                             each calling into those it needs of the others
           --reference        an assembly a translated project may call into, a
                              translation compiled that carries its project's
                              summary; may be given more than once
@@ -71,8 +69,8 @@ internal static class CommandLine
     private static readonly string[] Commands = ["help", "restore", "translate"];
     private static readonly string[] Options = ["--help", "--version"];
     private static readonly string[] Targets = ["csharp"];
-    private static readonly string[] TranslateOptions = ["--force", "--offline", "--project", "--record", "--reference"];
-    private static readonly string[] RestoreOptions = ["--if-needed", "--project"];
+    private static readonly string[] TranslateOptions = ["--force", "--offline", "--record", "--reference"];
+    private static readonly string[] RestoreOptions = ["--if-needed"];
 
     /// <summary>Runs the command.</summary>
     /// <param name="arguments">The command line, without the command's own name.</param>
@@ -145,12 +143,11 @@ internal static class CommandLine
         return Misused;
     }
 
-    // The settings named, the projects named and the flags given after a
+    // The settings named, the assemblies named and the flags given after a
     // command, or nothing, said, where the words are not ones it takes.
     private static Arguments? Parse(string[] arguments, IReadOnlyList<string> options, string command, TextWriter error)
     {
-        string? settings = null;
-        List<string>? projects = null;
+        var settings = new List<string>();
         List<string>? references = null;
         string? record = null;
 
@@ -173,7 +170,7 @@ internal static class CommandLine
                     return null;
                 }
 
-                if (option is not ("--project" or "--record" or "--reference"))
+                if (option is not ("--record" or "--reference"))
                 {
                     flags.Add(option);
                     continue;
@@ -183,9 +180,7 @@ internal static class CommandLine
                 {
                     Refuse(error, option switch
                     {
-                        "--project" => "--project is to be followed by the name of a project of the settings.",
                         "--record" => "--record is to be followed by the path of the file to write.",
-
                         _ => "--reference is to be followed by the path of an assembly.",
                     });
                     return null;
@@ -194,9 +189,6 @@ internal static class CommandLine
                 var value = arguments[++index];
                 switch (option)
                 {
-                    case "--project":
-                        (projects ??= []).Add(value);
-                        break;
                     case "--reference":
                         (references ??= []).Add(value);
                         break;
@@ -208,34 +200,28 @@ internal static class CommandLine
                         break;
                 }
             }
-            else if (settings is null)
-            {
-                settings = argument;
-            }
             else
             {
-                Refuse(error, $"{argument} is a second settings file; {command} takes one.");
-                return null;
+                settings.Add(argument);
             }
         }
 
-        return new Arguments(settings, projects, references, record, flags);
+        return new Arguments(settings, references, record, flags);
     }
 
     private static int TranslateToCSharp(Arguments arguments, TextWriter output, TextWriter error, string workingDirectory)
     {
-        if (Load(arguments.Settings, workingDirectory, error) is not var (path, settings))
+        if (Load(arguments.Settings, workingDirectory, error) is not { } loaded)
         {
             return Failed;
         }
 
         // Every path in the settings is taken from where the file lies, so
         // that a translation is the same from whatever folder it is run.
-        var result = Translator.Run(settings, Path.GetDirectoryName(path)!, new TranslationOptions
+        var result = Translator.Run([.. loaded.Select(file => file.Settings)], new TranslationOptions
         {
             Force = arguments.Flags.Contains("--force"),
             Offline = arguments.Flags.Contains("--offline"),
-            Projects = arguments.Projects,
 
             // An assembly named on the command line is taken from where the
             // command runs, as a person typing it means.
@@ -246,7 +232,7 @@ internal static class CommandLine
             error.WriteLine(message);
         }
 
-        if (arguments.Record is { } record && !WriteRecord(Path.GetFullPath(record, workingDirectory), path, result, error))
+        if (arguments.Record is { } record && !WriteRecord(Path.GetFullPath(record, workingDirectory), loaded.Select(file => file.Path), result, error))
         {
             return Failed;
         }
@@ -257,12 +243,12 @@ internal static class CommandLine
     }
 
     // What a build reads to tell when to translate again, a line a file:
-    // "read" for what the translation was made from, the settings among it,
+    // "read" for what the translation was made from, the settings files among it,
     // "pattern" for a file pattern its sources name, and "file" for what the
     // translation is made of. It is written only for a translation that was
     // done, and one that was not removes the last, so that a build that
     // failed is not taken for one that needs nothing.
-    private static bool WriteRecord(string record, string settingsPath, TranslationResult result, TextWriter error)
+    private static bool WriteRecord(string record, IEnumerable<string> settingsPaths, TranslationResult result, TextWriter error)
     {
         try
         {
@@ -272,8 +258,7 @@ internal static class CommandLine
                 return true;
             }
 
-            var local = TranslationSettings.LocalFileOf(settingsPath);
-            var read = File.Exists(local) ? [settingsPath, local] : new[] { settingsPath };
+            var read = settingsPaths.SelectMany(path => new[] { path, TranslationSettings.LocalFileOf(path) }.Where(File.Exists));
             var lines = read.Concat(result.Read).Select(file => "read " + file)
                 .Concat(result.Patterns.Select(pattern => "pattern " + pattern))
                 .Concat(result.Files.Select(file => "file " + file));
@@ -290,15 +275,14 @@ internal static class CommandLine
 
     private static int RestoreSources(Arguments arguments, TextWriter output, TextWriter error, string workingDirectory)
     {
-        if (Load(arguments.Settings, workingDirectory, error) is not var (path, settings))
+        if (Load(arguments.Settings, workingDirectory, error) is not { } loaded)
         {
             return Failed;
         }
 
         var result = Translator.Restore(
-            settings,
-            Path.GetDirectoryName(path)!,
-            new TranslationOptions { Projects = arguments.Projects },
+            [.. loaded.Select(file => file.Settings)],
+            new TranslationOptions(),
             onlyWhereNotTranslated: arguments.Flags.Contains("--if-needed"));
         foreach (var message in result.Messages)
         {
@@ -309,24 +293,33 @@ internal static class CommandLine
         return result.Succeeded ? Done : Failed;
     }
 
-    // The settings file found, and what it says; nothing, said, where there
-    // is none or it is not settings.
-    private static (string Path, TranslationSettings Settings)? Load(string? named, string workingDirectory, TextWriter error)
+    // Each settings file named, or the one found where none is, and what it
+    // says; nothing, with each problem said, where one is not there or is
+    // not settings.
+    private static List<(string Path, TranslationSettings Settings)>? Load(IReadOnlyList<string> named, string workingDirectory, TextWriter error)
     {
-        if (FindSettings(named, workingDirectory, error) is not { } path)
+        var loaded = new List<(string Path, TranslationSettings Settings)>();
+        var failed = false;
+        foreach (var name in named.Count == 0 ? [null] : named.Cast<string?>())
         {
-            return null;
+            if (FindSettings(name, workingDirectory, error) is not { } path)
+            {
+                failed = true;
+                continue;
+            }
+
+            try
+            {
+                loaded.Add((path, TranslationSettings.Load(path)));
+            }
+            catch (Exception exception) when (exception is JsonException or IOException or UnauthorizedAccessException)
+            {
+                error.WriteLine($"{path}: error: {exception.Message}");
+                failed = true;
+            }
         }
 
-        try
-        {
-            return (path, TranslationSettings.Load(path));
-        }
-        catch (Exception exception) when (exception is JsonException or IOException or UnauthorizedAccessException)
-        {
-            error.WriteLine($"{path}: error: {exception.Message}");
-            return null;
-        }
+        return failed ? null : loaded;
     }
 
     // The settings file named, taken from the working folder where it is
@@ -380,5 +373,5 @@ internal static class CommandLine
             ?? "unknown";
 
     // What a command was told after its own words.
-    private sealed record Arguments(string? Settings, IReadOnlyCollection<string>? Projects, IReadOnlyCollection<string>? References, string? Record, IReadOnlySet<string> Flags);
+    private sealed record Arguments(IReadOnlyList<string> Settings, IReadOnlyCollection<string>? References, string? Record, IReadOnlySet<string> Flags);
 }

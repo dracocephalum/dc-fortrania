@@ -6,10 +6,8 @@
 
     What a project may set:
 
-      FortraniaSettings   the settings file; the one fortrania.json or
-                          *.fortrania.json in the project's folder unless set
-      FortraniaProject    the project of the settings this one is; the
-                          project's own name unless set
+      FortraniaSettings   the project's settings file; the one fortrania.json
+                          or *.fortrania.json in its folder unless set
       FortraniaTranslate  never, ifChanged or always, for this build over
                           what the settings say; empty, the settings decide.
                           never compiles what is there; always translates
@@ -41,7 +39,6 @@
   -->
 
   <PropertyGroup>
-    <FortraniaProject Condition="'$(FortraniaProject)' == ''">$(MSBuildProjectName)</FortraniaProject>
     <FortraniaFetch Condition="'$(FortraniaFetch)' == ''">ifNeeded</FortraniaFetch>
   </PropertyGroup>
 
@@ -106,14 +103,14 @@
     </ItemGroup>
 
     <PropertyGroup>
-      <_FortraniaArguments>"$(_FortraniaSettings)" --project "$(FortraniaProject)"</_FortraniaArguments>
+      <_FortraniaArguments>"$(_FortraniaSettings)"</_FortraniaArguments>
       <_FortraniaTranslateArguments>translate csharp $(_FortraniaArguments) --offline --record "$(_FortraniaRecord)"</_FortraniaTranslateArguments>
       <_FortraniaTranslateArguments Condition="'@(_FortraniaReference)' != ''">$(_FortraniaTranslateArguments) @(_FortraniaReference->'--reference "%(FullPath)"', ' ')</_FortraniaTranslateArguments>
       <_FortraniaRestoreArguments>restore $(_FortraniaArguments)</_FortraniaRestoreArguments>
       <_FortraniaRestoreArguments Condition="'$(FortraniaFetch)' == 'ifNeeded'">$(_FortraniaRestoreArguments) --if-needed</_FortraniaRestoreArguments>
     </PropertyGroup>
 
-    <!-- Its time changes when the command line does: a new version of the command, another project or other references. -->
+    <!-- Its time changes when the command line does: a new version of the command, other settings or other references. -->
     <WriteLinesToFile File="$(_FortraniaCommandLineFile)"
                       Lines="$(_FortraniaCommand) $(_FortraniaTranslateArguments)"
                       Overwrite="true"

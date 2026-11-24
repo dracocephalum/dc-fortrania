@@ -16,47 +16,38 @@ public static partial class Translator
     {
         // The projects not translated this time, by the summary each was
         // read from.
-        private readonly Dictionary<ProjectSettings, ProjectSummary> _summaries = [];
+        private readonly Dictionary<Project, ProjectSummary> _summaries = [];
 
         // The projects that take part: those translated, and those read
-        // from a summary. One the options leave out that has no summary
-        // takes no part, and a project that calls into it is told so.
-        private readonly List<ProjectSettings> _projects = [];
+        // from a summary. One of the run's that says never to translate and
+        // has no summary takes no part, and a project that calls into it is
+        // told so.
+        private readonly List<Project> _projects = [];
 
         // The projects the options' assemblies bring, which are no project
-        // of the settings: read, never written, and referred to by whoever
-        // passed the assembly.
-        private readonly HashSet<ProjectSettings> _external = [];
+        // of the run: read, never written, and referred to by whoever passed
+        // the assembly.
+        private readonly HashSet<Project> _external = [];
 
         // What each procedure of a project translated this time does with
         // its arguments, counting what is done further down, in other
         // projects as well.
-        private readonly Dictionary<ProjectSettings, ArgumentEffects> _effects = [];
+        private readonly Dictionary<Project, ArgumentEffects> _effects = [];
 
-        // A project named in the options is translated whatever its settings
-        // say; with none named, every project is but one whose settings say
+        // Every project of the run is translated but one whose settings say
         // never, unless the run is forced.
-        private bool IsTranslated(ProjectSettings project) => !_summaries.ContainsKey(project) && (options.Projects is { } named
-            ? named.Contains(project.Name, StringComparer.Ordinal)
-            : options.Force || (project.Translate ?? settings.Translate) != TranslateMode.Never);
+        private bool IsTranslated(Project project) =>
+            !_summaries.ContainsKey(project) && (options.Force || project.Settings.Translate != TranslateMode.Never);
 
         // Whether every file of a project translated is written again,
         // changed or not.
-        private bool IsForced(ProjectSettings project) => options.Force || (project.Translate ?? settings.Translate) == TranslateMode.Always;
+        private bool IsForced(Project project) => options.Force || project.Settings.Translate == TranslateMode.Always;
 
-        private string SummaryPathOf(ProjectSettings project) => Path.Combine(FolderOf(project), GeneratedFolder, ProjectSummary.FileName);
+        private static string SummaryPathOf(Project project) => Path.Combine(FolderOf(project), GeneratedFolder, ProjectSummary.FileName);
 
-        private void CheckProjectsNamed()
-        {
-            foreach (var missing in (options.Projects ?? []).Where(name => !settings.Projects.Any(project => project.Name == name)))
-            {
-                Error($"The options name the project {missing} to translate, and the settings have no project of that name.");
-            }
-        }
-
-        // A project left out is read from its summary where there is one;
+        // A project not translated is read from its summary where there is one;
         // its sources are not read at all. Says whether there was one.
-        private bool ReadSummary(ProjectSettings project)
+        private bool ReadSummary(Project project)
         {
             var path = SummaryPathOf(project);
             if (!File.Exists(path))
@@ -87,7 +78,7 @@ public static partial class Translator
             return true;
         }
 
-        private void AddSummarized(ProjectSettings project, ProjectSummary summary)
+        private void AddSummarized(Project project, ProjectSummary summary)
         {
             _summaries[project] = summary;
             _projects.Add(project);
@@ -106,13 +97,13 @@ public static partial class Translator
         // Each assembly the options name that carries a summary brings its
         // project, as a project read from its summary is: its sources are
         // its classes, by the names the summary gives them. One of the name
-        // of a project of the settings, or that defines a procedure another
+        // of a project of the run, or that defines a procedure another
         // assembly defines too, is refused, since a call could not tell
         // which it reaches.
         private void ReadReferences()
         {
             var definedBy = new Dictionary<string, string>(StringComparer.Ordinal);
-            foreach (var path in (options.References ?? []).Select(path => Path.GetFullPath(path, baseDirectory)).Distinct(StringComparer.OrdinalIgnoreCase))
+            foreach (var path in (options.References ?? []).Select(Path.GetFullPath).Distinct(StringComparer.OrdinalIgnoreCase))
             {
                 ProjectSummary? summary;
                 try
@@ -131,9 +122,9 @@ public static partial class Translator
                 }
 
                 NoteRead(path);
-                if (settings.Projects.Any(project => project.Name == summary.Project) || _external.Any(project => project.Name == summary.Project))
+                if (_given.Any(project => project.Name == summary.Project) || _external.Any(project => project.Name == summary.Project))
                 {
-                    Error($"The assembly holds the project {summary.Project}, which the settings or another assembly have as well.", path);
+                    Error($"The assembly holds the project {summary.Project}, which the run or another assembly has as well.", path);
                     continue;
                 }
 
@@ -145,12 +136,12 @@ public static partial class Translator
                     }
                 }
 
-                var project = new ProjectSettings
+                var settings = new TranslationSettings
                 {
-                    Name = summary.Project,
                     Namespace = summary.Sources.Count > 0 ? summary.Sources[0].Namespace : null,
                     Sources = [.. summary.Sources.Select(source => new SourceSettings { Name = source.Name, Class = source.Class })],
                 };
+                var project = new Project(settings, summary.Project, Path.GetDirectoryName(path) ?? path);
                 _external.Add(project);
                 AddSummarized(project, summary);
             }
@@ -188,19 +179,20 @@ public static partial class Translator
             return null;
         }
 
-        // A project the options leave out and that has no summary can still
-        // be named by one that is translated; that is an error, since its
-        // procedures cannot be known.
-        private void CheckSummarizedReferences()
+        // A project translated can refer only to those that take part: the
+        // run's own, translated or read from a summary, and those the
+        // assemblies bring. A project of the run that has no summary, or a
+        // name nothing brings, is an error, since its procedures cannot be
+        // known.
+        private void CheckReferencesNamed()
         {
             foreach (var project in _projects.Where(IsTranslated))
             {
-                foreach (var reference in project.References ?? [])
+                foreach (var reference in (project.Settings.References ?? []).Where(reference => !_projects.Any(other => other.Name == reference)))
                 {
-                    if (settings.Projects.FirstOrDefault(other => other.Name == reference) is { } other && !_projects.Contains(other))
-                    {
-                        Error($"The project {project.Name} refers to {reference}, which is not translated this time and has no summary at {SummaryPathOf(other)}; translate {reference} first.");
-                    }
+                    Error(_given.FirstOrDefault(other => other.Name == reference) is { } other
+                        ? $"The project {project.Name} refers to {reference}, which is not translated this time and has no summary at {SummaryPathOf(other)}; translate {reference} first."
+                        : $"The project {project.Name} refers to {reference}, which is neither translated with it nor in an assembly it is translated against.");
                 }
             }
         }
@@ -209,7 +201,7 @@ public static partial class Translator
         // it, in the order of the settings' sources and of the procedures'
         // names, so that a translation that changes nothing a caller sees
         // writes the same bytes.
-        private ProjectSummary SummarizeProject(ProjectSettings project)
+        private ProjectSummary SummarizeProject(Project project)
         {
             var region = _workingRegions.Single(region => region.Project == project.Name);
             var sources = _sources
@@ -254,8 +246,8 @@ public static partial class Translator
         // worked out this time, or read from its summary.
         private void WorkOutEffects()
         {
-            var done = new HashSet<ProjectSettings>(_summaries.Keys);
-            void WorkOut(ProjectSettings project)
+            var done = new HashSet<Project>(_summaries.Keys);
+            void WorkOut(Project project)
             {
                 if (!done.Add(project))
                 {

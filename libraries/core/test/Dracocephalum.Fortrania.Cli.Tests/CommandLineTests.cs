@@ -15,9 +15,10 @@ public sealed class CommandLineTests : IDisposable
     private const string Settings =
         """
         {
-          "output": "out",
+          "name": "Example.Toolkit",
+          "output": "out/Example.Toolkit",
           "runtime": { "package": "1.2.3" },
-          "projects": [ { "name": "Example.Toolkit", "sources": [ { "name": "Core", "files": [ "src/*.f" ] } ] } ]
+          "sources": [ { "name": "Core", "files": [ "src/*.f" ] } ]
         }
         """;
 
@@ -125,7 +126,7 @@ public sealed class CommandLineTests : IDisposable
     public void Run_WhenTheSettingsAreNotSettings_ShouldSayWhichFileAndFail()
     {
         // Arrange
-        Put("fortrania.json", """{ "projects": [], "colour": "red" }""");
+        Put("fortrania.json", """{ "sources": [], "colour": "red" }""");
 
         // Act
         var code = Run("translate", "csharp");
@@ -139,7 +140,7 @@ public sealed class CommandLineTests : IDisposable
     [InlineData]
     [InlineData("vb")]
     [InlineData("translate", "csharp", "--quick")]
-    [InlineData("translate", "csharp", "a.json", "b.json")]
+    [InlineData("translate", "csharp", "--project", "Example.Toolkit")]
     public void Run_WhenTheCommandLineIsNotOneItTakes_ShouldShowHowToUseItAndSaySo(params string[] arguments)
     {
         // Act
@@ -151,62 +152,42 @@ public sealed class CommandLineTests : IDisposable
     }
 
     [Fact]
-    public void Run_WhenToldOneProject_ShouldTranslateItAloneAndReadTheOtherFromItsSummary()
+    public void Run_WhenNamedSeveralSettingsFiles_ShouldTranslateTheirProjectsTogether()
     {
-        // Arrange: a library and a program that calls it, translated
-        // together once; then the library's sources go.
+        // Arrange: a library and a program that calls it, each with its
+        // settings in its own folder, the program's naming no output of
+        // its own and taking its name from its project file.
         Put("lib/twice.f", Source);
+        Put("lib/lib.fortrania.json", """{ "name": "Example.Toolkit", "output": ".", "sources": [ { "name": "Core", "files": [ "*.f" ] } ] }""");
         Put("app/main.f", "      PROGRAM APP\n      INTEGER N\n      N = 4\n      CALL TWICE ( N )\n      END\n");
-        Put(
-            "fortrania.json",
-            """
-            {
-              "output": "out",
-              "runtime": { "package": "1.2.3" },
-              "projects": [
-                { "name": "Example.Toolkit", "sources": [ { "name": "Core", "files": [ "lib/*.f" ] } ] },
-                { "name": "Example.App", "sources": [ { "name": "AppMain", "files": [ "app/*.f" ] } ] }
-              ]
-            }
-            """);
-        Run("translate", "csharp").ShouldBe(CommandLine.Done, _error.ToString());
-        File.Delete(Path.Combine(_root, "lib/twice.f"));
-        var before = _output.ToString().Length;
+        Put("app/Example.App.csproj", "<Project Sdk=\"Microsoft.NET.Sdk\" />\n");
+        Put("app/app.fortrania.json", """{ "output": ".", "sources": [ { "name": "AppMain", "files": [ "*.f" ] } ] }""");
 
         // Act
-        var code = Run("translate", "csharp", "--project", "Example.App", "--force");
+        var code = Run("translate", "csharp", "lib", "app/app.fortrania.json");
 
-        // Assert
+        // Assert: the program reaches the library's procedure, and is told
+        // its project file does not refer to the library.
         code.ShouldBe(CommandLine.Done, _error.ToString());
-        _output.ToString()[before..].ShouldStartWith("Translated: 1 program units,");
-    }
-
-    [Theory]
-    [InlineData("translate", "csharp", "--project")]
-    [InlineData("translate", "csharp", "--project", "--force")]
-    public void Run_WhenToldOfAProjectWithoutItsName_ShouldShowHowToUseItAndSaySo(params string[] arguments)
-    {
-        // Act
-        var code = Run(arguments);
-
-        // Assert
-        code.ShouldBe(CommandLine.Misused);
-        _error.ToString().ShouldContain("--project is to be followed by the name");
+        _output.ToString().ShouldStartWith("Translated: 2 program units,");
+        File.ReadAllText(Path.Combine(_root, "app/Generated/AppMain/APP.g.cs")).ShouldContain("TWICE(");
+        _error.ToString().ShouldContain("The project calls into Example.Toolkit and its project file does not refer to it.");
     }
 
     [Fact]
-    public void Run_WhenToldAProjectTheSettingsLack_ShouldSaySoAndFail()
+    public void Run_WhenASettingsFileNamedIsNotThere_ShouldSayWhichAndTranslateNothing()
     {
         // Arrange
         Put("src/twice.f", Source);
         Put("fortrania.json", Settings);
 
         // Act
-        var code = Run("translate", "csharp", "--project", "Example.Other");
+        var code = Run("translate", "csharp", "fortrania.json", "missing.fortrania.json");
 
         // Assert
         code.ShouldBe(CommandLine.Failed);
-        _error.ToString().ShouldContain("the project Example.Other to translate");
+        _error.ToString().ShouldContain($"there is no settings file {Path.Combine(_root, "missing.fortrania.json")}.");
+        Directory.Exists(Path.Combine(_root, "out")).ShouldBeFalse();
     }
 
     [Theory]
@@ -349,7 +330,7 @@ public sealed class CommandLineTests : IDisposable
     [Theory]
     [InlineData("restore")]
     [InlineData("restore", "--if-needed")]
-    [InlineData("res", "--project", "Example.Toolkit", "--if")]
+    [InlineData("res", "fortrania.json", "--if")]
     public void Run_WhenToldToRestoreWhatNeedsNoDownload_ShouldFetchNothingAndSucceed(params string[] arguments)
     {
         // Arrange

@@ -7,34 +7,25 @@ namespace Dracocephalum.Fortrania.Tests.Translation;
 public class TranslationSettingsTests
 {
     [Fact]
-    public void Parse_WhenTheTextIsASettingsFile_ShouldReadEveryProjectAndSource()
+    public void Parse_WhenTheTextIsASettingsFile_ShouldReadTheProjectAndEverySource()
     {
         // Arrange
         const string Json =
             """
             {
-              // Where the projects go.
-              "output": "src",
+              // Where the project goes.
+              "name": "Example.Tool",
+              "namespace": "Example.Tools",
+              "output": "tools/tool",
               "framework": "net10.0",
               "runtime": { "project": "../runtime/Runtime.csproj" },
-              "projects": [
-                {
-                  "name": "Example.Toolkit",
-                  "sources": [
-                    { "name": "Core", "files": [ "core/*.f" ], "includes": [ "core/inc" ] },
-                    { "name": "Support", "class": "SupportLibrary", "files": [ "support/*.f", "support/extra.for" ] },
-                  ],
-                },
-                {
-                  "name": "Example.Tool",
-                  "namespace": "Example.Tools",
-                  "output": "tools/tool",
-                  "kind": "executable",
-                  "entry": "TOOL",
-                  "references": [ "Example.Toolkit" ],
-                  "sources": [ { "name": "ToolMain", "files": [ "tool/*.pgm" ] } ]
-                }
-              ]
+              "kind": "executable",
+              "entry": "TOOL",
+              "references": [ "Example.Toolkit" ],
+              "sources": [
+                { "name": "Core", "files": [ "core/*.f" ], "includes": [ "core/inc" ] },
+                { "name": "Support", "class": "SupportLibrary", "files": [ "support/*.f", "support/extra.for" ] },
+              ],
             }
             """;
 
@@ -42,75 +33,56 @@ public class TranslationSettingsTests
         var settings = TranslationSettings.Parse(Json);
 
         // Assert
-        settings.Output.ShouldBe("src");
+        settings.Name.ShouldBe("Example.Tool");
+        settings.Namespace.ShouldBe("Example.Tools");
+        settings.Output.ShouldBe("tools/tool");
         settings.Runtime.Project.ShouldBe("../runtime/Runtime.csproj");
         settings.Runtime.Package.ShouldBeNull();
-        settings.Projects.Count.ShouldBe(2);
-
-        var toolkit = settings.Projects[0];
-        toolkit.Name.ShouldBe("Example.Toolkit");
-        toolkit.Kind.ShouldBeNull();
-        toolkit.References.ShouldBeNull();
-        toolkit.Sources.Select(source => source.Name).ShouldBe(["Core", "Support"]);
-        toolkit.Sources[0].Includes.ShouldBe(["core/inc"]);
-        toolkit.Sources[1].Class.ShouldBe("SupportLibrary");
-        toolkit.Sources[1].Files.ShouldBe(["support/*.f", "support/extra.for"]);
-
-        var tool = settings.Projects[1];
-        tool.Namespace.ShouldBe("Example.Tools");
-        tool.Output.ShouldBe("tools/tool");
-        tool.Kind.ShouldBe(ProjectKind.Executable);
-        tool.Entry.ShouldBe("TOOL");
-        tool.References.ShouldBe(["Example.Toolkit"]);
+        settings.Kind.ShouldBe(ProjectKind.Executable);
+        settings.Entry.ShouldBe("TOOL");
+        settings.References.ShouldBe(["Example.Toolkit"]);
+        settings.Sources.Select(source => source.Name).ShouldBe(["Core", "Support"]);
+        settings.Sources[0].Includes.ShouldBe(["core/inc"]);
+        settings.Sources[1].Class.ShouldBe("SupportLibrary");
+        settings.Sources[1].Files.ShouldBe(["support/*.f", "support/extra.for"]);
+        settings.Folder.ShouldBeNull();
     }
 
     [Fact]
-    public void Parse_WhenTheRootAndAProjectSayWhenToTranslateAndScaffold_ShouldReadBoth()
+    public void Parse_WhenTheSettingsSayWhenToTranslateAndScaffold_ShouldReadBoth()
     {
         // Act
-        var settings = TranslationSettings.Parse(
-            """
-            {
-              "output": ".",
-              "translate": "never",
-              "scaffold": "always",
-              "solution": "../All.slnx",
-              "projects": [
-                { "name": "P", "translate": "ifChanged", "scaffold": "never", "sources": [] },
-                { "name": "Q", "sources": [] }
-              ]
-            }
-            """);
+        var settings = TranslationSettings.Parse("""{ "output": ".", "translate": "never", "scaffold": "always", "sources": [] }""");
 
         // Assert
-        (settings.Translate, settings.Scaffold, settings.Solution).ShouldBe((TranslateMode.Never, ScaffoldMode.Always, "../All.slnx"));
-        (settings.Projects[0].Translate, settings.Projects[0].Scaffold).ShouldBe((TranslateMode.IfChanged, ScaffoldMode.Never));
-        (settings.Projects[1].Translate, settings.Projects[1].Scaffold).ShouldBe((null, null));
+        (settings.Translate, settings.Scaffold).ShouldBe((TranslateMode.Never, ScaffoldMode.Always));
     }
 
     [Fact]
-    public void Parse_WhenNothingButProjectsIsGiven_ShouldLeaveTheRestAsItIsByDefault()
+    public void Parse_WhenNothingButSourcesIsGiven_ShouldLeaveTheRestAsItIsByDefault()
     {
         // Act
-        var settings = TranslationSettings.Parse("""{ "projects": [ { "name": "P", "sources": [ { "name": "S", "files": [ "a.f" ] } ] } ] }""");
+        var settings = TranslationSettings.Parse("""{ "sources": [ { "name": "S", "files": [ "a.f" ] } ] }""");
 
         // Assert
+        settings.Name.ShouldBeNull();
         settings.Output.ShouldBeNull();
         settings.Translate.ShouldBe(TranslateMode.IfChanged);
         settings.Scaffold.ShouldBe(ScaffoldMode.Once);
-        settings.Solution.ShouldBeNull();
-        settings.Projects[0].Translate.ShouldBeNull();
-        settings.Projects[0].Scaffold.ShouldBeNull();
+        settings.Kind.ShouldBeNull();
+        settings.References.ShouldBeNull();
         settings.Framework.ShouldBe("net10.0");
         settings.Runtime.Project.ShouldBeNull();
-        settings.Projects[0].Sources[0].Includes.ShouldBeEmpty();
+        settings.Sources[0].Includes.ShouldBeEmpty();
     }
 
     [Theory]
-    [InlineData("""{ "projects": [], "colour": "red" }""")]
-    [InlineData("""{ "projects": [ { "name": "P", "sorces": [] } ] }""")]
-    [InlineData("""{ "projects": [ { "name": "P", "kind": "plugin" } ] }""")]
-    [InlineData("""{ "projects": [ { "name": "P", "sources": [ { "name": "S", "files": "a.f" } ] } ] }""")]
+    [InlineData("""{ "sources": [], "colour": "red" }""")]
+    [InlineData("""{ "name": "P", "sorces": [] }""")]
+    [InlineData("""{ "name": "P", "kind": "plugin" }""")]
+    [InlineData("""{ "name": "P", "sources": [ { "name": "S", "files": "a.f" } ] }""")]
+    [InlineData("""{ "projects": [ { "name": "P", "sources": [] } ] }""")]
+    [InlineData("""{ "solution": "All.slnx" }""")]
     [InlineData("not json")]
     [InlineData("null")]
     public void Parse_WhenTheTextIsNotSettings_ShouldThrow(string json)
@@ -126,7 +98,7 @@ public class TranslationSettingsTests
         var folder = Path.Combine(AppContext.BaseDirectory, Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(folder);
         var path = Path.Combine(folder, "example.fortrania.json");
-        File.WriteAllText(path, """{ "variables": { "Sources": "shared" }, "projects": [] }""");
+        File.WriteAllText(path, """{ "variables": { "Sources": "shared" }, "sources": [] }""");
         File.WriteAllText(Path.Combine(folder, "example.fortrania.local.json"), """{ "variables": { "sources": "mine" } }""");
 
         try
@@ -146,11 +118,11 @@ public class TranslationSettingsTests
     }
 
     [Fact]
-    public void Load_WhenGivenAFile_ShouldReadIt()
+    public void Load_WhenGivenAFile_ShouldReadItAndTakeItsFolderAsTheSettings()
     {
         // Arrange
         var path = Path.Combine(AppContext.BaseDirectory, Guid.NewGuid().ToString("N") + ".json");
-        File.WriteAllText(path, """{ "output": "there", "projects": [] }""");
+        File.WriteAllText(path, """{ "output": "there", "sources": [] }""");
 
         try
         {
@@ -159,6 +131,7 @@ public class TranslationSettingsTests
 
             // Assert
             settings.Output.ShouldBe("there");
+            settings.Folder.ShouldBe(Path.GetDirectoryName(path));
         }
         finally
         {

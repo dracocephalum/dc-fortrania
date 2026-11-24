@@ -79,11 +79,11 @@ public sealed class BuildTargetsTests : IDisposable
         }
 
         Put("Lib/Example.Lib.csproj", ProjectFile(string.Empty));
-        Put("Lib/lib.fortrania.json", """{ "output": ".", "scaffold": "never", "projects": [ { "name": "Example.Lib", "output": ".", "sources": [ { "name": "Core", "files": [ "fortran/*.f" ] } ] } ] }""");
+        Put("Lib/lib.fortrania.json", """{ "output": ".", "scaffold": "never", "sources": [ { "name": "Core", "files": [ "fortran/*.f" ] } ] }""");
         Put("Lib/fortran/lib.f", Library);
 
         Put("App/Example.App.csproj", ProjectFile("""<PropertyGroup><OutputType>Exe</OutputType></PropertyGroup><ItemGroup><ProjectReference Include="../Lib/Example.Lib.csproj" /></ItemGroup>"""));
-        Put("App/app.fortrania.json", """{ "output": "$(IntermediateOutput)/fortrania", "scaffold": "never", "projects": [ { "name": "Example.App", "sources": [ { "name": "AppMain", "files": [ "fortran/*.f" ] } ] } ] }""");
+        Put("App/app.fortrania.json", """{ "output": "$(IntermediateOutput)/fortrania", "scaffold": "never", "sources": [ { "name": "AppMain", "files": [ "fortran/*.f" ] } ] }""");
         Put("App/fortran/main.f", Program);
         Put("App/Program.cs", Main);
     }
