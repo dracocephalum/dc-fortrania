@@ -1531,6 +1531,56 @@ public sealed class TranslatorTests : IDisposable
     }
 
     [Fact]
+    public void Run_WhenTranslated_ShouldSayWhatItReadWhatItMatchedAndWhatTheTranslationIsMadeOf()
+    {
+        // Arrange: a project read from its summary, and one translated. Its
+        // program is not scaffolded again, the project file being there.
+        Put("core/lib.f", Library);
+        Put("tool/main.f", Caller);
+        var toolkit = Project("Example.Toolkit", Source("Core", "core/*.f"));
+        var tool = Project("Example.Tool", Source("ToolMain", "tool/*.f"));
+        Translator.Run(Settings(toolkit, tool), _root).Succeeded.ShouldBeTrue();
+
+        // Act
+        var result = Translator.Run(Settings(toolkit, tool), _root, new TranslationOptions { Projects = ["Example.Tool"] });
+
+        // Assert
+        result.Succeeded.ShouldBeTrue(string.Join('\n', result.Messages));
+        result.Read.ShouldBe([Full("out/Example.Toolkit/Generated/.fortrania-summary.json"), Full("tool/main.f")]);
+        result.Patterns.ShouldBe([Full("tool/*.f")]);
+        result.Files.Order(StringComparer.Ordinal).ShouldBe(
+            [
+                Full("out/Example.Tool/Generated/.fortrania-summary.json"),
+                Full("out/Example.Tool/Generated/ToolMain/SQUARE.g.cs"),
+                Full("out/Example.Tool/Generated/ToolMain/TOOL.g.cs"),
+                Full("out/Example.Tool/Generated/ToolMain/ToolMain.g.cs"),
+            ],
+            ignoreOrder: true);
+        result.Files.ShouldAllBe(file => File.Exists(file));
+    }
+
+    [Fact]
+    public void Run_WhenCompiledByAProjectFileElsewhere_ShouldScaffoldNoneAndCheckThatOne()
+    {
+        // Arrange: a program whose project file, a build's, lies apart from
+        // its translation and does not refer to the library it calls.
+        Put("core/lib.f", Library);
+        Put("tool/main.f", Caller);
+        Put("build/Example.Tool.csproj", "<Project Sdk=\"Microsoft.NET.Sdk\" />");
+        var settings = Settings(Project("Example.Toolkit", Source("Core", "core/*.f")), Project("Example.Tool", Source("ToolMain", "tool/*.f")));
+
+        // Act
+        var result = Translator.Run(settings, _root, new TranslationOptions { CompiledBy = "build/Example.Tool.csproj", Projects = ["Example.Toolkit", "Example.Tool"] });
+
+        // Assert
+        result.Succeeded.ShouldBeTrue(string.Join('\n', result.Messages));
+        Directory.GetFiles(Path.Combine(_root, "out"), "*.csproj", SearchOption.AllDirectories).ShouldBeEmpty();
+        result.Messages.ShouldContain(message => !message.IsError && message.File == Full("build/Example.Tool.csproj")
+            && message.Text.Contains("calls into Example.Toolkit and its project file does not refer to it", StringComparison.Ordinal));
+        result.Messages.ShouldNotContain(message => message.Text.Contains("its folder has none", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void Run_WhenALibraryIsReferencedAsAnAssemblyCarryingItsSummary_ShouldTranslateTheCallerAsWithTheLibraryInTheSettings()
     {
         // Arrange: both translated together; then the library is an
@@ -1789,6 +1839,8 @@ public sealed class TranslatorTests : IDisposable
     }
 
     private string Text(string path) => File.ReadAllText(Path.Combine(_root, path));
+
+    private string Full(string path) => Path.GetFullPath(Path.Combine(_root, path));
 
     // An assembly of the name given that carries a summary as its resource,
     // as the build package is to embed one; or none.

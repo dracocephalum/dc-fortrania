@@ -8,7 +8,7 @@ translated code runs on.
 | Category | `libraries/` |
 | Kind | library |
 | Solution | `Dracocephalum.Fortrania.slnx` |
-| Projects | `src/Dracocephalum.Fortrania`, the translator; `src/Dracocephalum.Fortrania.Runtime`, what translated code calls; `src/Dracocephalum.Fortrania.Cli`, the command, `fortrania`; and a test project for each under `test/` |
+| Projects | `src/Dracocephalum.Fortrania`, the translator; `src/Dracocephalum.Fortrania.Runtime`, what translated code calls; `src/Dracocephalum.Fortrania.Cli`, the command, `fortrania`; `src/Dracocephalum.Fortrania.Build`, the package a project references to translate as it builds; and a test project for each under `test/` |
 
 ## What it does
 
@@ -59,7 +59,8 @@ The command is a .NET tool. From a build of this folder it runs as
 and, installed from its package, as
 
     dotnet tool install --global Dracocephalum.Fortrania.Cli
-    fortrania translate csharp [settings] [--project <name>]... [--reference <assembly>]... [--force] [--offline]
+    fortrania translate csharp [settings] [--project <name>]... [--reference <assembly>]...
+                               [--force] [--offline] [--record <file>] [--compiled-by <project file>]
     fortrania restore [settings] [--project <name>]... [--if-needed]
 
 With no settings file named it takes the one `fortrania.json` or
@@ -67,6 +68,14 @@ With no settings file named it takes the one `fortrania.json` or
 the rest; [`DESIGN.md`](../../DESIGN.md), *The command is `fortrania`,
 and its first word what to do*, has why it is shaped so; at a prompt
 `fortrania t cs` will do.
+
+A project translates as it builds with the build package, a settings
+file beside its project file:
+
+    <PackageReference Include="Dracocephalum.Fortrania.Build" PrivateAssets="all" />
+
+[`DESIGN.md`](../../DESIGN.md), *A project translates its FORTRAN as it
+builds*, has what it does and the properties it takes.
 
 ## Configuration
 

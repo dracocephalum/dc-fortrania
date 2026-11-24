@@ -135,6 +135,10 @@ public static partial class Translator
         private readonly Dictionary<string, IncludeFile?> _includes = new(StringComparer.Ordinal);
         private readonly List<string> _written = [];
         private readonly List<string> _fetched = [];
+        private readonly List<string> _read = [];
+        private readonly HashSet<string> _readOnce = new(StringComparer.OrdinalIgnoreCase);
+        private readonly List<string> _patterns = [];
+        private readonly List<string> _files = [];
         private readonly List<string> _removed = [];
         private readonly List<StackUse> _stackUse = [];
         private readonly List<UnalignedPlace> _unaligned = [];
@@ -207,7 +211,19 @@ public static partial class Translator
                     UnalignedPlaces = _unaligned,
                     WidenedPlaces = _widened,
                     Fetched = _fetched,
+                    Read = _read,
+                    Patterns = _patterns,
+                    Files = _files,
                 };
+        }
+
+        // Notes a file read, once and in the order first read.
+        private void NoteRead(string path)
+        {
+            if (_readOnce.Add(path))
+            {
+                _read.Add(path);
+            }
         }
 
         public TranslationResult Restore(bool onlyWhereNotTranslated)
@@ -239,7 +255,7 @@ public static partial class Translator
         // time: always, where none is there yet, or never. A project file
         // that is there and is not the translator's to write is somebody's,
         // and the project is given sources and nothing else.
-        private bool WillScaffold(ProjectSettings project) => (project.Scaffold ?? settings.Scaffold) switch
+        private bool WillScaffold(ProjectSettings project) => options.CompiledBy is null && (project.Scaffold ?? settings.Scaffold) switch
         {
             ScaffoldMode.Always => true,
             ScaffoldMode.Once => !HasProjectFile(FolderOf(project)),
@@ -475,6 +491,11 @@ public static partial class Translator
             foreach (var entry in source.Files)
             {
                 var path = Path.GetFullPath(Path.Combine(baseDirectory, Expand(entry)!));
+                if (!_patterns.Contains(path, StringComparer.OrdinalIgnoreCase))
+                {
+                    _patterns.Add(path);
+                }
+
                 var folder = Path.GetDirectoryName(path)!;
                 var found = Directory.Exists(folder)
                     ? Directory.GetFiles(folder, Path.GetFileName(path)).Order(StringComparer.Ordinal).ToList()
@@ -492,6 +513,7 @@ public static partial class Translator
 
         private void Read(Source source, string file)
         {
+            NoteRead(file);
             try
             {
                 using var reader = new StreamReader(file);
@@ -528,6 +550,7 @@ public static partial class Translator
 
                 if (File.Exists(path))
                 {
+                    NoteRead(path);
                     using var reader = new StreamReader(path);
                     return _includes[path] = SourceParser.ParseInclude(FixedFormReader.Read(reader));
                 }
@@ -806,6 +829,7 @@ public static partial class Translator
                     foreach (var (name, text) in source.Files)
                     {
                         var path = Path.Combine(generated, name);
+                        _files.Add(path);
                         var hash = Hash(text);
                         after[name] = hash;
                         if (!File.Exists(path) || before.GetValueOrDefault(name) != hash)
@@ -838,6 +862,7 @@ public static partial class Translator
                 // a translation that leaves this one out.
                 Directory.CreateDirectory(Path.Combine(folder, GeneratedFolder));
                 WriteIfChanged(SummaryPathOf(project), SummarizeProject(project).ToJson());
+                _files.Add(SummaryPathOf(project));
 
                 if (scaffolded.Contains(project))
                 {
@@ -845,6 +870,7 @@ public static partial class Translator
                     if (_entries.TryGetValue(project, out var entry))
                     {
                         WriteIfChanged(Path.Combine(folder, "Program.cs"), Program(project, entry));
+                        _files.Add(Path.Combine(folder, "Program.cs"));
                     }
                 }
                 else
@@ -993,13 +1019,13 @@ public static partial class Translator
         // references the calls need is said, for its owner to add.
         private void ReportMissingReferences(ProjectSettings project, string folder)
         {
-            if (!HasProjectFile(folder))
+            if (options.CompiledBy is null && !HasProjectFile(folder))
             {
                 Warning($"The project {project.Name} is to have a project file of somebody's own, and its folder has none; make one, or say \"scaffold\": \"once\".", folder);
                 return;
             }
 
-            var file = Directory.GetFiles(folder, "*.csproj")[0];
+            var file = options.CompiledBy is { } compiledBy ? Path.GetFullPath(compiledBy, baseDirectory) : Directory.GetFiles(folder, "*.csproj")[0];
             var text = File.ReadAllText(file);
             foreach (var reference in _references[project].Where(reference => !_external.Contains(reference)))
             {

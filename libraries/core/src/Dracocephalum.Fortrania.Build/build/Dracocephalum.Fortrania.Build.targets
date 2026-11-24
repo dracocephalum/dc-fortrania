@@ -1,0 +1,210 @@
+<Project>
+
+  <!--
+    Dracocephalum.Fortrania.Build: the project translates its FORTRAN 77 to
+    C# as it builds, and compiles what the translation is made of.
+
+    What a project may set:
+
+      FortraniaSettings   the settings file; the one fortrania.json or
+                          *.fortrania.json in the project's folder unless set
+      FortraniaProject    the project of the settings this one is; the
+                          project's own name unless set
+      FortraniaTranslate  never, ifChanged or always, for this build over
+                          what the settings say; empty, the settings decide.
+                          never compiles what is there; always translates
+                          every unit again
+      FortraniaFetch      never, ifNeeded or always: where the sources are
+                          not on the machine, whether they are downloaded
+                          before translating. ifNeeded, the default, does so
+                          only where there is no translation to compile
+                          instead; never reaches no server
+
+    The translation is the command's, run as a program of its own with what
+    the build resolved: the assemblies of the project's project and package
+    references, the framework's left out, from which the translator reads
+    the summaries of the projects it calls into. It is run when something it
+    read last time changed, or a file came to match or ceased to match the
+    patterns of its sources, or the command line changed, or a file it made
+    is gone; the record it writes in the intermediate folder, fortrania.record, says
+    which.
+    The settings may name $(IntermediateOutput), that folder, for a
+    translation that goes with dotnet clean.
+
+    What the translation is made of and lies outside the project's folder is
+    added to the compilation, as is what lies inside it and was written for
+    the first time, which the SDK did not see when it listed the folder.
+    The project's summary is embedded in its assembly as
+    Fortrania.Summary.json, for a project that references this one.
+
+    (No double hyphen appears in a comment here: XML forbids it.)
+  -->
+
+  <PropertyGroup>
+    <FortraniaProject Condition="'$(FortraniaProject)' == ''">$(MSBuildProjectName)</FortraniaProject>
+    <FortraniaFetch Condition="'$(FortraniaFetch)' == ''">ifNeeded</FortraniaFetch>
+  </PropertyGroup>
+
+  <!--
+    Before the resources are named, so that the summary is embedded as the
+    others are: a target named in BeforeTargets runs only after what the
+    target it comes before depends on.
+  -->
+  <PropertyGroup>
+    <PrepareResourcesDependsOn>TranslateFortran;$(PrepareResourcesDependsOn)</PrepareResourcesDependsOn>
+  </PropertyGroup>
+
+  <Target Name="TranslateFortran"
+          DependsOnTargets="ResolveReferences;_FortraniaPrepare;_FortraniaCheck;_FortraniaTranslate;_FortraniaAddTranslation" />
+
+  <Target Name="_FortraniaPrepare">
+    <ItemGroup Condition="'$(FortraniaSettings)' == ''">
+      <_FortraniaFound Include="$(MSBuildProjectDirectory)/*fortrania.json" />
+      <_FortraniaFound Remove="@(_FortraniaFound)"
+                       Condition="'%(Filename)%(Extension)' != 'fortrania.json' and !$([System.String]::Copy('%(Filename)%(Extension)').EndsWith('.fortrania.json'))" />
+    </ItemGroup>
+    <PropertyGroup>
+      <_FortraniaFoundCount>@(_FortraniaFound->Count())</_FortraniaFoundCount>
+    </PropertyGroup>
+    <Error Condition="'$(FortraniaSettings)' == '' and '$(_FortraniaFoundCount)' == '0'"
+           Text="The project's folder has no fortrania.json or *.fortrania.json; make one, or name the settings in FortraniaSettings." />
+    <Error Condition="'$(FortraniaSettings)' == '' and $(_FortraniaFoundCount) > 1"
+           Text="The project's folder has several settings files, @(_FortraniaFound->'%(Filename)%(Extension)', ', '); name the one in FortraniaSettings." />
+    <Error Condition="'$(FortraniaTranslate)' != '' and '$(FortraniaTranslate)' != 'never' and '$(FortraniaTranslate)' != 'ifChanged' and '$(FortraniaTranslate)' != 'always'"
+           Text="FortraniaTranslate is '$(FortraniaTranslate)'; it is never, ifChanged or always, or empty." />
+    <Error Condition="'$(FortraniaFetch)' != 'never' and '$(FortraniaFetch)' != 'ifNeeded' and '$(FortraniaFetch)' != 'always'"
+           Text="FortraniaFetch is '$(FortraniaFetch)'; it is never, ifNeeded or always." />
+
+    <PropertyGroup>
+      <_FortraniaSettings Condition="'$(FortraniaSettings)' != ''">$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/$(FortraniaSettings)'))</_FortraniaSettings>
+      <_FortraniaSettings Condition="'$(FortraniaSettings)' == ''">@(_FortraniaFound->'%(FullPath)')</_FortraniaSettings>
+      <_FortraniaIntermediate>$([System.IO.Path]::GetDirectoryName('$([MSBuild]::NormalizeDirectory('$(MSBuildProjectDirectory)', '$(IntermediateOutputPath)'))'))</_FortraniaIntermediate>
+      <_FortraniaRecord>$(_FortraniaIntermediate)/fortrania.record</_FortraniaRecord>
+      <_FortraniaCommandLineFile>$(_FortraniaIntermediate)/fortrania.command</_FortraniaCommandLineFile>
+      <_FortraniaCommand>$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)', '..', 'tools', 'net10.0', 'Dracocephalum.Fortrania.Cli.dll'))</_FortraniaCommand>
+      <_FortraniaDotnet>$(DOTNET_HOST_PATH)</_FortraniaDotnet>
+      <_FortraniaDotnet Condition="'$(_FortraniaDotnet)' == ''">dotnet</_FortraniaDotnet>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <_FortraniaReference Include="@(ReferencePath)" Condition="'%(ReferencePath.FrameworkReferenceName)' == ''" />
+    </ItemGroup>
+
+    <!--
+      What tells that a reference changed for the translation: of a project,
+      the copy of its summary beside its assembly, which changes only when
+      the summary does, so that a library compiled again for any other
+      reason translates nothing that calls into it; of a package, the
+      assembly, which changes with the package's version.
+    -->
+    <ItemGroup>
+      <_FortraniaReferenceInput Include="@(_FortraniaReference->'%(RootDir)%(Directory)%(Filename).fortrania-summary.json')"
+                                Condition="'%(_FortraniaReference.ReferenceSourceTarget)' == 'ProjectReference'" />
+      <_FortraniaReferenceInput Remove="@(_FortraniaReferenceInput)" Condition="!Exists('%(FullPath)')" />
+      <_FortraniaReferenceInput Include="@(_FortraniaReference)"
+                                Condition="'%(_FortraniaReference.ReferenceSourceTarget)' != 'ProjectReference'" />
+    </ItemGroup>
+
+    <PropertyGroup>
+      <_FortraniaArguments>"$(_FortraniaSettings)" --project "$(FortraniaProject)"</_FortraniaArguments>
+      <_FortraniaTranslateArguments>translate csharp $(_FortraniaArguments) --offline --record "$(_FortraniaRecord)" --compiled-by "$(MSBuildProjectFullPath)"</_FortraniaTranslateArguments>
+      <_FortraniaTranslateArguments Condition="'@(_FortraniaReference)' != ''">$(_FortraniaTranslateArguments) @(_FortraniaReference->'--reference "%(FullPath)"', ' ')</_FortraniaTranslateArguments>
+      <_FortraniaRestoreArguments>restore $(_FortraniaArguments)</_FortraniaRestoreArguments>
+      <_FortraniaRestoreArguments Condition="'$(FortraniaFetch)' == 'ifNeeded'">$(_FortraniaRestoreArguments) --if-needed</_FortraniaRestoreArguments>
+    </PropertyGroup>
+
+    <!-- Its time changes when the command line does: a new version of the command, another project or other references. -->
+    <WriteLinesToFile File="$(_FortraniaCommandLineFile)"
+                      Lines="$(_FortraniaCommand) $(_FortraniaTranslateArguments)"
+                      Overwrite="true"
+                      WriteOnlyWhenDifferent="true" />
+
+    <!-- After the record, so that a build told always is not followed by one that translates again. -->
+    <PropertyGroup>
+      <_FortraniaTranslateArguments Condition="'$(FortraniaTranslate)' == 'always'">$(_FortraniaTranslateArguments) --force</_FortraniaTranslateArguments>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <FileWrites Include="$(_FortraniaRecord);$(_FortraniaCommandLineFile)" />
+    </ItemGroup>
+  </Target>
+
+  <!--
+    What the record's times cannot show: a file come to match a pattern of
+    the sources, or one read or made that is gone. Either removes the
+    record, so that the translation runs; so does always.
+  -->
+  <Target Name="_FortraniaCheck" Condition="'$(DesignTimeBuild)' != 'true'">
+    <ReadLinesFromFile File="$(_FortraniaRecord)" Condition="Exists('$(_FortraniaRecord)')">
+      <Output TaskParameter="Lines" ItemName="_FortraniaRecordLine" />
+    </ReadLinesFromFile>
+    <ItemGroup>
+      <_FortraniaRead Include="$([System.String]::Copy('%(_FortraniaRecordLine.Identity)').Substring(5))"
+                      Condition="$([System.String]::Copy('%(_FortraniaRecordLine.Identity)').StartsWith('read '))" />
+      <_FortraniaPattern Include="$([System.String]::Copy('%(_FortraniaRecordLine.Identity)').Substring(8))"
+                         Condition="$([System.String]::Copy('%(_FortraniaRecordLine.Identity)').StartsWith('pattern '))" />
+      <_FortraniaMade Include="$([System.String]::Copy('%(_FortraniaRecordLine.Identity)').Substring(5))"
+                      Condition="$([System.String]::Copy('%(_FortraniaRecordLine.Identity)').StartsWith('file '))" />
+      <!-- A reference read is told by what stands for it in _FortraniaReferenceInput. -->
+      <_FortraniaRead Remove="@(_FortraniaReference->'%(FullPath)')" />
+    </ItemGroup>
+    <PropertyGroup>
+      <_FortraniaPatterns>@(_FortraniaPattern)</_FortraniaPatterns>
+      <!-- An item escapes its wildcards; a pattern is to match again. -->
+      <_FortraniaPatterns>$([MSBuild]::Unescape($(_FortraniaPatterns)))</_FortraniaPatterns>
+    </PropertyGroup>
+    <ItemGroup>
+      <_FortraniaMatched Include="$(_FortraniaPatterns)" />
+      <_FortraniaAdded Include="@(_FortraniaMatched)" Exclude="@(_FortraniaRead)" />
+      <_FortraniaGone Include="@(_FortraniaRead);@(_FortraniaMade)" Condition="!Exists('%(Identity)')" />
+    </ItemGroup>
+    <Delete Files="$(_FortraniaRecord)"
+            Condition="'@(_FortraniaAdded)' != '' or '@(_FortraniaGone)' != '' or '$(FortraniaTranslate)' == 'always'" />
+  </Target>
+
+  <Target Name="_FortraniaTranslate"
+          Condition="'$(DesignTimeBuild)' != 'true' and '$(FortraniaTranslate)' != 'never'"
+          Inputs="$(_FortraniaSettings);$(_FortraniaCommandLineFile);@(_FortraniaRead);@(_FortraniaReferenceInput)"
+          Outputs="$(_FortraniaRecord)">
+    <Exec Condition="'$(FortraniaFetch)' != 'never'"
+          Command="&quot;$(_FortraniaDotnet)&quot; &quot;$(_FortraniaCommand)&quot; $(_FortraniaRestoreArguments)"
+          WorkingDirectory="$(MSBuildProjectDirectory)"
+          EnvironmentVariables="IntermediateOutput=$(_FortraniaIntermediate)"
+          StandardOutputImportance="low" />
+    <Exec Command="&quot;$(_FortraniaDotnet)&quot; &quot;$(_FortraniaCommand)&quot; $(_FortraniaTranslateArguments)"
+          WorkingDirectory="$(MSBuildProjectDirectory)"
+          EnvironmentVariables="IntermediateOutput=$(_FortraniaIntermediate)"
+          StandardOutputImportance="normal" />
+  </Target>
+
+  <!-- What the translation is made of, from the record it wrote or left. -->
+  <Target Name="_FortraniaAddTranslation">
+    <ReadLinesFromFile File="$(_FortraniaRecord)" Condition="Exists('$(_FortraniaRecord)')">
+      <Output TaskParameter="Lines" ItemName="_FortraniaRecordAfter" />
+    </ReadLinesFromFile>
+    <ItemGroup>
+      <_FortraniaFile Include="$([System.String]::Copy('%(_FortraniaRecordAfter.Identity)').Substring(5))"
+                      Condition="$([System.String]::Copy('%(_FortraniaRecordAfter.Identity)').StartsWith('file '))" />
+      <_FortraniaCompile Include="@(_FortraniaFile)" Condition="'%(Extension)' == '.cs'" Exclude="@(Compile->'%(FullPath)')" />
+      <Compile Include="@(_FortraniaCompile)" />
+      <EmbeddedResource Include="@(_FortraniaFile)"
+                        Condition="'%(Filename)%(Extension)' == '.fortrania-summary.json'"
+                        LogicalName="Fortrania.Summary.json"
+                        WithCulture="false"
+                        Type="Non-Resx" />
+      <FileWrites Include="@(_FortraniaFile)"
+                  Condition="$([System.String]::Copy('%(FullPath)').StartsWith('$(_FortraniaIntermediate)'))" />
+      <_FortraniaSummary Include="@(_FortraniaFile)" Condition="'%(Filename)%(Extension)' == '.fortrania-summary.json'" />
+    </ItemGroup>
+
+    <!-- The copy a project that references this one watches; see _FortraniaPrepare. -->
+    <Copy SourceFiles="@(_FortraniaSummary)"
+          DestinationFiles="$(TargetDir)$(TargetName).fortrania-summary.json"
+          SkipUnchangedFiles="true"
+          Condition="'@(_FortraniaSummary)' != ''" />
+    <ItemGroup Condition="'@(_FortraniaSummary)' != ''">
+      <FileWrites Include="$(TargetDir)$(TargetName).fortrania-summary.json" />
+    </ItemGroup>
+  </Target>
+
+</Project>

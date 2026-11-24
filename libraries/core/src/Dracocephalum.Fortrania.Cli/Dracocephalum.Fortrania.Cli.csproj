@@ -6,6 +6,8 @@
     <Description>Fortrania's command, fortrania: translates FORTRAN 77 to C# as a settings file says, with Dracocephalum.Fortrania. Installed as a .NET tool.</Description>
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>fortrania</ToolCommandName>
+    <!-- Runs on a newer runtime where this one is not installed, as a build of a newer SDK has. -->
+    <RollForward>Major</RollForward>
   </PropertyGroup>
 
   <ItemGroup>

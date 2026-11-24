@@ -1,0 +1,47 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    A package of build targets and nothing to compile: a project that
+    references it translates its FORTRAN as it builds. It carries the
+    command, fortrania, as built beside it, and runs it as a program of its
+    own, so that it loads nothing into the build.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Description>Translates a project's FORTRAN 77 to C# as it builds, with Fortrania, as the project's own *.fortrania.json says, and compiles what it wrote.</Description>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <DevelopmentDependency>true</DevelopmentDependency>
+    <!-- The command is carried in the package, not depended on. -->
+    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+    <!-- NU5128: a package with no lib folder names dependencies for no framework, which is what is meant. -->
+    <NoWarn>$(NoWarn);NU5128</NoWarn>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);PackTheCommand</TargetsForTfmSpecificContentInPackage>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Dracocephalum.Fortrania.Cli/Dracocephalum.Fortrania.Cli.csproj" ReferenceOutputAssembly="false" Private="false" />
+    <None Include="build/**" Pack="true" PackagePath="build/" />
+  </ItemGroup>
+
+  <!--
+    The command as it was built, under tools/: its assemblies and the two
+    files that say how to run them. What is built for a person, the program
+    that starts it and the documentation, is left out; the targets start it
+    with dotnet.
+  -->
+  <Target Name="PackTheCommand">
+    <MSBuild Projects="@(ProjectReference)" Targets="GetTargetPath">
+      <Output TaskParameter="TargetOutputs" PropertyName="_CommandPath" />
+    </MSBuild>
+    <PropertyGroup>
+      <_CommandFolder>$([System.IO.Path]::GetDirectoryName('$(_CommandPath)'))</_CommandFolder>
+    </PropertyGroup>
+    <ItemGroup>
+      <_CommandFile Include="$(_CommandFolder)/*.dll;$(_CommandFolder)/*.deps.json;$(_CommandFolder)/*.runtimeconfig.json" />
+      <TfmSpecificPackageFile Include="@(_CommandFile)" PackagePath="tools/$(TargetFramework)/%(Filename)%(Extension)" />
+    </ItemGroup>
+    <Error Condition="!Exists('$(_CommandPath)')" Text="The command is not built at $(_CommandPath); build it before packing." />
+  </Target>
+
+</Project>
