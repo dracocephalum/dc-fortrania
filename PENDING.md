@@ -338,6 +338,11 @@ a whole translation from them. Left to do:
   into each test it emits and not leave it to the runtime's constant,
   so that a translation carries what it was tuned to. Not built until a
   platform is measured that wants another.
+- **References named in the settings**, beside those a build passes: an
+  assembly by its path, or a package by its name and version, for a
+  translation run by the command that calls into a translated library.
+  Toward a command whose options are the settings' own, so that a
+  translation is said in the file and the command only points at it.
 - **Paths that go deeper than one folder.** The last part of a path may
   have `*` and `?`; `**` for folders at any depth is not read.
 - **The rest of what a translation is told**, under *What the translator
@@ -356,24 +361,30 @@ and the runtime, so that the three keep one version. Its first user is
 the translated library's repository, whose translation is kept in its
 projects' folders and committed.
 
-**One settings file, and each project translates its own part of it.**
-`fortrania.json` stays the one place a translation is described, for the
-command and the build alike, and keeps every project it has now. A
-project's build finds the file and its own entry in it, translates that
-entry alone, and compiles what it wrote:
+**A settings file for each project, beside it, and references from what
+the project references.** Settled in discussion after the plan's first
+form, which had one file for every project, found by looking upward:
 
-- **The file** is the one the project names, `FortraniaSettings`; or,
-  where it names none, the nearest `fortrania.json` or `*.fortrania.json`
-  above the project's folder, as `Directory.Build.props` is found. Two in
-  one folder are refused.
-- **The entry** is the one whose `name` is the project's own, unless
-  `FortraniaProject` names another.
-- **The file and the project agree, or the build stops.** The entry's
-  folder is the project's folder, and each project the entry calls into
-  is a `ProjectReference` of it: the settings say what the translation
-  is, and MSBuild still has the order. Where the two part, the build says
-  which and fails, as the translator already reports a reference a
-  project file lacks.
+- **Each translated project has its own `*.fortrania.json`**, in its own
+  folder, holding everything about its translation, its download among
+  them. The project's build names it, `FortraniaSettings`, or takes the
+  one in the project's folder; no folder above is looked in. A file of
+  several projects keeps working for the command and for a program
+  translated whole.
+- **No settings are inherited.** Two projects that read one download each
+  say where it is, in a few lines; one run that sees both, the same
+  variable naming the same folder with another address or hash, is to be
+  refused. An `extends`, as TypeScript's settings have, can come later if
+  a repository of many projects wants it.
+- **References are what the project references.** Each translated
+  assembly carries its project's summary as a resource, which the
+  package's targets embed; a build passes the translator the assemblies
+  its project and package references resolve to, the framework's left
+  out, and the translator reads a summary out of each without loading
+  it. MSBuild is then the one place references are said, and a program
+  that has a translated library only as a package is translated against
+  it rightly. The command takes them as `--reference`; the translator's
+  side is built, `DESIGN.md` has it.
 
 **A project is translated apart from what calls into it**, by the
 summary each translation writes of the projects it translates; `DESIGN.md`,
@@ -454,9 +465,13 @@ from either; what differs is around it:
    `solution`. Built.
 4. What the package needs of the command: `--offline`, and `fortrania
    restore` with `--if-needed`. Built.
-5. The package and its targets, fetching in restore among them.
-6. The translated library's repository taking it, with `scaffold: never`
-   and project files of its own.
+5. Summaries read out of referenced assemblies, `--reference`. Built.
+6. The package and its targets: the translator carried in it, the step
+   before compiling, the summary embedded in what is compiled, fetching
+   in restore, and what is written outside the project's folder added to
+   the compilation.
+7. The translated library's repository taking it, with a settings file
+   and a project file of its own for each project, and `scaffold: never`.
 
 **Sources can be fetched**, as `DESIGN.md` describes under *A variable can
 say where to download the folder it names*; it is done as part of a

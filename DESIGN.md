@@ -795,6 +795,15 @@ need not be on the machine.
   1.1 MB, and is read in a diff as well; the same text is written for the
   same project, so a translation that changes nothing a caller sees
   rewrites nothing.
+- **A summary can come in an assembly.** One the options name,
+  `TranslationOptions.References` or the command's `--reference`, is read
+  for a resource, `Fortrania.Summary.json`, without being loaded, and the
+  project it holds takes part as one read from its summary does. It has
+  no folder and no project file here: whoever passed the assembly refers
+  to it, so a project file written refers to it not, and an assembly
+  without the resource is passed over. Two assemblies defining one
+  procedure are refused, since a call could not tell which it reaches,
+  and so is one holding a project of the settings.
 - **A project left out with no summary takes no part.** One the translated
   projects only might call is then missing as any undefined procedure is;
   one that the settings say a translated project refers to is an error,
@@ -997,7 +1006,7 @@ translation's own. The package is named for what it is beside the
 translator's, a command line; *tool* is a word of this repository's
 layout already, for what is never published.
 
-    fortrania translate csharp [settings] [--project <name>]... [--force] [--offline]
+    fortrania translate csharp [settings] [--project <name>]... [--reference <assembly>]... [--force] [--offline]
     fortrania restore [settings] [--project <name>]... [--if-needed]
     fortrania --version
 

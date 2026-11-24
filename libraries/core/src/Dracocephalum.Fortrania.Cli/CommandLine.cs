@@ -37,7 +37,7 @@ internal static class CommandLine
 
     private const string Usage =
         """
-        Usage: fortrania translate csharp [settings] [--project <name>]... [--force] [--offline]
+        Usage: fortrania translate csharp [settings] [--project <name>]... [--reference <assembly>]... [--force] [--offline]
                fortrania restore [settings] [--project <name>]... [--if-needed]
                fortrania --version
 
@@ -50,6 +50,9 @@ internal static class CommandLine
           --project          only the project of that name; each other project is
                              read from the summary its last translation wrote;
                              may be given more than once
+          --reference        an assembly a translated project may call into, a
+                             translation compiled that carries its project's
+                             summary; may be given more than once
           --force            translates every unit, whether it changed or not
           --offline          fetches nothing, and reads a project whose sources
                              are not here from its last translation's summary
@@ -64,7 +67,7 @@ internal static class CommandLine
     private static readonly string[] Commands = ["help", "restore", "translate"];
     private static readonly string[] Options = ["--help", "--version"];
     private static readonly string[] Targets = ["csharp"];
-    private static readonly string[] TranslateOptions = ["--force", "--offline", "--project"];
+    private static readonly string[] TranslateOptions = ["--force", "--offline", "--project", "--reference"];
     private static readonly string[] RestoreOptions = ["--if-needed", "--project"];
 
     /// <summary>Runs the command.</summary>
@@ -144,6 +147,7 @@ internal static class CommandLine
     {
         string? settings = null;
         List<string>? projects = null;
+        List<string>? references = null;
         var flags = new HashSet<string>(StringComparer.Ordinal);
         for (var index = 0; index < arguments.Length; index++)
         {
@@ -163,7 +167,7 @@ internal static class CommandLine
                     return null;
                 }
 
-                if (option != "--project")
+                if (option is not ("--project" or "--reference"))
                 {
                     flags.Add(option);
                     continue;
@@ -171,11 +175,21 @@ internal static class CommandLine
 
                 if (index + 1 == arguments.Length || arguments[index + 1].StartsWith('-'))
                 {
-                    Refuse(error, "--project is to be followed by the name of a project of the settings.");
+                    Refuse(error, option == "--project"
+                        ? "--project is to be followed by the name of a project of the settings."
+                        : "--reference is to be followed by the path of an assembly.");
                     return null;
                 }
 
-                (projects ??= []).Add(arguments[++index]);
+                var value = arguments[++index];
+                if (option == "--project")
+                {
+                    (projects ??= []).Add(value);
+                }
+                else
+                {
+                    (references ??= []).Add(value);
+                }
             }
             else if (settings is null)
             {
@@ -188,7 +202,7 @@ internal static class CommandLine
             }
         }
 
-        return new Arguments(settings, projects, flags);
+        return new Arguments(settings, projects, references, flags);
     }
 
     private static int TranslateToCSharp(Arguments arguments, TextWriter output, TextWriter error, string workingDirectory)
@@ -205,6 +219,10 @@ internal static class CommandLine
             Force = arguments.Flags.Contains("--force"),
             Offline = arguments.Flags.Contains("--offline"),
             Projects = arguments.Projects,
+
+            // An assembly named on the command line is taken from where the
+            // command runs, as a person typing it means.
+            References = arguments.References?.Select(reference => Path.GetFullPath(reference, workingDirectory)).ToList(),
         });
         foreach (var message in result.Messages)
         {
@@ -308,5 +326,5 @@ internal static class CommandLine
             ?? "unknown";
 
     // What a command was told after its own words.
-    private sealed record Arguments(string? Settings, IReadOnlyCollection<string>? Projects, IReadOnlySet<string> Flags);
+    private sealed record Arguments(string? Settings, IReadOnlyCollection<string>? Projects, IReadOnlyCollection<string>? References, IReadOnlySet<string> Flags);
 }

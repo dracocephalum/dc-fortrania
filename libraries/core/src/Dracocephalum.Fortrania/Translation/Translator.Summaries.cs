@@ -1,3 +1,5 @@
+using System.Reflection.Metadata;
+using System.Reflection.PortableExecutable;
 using System.Text.Json;
 using Dracocephalum.Fortrania.Analysis;
 
@@ -20,6 +22,11 @@ public static partial class Translator
         // from a summary. One the options leave out that has no summary
         // takes no part, and a project that calls into it is told so.
         private readonly List<ProjectSettings> _projects = [];
+
+        // The projects the options' assemblies bring, which are no project
+        // of the settings: read, never written, and referred to by whoever
+        // passed the assembly.
+        private readonly HashSet<ProjectSettings> _external = [];
 
         // What each procedure of a project translated this time does with
         // its arguments, counting what is done further down, in other
@@ -75,6 +82,12 @@ public static partial class Translator
                 return true;
             }
 
+            AddSummarized(project, summary);
+            return true;
+        }
+
+        private void AddSummarized(ProjectSettings project, ProjectSummary summary)
+        {
             _summaries[project] = summary;
             _projects.Add(project);
             foreach (var (sourceSettings, sourceSummary) in project.Sources.Zip(summary.Sources))
@@ -87,8 +100,90 @@ public static partial class Translator
                     source.Summarized[procedure.Name] = procedure;
                 }
             }
+        }
 
-            return true;
+        // Each assembly the options name that carries a summary brings its
+        // project, as a project read from its summary is: its sources are
+        // its classes, by the names the summary gives them. One of the name
+        // of a project of the settings, or that defines a procedure another
+        // assembly defines too, is refused, since a call could not tell
+        // which it reaches.
+        private void ReadReferences()
+        {
+            var definedBy = new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (var path in (options.References ?? []).Select(path => Path.GetFullPath(path, baseDirectory)).Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                ProjectSummary? summary;
+                try
+                {
+                    summary = ReadEmbeddedSummary(path);
+                }
+                catch (Exception exception) when (exception is JsonException or IOException or BadImageFormatException or UnauthorizedAccessException)
+                {
+                    Error(exception.Message, path);
+                    continue;
+                }
+
+                if (summary is null)
+                {
+                    continue;
+                }
+
+                if (settings.Projects.Any(project => project.Name == summary.Project) || _external.Any(project => project.Name == summary.Project))
+                {
+                    Error($"The assembly holds the project {summary.Project}, which the settings or another assembly have as well.", path);
+                    continue;
+                }
+
+                foreach (var procedure in summary.Sources.SelectMany(source => source.Procedures))
+                {
+                    if (!definedBy.TryAdd(procedure.Name, summary.Project))
+                    {
+                        Error($"{procedure.Name} is defined by {definedBy[procedure.Name]} and by {summary.Project}; a call could not tell which it reaches.", path);
+                    }
+                }
+
+                var project = new ProjectSettings
+                {
+                    Name = summary.Project,
+                    Namespace = summary.Sources.Count > 0 ? summary.Sources[0].Namespace : null,
+                    Sources = [.. summary.Sources.Select(source => new SourceSettings { Name = source.Name, Class = source.Class })],
+                };
+                _external.Add(project);
+                AddSummarized(project, summary);
+            }
+        }
+
+        // The summary an assembly carries, read from its metadata without
+        // loading it; nothing for one that carries none.
+        private static ProjectSummary? ReadEmbeddedSummary(string path)
+        {
+            using var stream = File.OpenRead(path);
+            using var image = new PEReader(stream);
+            if (!image.HasMetadata)
+            {
+                return null;
+            }
+
+            var reader = image.GetMetadataReader();
+            foreach (var handle in reader.ManifestResources)
+            {
+                var resource = reader.GetManifestResource(handle);
+                if (!resource.Implementation.IsNil || reader.GetString(resource.Name) != ProjectSummary.ResourceName)
+                {
+                    continue;
+                }
+
+                // An embedded resource lies in the image's resources, its
+                // length first, at the offset the manifest gives.
+                var directory = image.PEHeaders.CorHeader!.ResourcesDirectory;
+                var at = image.GetSectionData(directory.RelativeVirtualAddress).GetReader();
+                at.Offset = (int)resource.Offset;
+                var length = at.ReadInt32();
+                return ProjectSummary.Parse(System.Text.Encoding.UTF8.GetString(at.ReadBytes(length)));
+            }
+
+            return null;
         }
 
         // A project the options leave out and that has no summary can still
