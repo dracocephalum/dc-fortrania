@@ -9,6 +9,18 @@ undecided adds it here rather than mentioning it once in a conversation.
 
 ## Decisions pending
 
+- [ ] **The translator's tunables lie loose among its settings.** What
+      changes the code a translation writes, and not what is translated or
+      where, sits at the root of the settings beside the paths and the
+      projects: `inlineTextConstants` and `plainArrayLoops` today, and
+      those the plan has to come, the run length a copy is done at once
+      from, a translation fixed to one place for working buffers, the
+      setting that clears or fills every local, and the warnings
+      silenced. Most are about speed, and each was added on its own, with
+      a name of its own making. Close by: one group in the settings for
+      them, the ones for speed together, with one way of naming them,
+      each saying what it costs and what it gives, and settled before the
+      settings are public in the cleanup round.
 - [ ] **The plan still speaks in the reference sources' words.**
       `PENDING.md` was written beside the library Fortrania was made to
       translate, and says kernels, the kernel pool and the toolkit where a
