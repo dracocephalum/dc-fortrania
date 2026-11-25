@@ -4,12 +4,11 @@ using System.Text.Json.Serialization;
 namespace Dracocephalum.Fortrania.Translation;
 
 /// <summary>
-/// What a translation of one project shows to a translation of another
-/// that calls into it: how each of its procedures is called and how deep
-/// a call of it can go, and the working region the project needs. A
-/// translation writes one beside each project it translates, and reads it
-/// in place of the project's sources where it is told not to translate
-/// that project.
+/// What one project's translation shows to another that calls into it:
+/// how each of its procedures is called and how deep a call of it can go,
+/// and the working region the project needs. Each project translated
+/// writes its own, beside its project file, and its assembly carries it;
+/// a run reads it in place of the project's sources.
 /// </summary>
 /// <remarks>
 /// It holds nothing of the FORTRAN but what a caller has to know, so that
@@ -34,8 +33,8 @@ internal sealed record ProjectSummary(
     /// <summary>The version of the form written now.</summary>
     public const int CurrentFormat = 1;
 
-    /// <summary>The name of the file, in a project's folder of translated sources.</summary>
-    public const string FileName = ".fortrania-summary.json";
+    /// <summary>What the name of a summary's file ends in, after the name of its project.</summary>
+    public const string FileSuffix = ".fortrania-summary.json";
 
     /// <summary>The name of the resource that carries the summary in the assembly its project compiles to.</summary>
     public const string ResourceName = "Fortrania.Summary.json";
@@ -49,6 +48,11 @@ internal sealed record ProjectSummary(
     };
 
     private static readonly JsonSerializerOptions Line = new(Json) { WriteIndented = false };
+
+    /// <summary>Gives the name of the file of a project's summary, which lies beside its project file.</summary>
+    /// <param name="project">The project's name.</param>
+    /// <returns>The file's name.</returns>
+    public static string GetFileName(string project) => project + FileSuffix;
 
     /// <summary>Reads a summary.</summary>
     /// <param name="path">The file.</param>

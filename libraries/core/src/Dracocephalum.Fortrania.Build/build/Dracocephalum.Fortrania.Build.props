@@ -1,0 +1,28 @@
+<Project>
+
+  <!--
+    The settings files a project translates, as items of their own, as a
+    project's .proto files are Protobuf items: every fortrania.json and
+    *.fortrania.json in its folder unless EnableDefaultFortraniaItems is
+    false, so that a project may take one out, or add one from elsewhere:
+
+      <Fortrania Remove="old.fortrania.json" />
+      <Fortrania Include="../shared/more.fortrania.json" />
+
+    Here and not in the targets, so that they are there before the
+    project's own items, which may then remove them; properties are read
+    before any item, so the project's own setting of the switch holds.
+    The local settings files beside them, *.fortrania.local.json, are
+    not settings files of their own and do not match.
+  -->
+  <ItemGroup Condition="'$(EnableDefaultFortraniaItems)' != 'false'">
+    <Fortrania Include="fortrania.json" Condition="Exists('fortrania.json')" />
+    <Fortrania Include="*.fortrania.json" />
+  </ItemGroup>
+
+  <!-- So that an editor offers Fortrania as what a file is for. -->
+  <ItemGroup>
+    <AvailableItemName Include="Fortrania" />
+  </ItemGroup>
+
+</Project>

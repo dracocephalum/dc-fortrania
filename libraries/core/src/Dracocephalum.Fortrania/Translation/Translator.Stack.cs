@@ -171,7 +171,7 @@ public static partial class Translator
         }
 
         // The source whose procedure a call reaches, in the order the
-        // emitter looks: the calling source, then the others its own
+        // emitter looks: the calling source, then the others, its own
         // project's first. None for the compiler's library, which is the
         // runtime's, or a procedure no source defines, warned of already.
         private Source? FindOwner(Source from, string name) =>

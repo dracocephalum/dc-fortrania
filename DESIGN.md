@@ -768,23 +768,28 @@ one of these names is the program's own and is called as any other.
 ## A project is translated apart by the summaries of those it calls into
 
 What a unit shows another is its summary, above; what a project shows
-another is the same, gathered. Each project a translation translates
-writes `Generated/.fortrania-summary.json` beside its translated sources:
-for each of its sources the class it became, and for each procedure its
-interface, what it does with each argument, how deep a call of it can go
-and how deep beneath it a procedure it was passed can be called; and the
-project's working region, its own bytes and what a call into it can
-reach. A project of a run whose settings say never to translate it is
-read from its summary and not from its sources, which then need not be on
-the machine, and so is one an assembly brings.
+another is the same, gathered. Each project a run translates writes
+`<name>.fortrania-summary.json` beside its project file: for each of its
+sources the class it became, and for each procedure its interface, what
+it does with each argument, how deep a call of it can go and how deep
+beneath it a procedure it was passed can be called; and the project's
+working region, its own bytes and what a call into it can reach. Its
+assembly carries it, and a project that calls into it is translated
+against it, reading none of its sources.
 
+- **The summary is part of what is built, so it is kept with the
+  source.** It lies beside the project file and is committed with it, as
+  `packages.lock.json` is; a diff of it says when what callers see has
+  changed, and a checkout whose translation is committed can be built
+  without translating, its summary there to embed. A run may keep it
+  elsewhere, `TranslationProject.Summary` or the command's `--summary`.
 - **What each argument is used for is the effect, not the uses.** A unit's
   summary says what its own statements do with an argument and where they
-  pass it on; a caller in another project cannot follow where it is passed,
-  since it reads none of the project's sources. So the summary carries the
-  answer `ArgumentEffects` works out over the whole project, the projects
-  it calls into counted too, and where each argument is passed is left
-  out.
+  pass it on; a caller in another project cannot follow where it is
+  passed, since it reads none of the project's sources. So the summary
+  carries the answer `ArgumentEffects` works out over the whole project,
+  the projects it calls into counted too, and where each argument is
+  passed is left out.
 - **Translated one project at a time, a translation gives the same files
   as all at once**, byte for byte. Verified on the reference sources: the
   test program translated against the toolkit's summary, with the
@@ -795,121 +800,126 @@ the machine, and so is one an assembly brings.
   1.1 MB, and is read in a diff as well; the same text is written for the
   same project, so a translation that changes nothing a caller sees
   rewrites nothing.
-- **A summary can come in an assembly.** One the options name,
-  `TranslationOptions.References` or the command's `--reference`, is read
-  for a resource, `Fortrania.Summary.json`, without being loaded, and the
-  project it holds takes part as one read from its summary does. It has
-  no folder and no project file here: whoever passed the assembly refers
-  to it, so a project file written refers to it not, and an assembly
-  without the resource is passed over. Two assemblies defining one
-  procedure are refused, since a call could not tell which it reaches,
-  and so is one holding a project of the run.
-- **A project not translated with no summary takes no part.** One the
-  translated projects only might call is then missing as any undefined
-  procedure is; one that a translated project's settings say it refers to
-  is an error, which names the file to make, and so is a name neither the
-  run nor an assembly brings.
+- **A summary comes in an assembly or as a file.** A reference the options
+  name, `TranslationOptions.References` or the command's `--reference`, is
+  an assembly, read for its resource `Fortrania.Summary.json` without
+  being loaded, or a summary file, for a project not built yet; the
+  project it holds takes part as one read from its summary does. One that
+  an assembly brings has no folder here, and whoever passed the assembly
+  refers to it; one a summary file brings is referred to by a project
+  file beside the file, where there is one. An assembly without the
+  resource is passed over. Two references defining one procedure are
+  refused, since a call could not tell which it reaches, and so is one
+  holding a project of the run.
+- **Offline, a project whose sources are not here is compiled as it was
+  translated last**, read from its summary, where what it wrote is all
+  there: the summary, and each manifest with every file it lists. The
+  summary alone is not that, since it is committed where the translation
+  may not be.
 
-## What is translated is set out as a project and its sources
+## What is translated is set out in settings files, and the project is its own
 
-A settings file describes one project: what it is made of, where its
-translation is written and how. It lies beside the project file, and the
-paths in it are taken from where it lies. It is JSON that may hold `//`
-and `/* */` comments and trailing commas, as .NET's own `appsettings.json`
-may, because a file a person edits needs the reason beside the setting;
-standard JSON has neither, and a strict reader elsewhere refuses such a
-file.
+A settings file describes FORTRAN to translate: its sources, how they are
+translated and where to. The paths in it are taken from where it lies. It
+is JSON that may hold `//` and `/* */` comments and trailing commas, as
+.NET's own `appsettings.json` may, because a file a person edits needs the
+reason beside the setting; standard JSON has neither, and a strict reader
+elsewhere refuses such a file.
 
     {
-      "output": ".",
-      "entry": "MAIN",
+      "output": "$(IntermediateOutput)/fortrania",
       "sources": [
         { "name": "TestUtil", "files": [ "testutil/*.f" ] },
-        { "name": "TSpice", "class": "TSpiceMain", "files": [ "tspice/*.f", "tspice/*.pgm" ] }
+        { "name": "TSpiceMain", "files": [ "tspice/*.f", "tspice/*.pgm" ] }
       ]
     }
 
-- **A file is a project, and a run translates one or several.** A
-  project is what a build compiles, and its settings belong beside it as
-  its project file does; a file of several projects had a root that said
-  things for all of them and entries that could say otherwise, two
-  places for every setting and a selection of which projects to
-  translate, none of which one project needs. `Translator.Run` takes the
-  settings of one project or of several, and those of one run call into
-  each other as one translation: a project translated with the ones it
-  calls into is translated as it is against their summaries, below.
-  Nothing is inherited from another file, so two projects that read one
-  download each say where it is.
-- **A project is named by its project file.** Unless `name` is given, it
-  is the name of the one project file beside the settings, and that file
-  is then the one the translation is compiled by; with none there, or
-  several, the name is asked for.
-- **A project is an assembly, and each of its sources a class.** A source
-  is one FORTRAN library: its files, always given as a list, and a name
-  that is its class. Two libraries in one assembly stay two classes, so
-  that a library's class is the same however it is packaged and two
-  libraries may each have a routine of one name. The namespace is the
-  project's name unless it is given.
+- **The project is what compiles them, and says the rest.** A project,
+  `TranslationProject`, is an assembly: its name, which is the assembly's,
+  the settings files it is made of, and where its summary is kept. Its
+  name is what other projects know it by, the name of its summary and of
+  the region of working buffers its code registers at run time, and its
+  namespace where nothing else gives one; it is never taken from the
+  settings, since every settings file of the project would have to say
+  the same, and a build gives it as it gives the assembly its name. What
+  the assembly is besides, its framework, how it refers to the runtime,
+  whether it is an executable, is its project file's, as a project says it
+  of the `.proto` files it compiles. Settings of a project once stood in
+  the file, and were read only to write a project file the first time,
+  after which they said nothing.
+- **The settings files of a project are one translation.** Their sources
+  call each other freely, in both directions, and share one region of
+  working buffers, laid out over all of their procedures: a project of
+  two files that never call each other needs as much as the larger, not
+  both. So a project is translated whole or not at all; there is no
+  freezing one of its files and translating another, which would move the
+  region under the frozen file's code.
+- **A run translates one project or several.** `Translator.Run` takes one
+  or several, and those of one run call into each other: one translated
+  with those it calls into is translated as it is against their
+  summaries, above. Nothing is inherited from another file, so two that
+  read one download each say where it is.
+- **Each source is a class.** A source is one FORTRAN library: its files,
+  always given as a list, and a name that is its class. Two libraries of
+  one project stay two classes, so that a library's class is the same
+  however it is packaged and two libraries may each have a routine of one
+  name. A settings file may give its classes a namespace of their own; the
+  project's name is the default.
 - **A class may not have the name of a part of its namespace**, which C#
   allows and every use of the name then trips over. The translator refuses
   it and asks for a class name; it does not rename by itself, since the
   class would then not have the name that was written.
-- **What a project is follows from what is in it.** With a main program
-  among its sources it is an executable, and a library otherwise; either
-  can be said outright. An executable has one entry: with several main
-  programs the project names the one, and until it does the translation is
-  refused.
-- **A project file is written once, unless the settings say otherwise.**
-  Where the project has none, the translator writes one, with a `Main` for
-  an executable, and that is a whole project from nothing. Where it has
-  one, the translator writes sources and nothing else, so a project made
-  or changed by hand stays as it is; the checks on an executable's entry
-  are not made then, since no `Main` is written. Translated sources go to a folder of their own in the
-  project, a folder per source, and a new translation removes there only
-  files that say they were generated. The classes are partial, so
-  hand-written files beside them add to the same classes.
-- **`output` says where the translation is written, and has no
+- **`output` says where a settings file's sources are written, and has no
   default**, so that nothing is written to a folder nobody named; `"."`
   is the settings file's own. Every relative path is taken from where the
   settings file lies, so that projects whose settings lie apart refer to
-  each other from where each is.
-- **`translate` says when the project is translated**, after the values
-  MSBuild has for copying a file to the output: `never`, `ifChanged`, the
-  default, or `always`. `never` reads the project from its summary even
-  where its sources are there, unless the run is forced; `ifChanged`
-  writes a file only where its translation changed; `always` writes every
-  file again.
-- **`scaffold` says whether the files around a translation are written**:
-  a project's file, and `Program.cs` for an executable. `always` keeps
-  them the translator's and writes them each time; `once`, the default,
-  writes what is missing and leaves it to whoever has it after; `never`
-  writes none, and only checks that a project file refers to what its
-  project calls into, saying so where there is no project file at all.
-  A project's file is the one in its output folder, or else the one of
-  its name beside the settings, where a project keeps it whose
-  translation lies elsewhere; `once` then writes none.
-- **The runtime is referred to in one of three ways.** By default as its
-  package, in the translator's own version, which needs nothing of the
-  repository and holds wherever the project is put. As a project, where
-  the settings give its path. Or as its package with no version, where
-  the settings say to omit it and the version comes from elsewhere:
-  central package management is the usual case, which refuses a
-  reference that carries a version and names it in a list of the
-  repository's. The setting says what is written and not why, so that it
-  serves whatever else supplies a version. It is asked for and never
-  worked out, because a reference that nothing gives a version does not
-  fail: the restore warns and takes the lowest version there is.
+  each other from where each is. Two settings files of a run may not be
+  written to one folder, where each keeps a manifest of its own.
+  Translated sources go to a folder of their own there, a folder per
+  source, and a new translation removes there only files that say they
+  were generated. The classes are partial, so hand-written files beside
+  them add to the same classes.
+- **When to translate is not the settings' to say.** A file is translated
+  when the project is; whether the project is, its build says, as protobuf
+  leaves a file out of generation by an item's metadata and not by the
+  file; *A project translates its FORTRAN as it builds* has how.
 - **References between projects follow from the calls**, since the
-  translator knows which source defines every routine called. Left out,
-  they are worked out, and written into a project file being made or
-  reported as missing from one that exists. Given, they are used and
-  checked. Projects that need each other in a circle are refused; sources
-  of one project may call each other freely.
+  translator knows which source defines every routine called; there is
+  nothing to say of them. Projects that call each other in a circle are
+  refused, since their regions are laid out one after another; sources of
+  one project may call each other freely.
 - **All of it or none.** The settings are checked, every source read and
   checked, and every unit emitted before the first file is written, so an
   error anywhere leaves what is on disk as it was. A file whose text is
   already what it should be is not written again, and a build that looks
   at dates sees no change.
+
+**A project file is written only when asked.** A run told to scaffold,
+`TranslationOptions.Scaffold` or the command's `--scaffold`, writes a
+project file of the project's name in its folder, the folder of its
+summary, where there is none, and a `Program.cs` where it has a main
+program, which makes it an executable: a whole project from nothing, which
+from then on is whoever's has it. What of the translation lies outside that
+folder, which the SDK does not find by itself, the project file includes.
+What a scaffold writes is the run's to say, as all of it is the project's
+once it is written:
+
+- **An executable has one entry.** With several main programs the run
+  names the one its program starts with, and until it does the scaffold
+  is refused.
+- **The framework** is .NET 10's unless the run gives another.
+- **The runtime is referred to in one of three ways.** By default as its
+  package, in the translator's own version, which needs nothing of the
+  repository and holds wherever the project is put. As a project, where
+  the options give its path. Or as its package with no version, where the
+  options say to omit it and the version comes from elsewhere: central
+  package management is the usual case, which refuses a reference that
+  carries a version and names it in a list of the repository's. It is
+  asked for and never worked out, because a reference that nothing gives
+  a version does not fail: the restore warns and takes the lowest version
+  there is.
+- **Each project it calls into that has a project file** is referred to
+  by it.
 
 **Commands run after a translation, and change what they like.** What a
 translation should do beyond translating, mending one routine for the
@@ -917,8 +927,8 @@ platform it runs on above all, is not the translator's to know. So the
 settings list commands, `onSuccess`, that are run once the whole run is
 written: each a program and its arguments, no shell between, in the
 settings file's folder, and told in its environment where the settings
-and the project's translation are and which of its files were written.
-The projects of a run run theirs in the order they were given. Such a
+and their translation are and which of their files were written. The
+settings files of a run run theirs in the order they were given. Such a
 command can bring whatever it needs, a C# syntax tree and its rewriters
 among them, and the translator depends on none of it. One that fails fails
 the translation, with what it said; the files are written by then, so the
@@ -986,60 +996,74 @@ comment lines, each is carried once; the main and support libraries'
 translation grows from 12 to 37 MB.
 
 **What the translator wrote is recorded, so that what a command changed is
-kept.** Each folder of translated sources has a manifest with a hash of
-the text the translator gave each file. A file is written again when that
-text changes or the file is gone, and not because it differs from what is
-on disk; a file a command changed stays changed until the FORTRAN behind
-it does, and is then listed among the files written for the command to
-change again. A command that changes a file keeps its first line, which is
-how a file the translator no longer makes is told from one somebody wrote.
+kept.** Each settings file's folder of translated sources has a manifest,
+`Generated/.fortrania-manifest.json`, with, for each of its sources, a hash
+of the text the translator gave each file. A file is written again when
+that text changes or the file is gone, and not because it differs from
+what is on disk; a file a command changed stays changed until the FORTRAN
+behind it does, and is then listed among the files written for the command
+to change again. A command that changes a file keeps its first line, which
+is how a file the translator no longer makes is told from one somebody
+wrote. Its name is one no settings file has, so a folder of translated
+sources is never taken for settings.
 
-The settings file, the command line and the build step all read into the
+The settings files, the command line and the build step all read into the
 same description, kept in the translator's library and not in any of them.
 
 ## The command is `fortrania`, and its first word what to do
 
 `Dracocephalum.Fortrania.Cli` is a .NET tool whose command is
-`fortrania`, and `fortrania translate csharp` translates to C# the
-project a settings file describes.
+`fortrania`, and `fortrania translate csharp` translates to C# the project
+settings files make.
 It is a thin program over `Translator.Run` and holds no rule of a
 translation's own. The package is named for what it is beside the
 translator's, a command line; *tool* is a word of this repository's
 layout already, for what is never published.
 
-    fortrania translate csharp [settings]... [--reference <assembly>]...
-                               [--force] [--offline] [--record <file>]
-    fortrania restore [settings]... [--if-needed]
+    fortrania translate csharp --name <project> [settings]... [--summary <file>]
+                               [--reference <assembly or summary>]... [--force] [--offline]
+                               [--inventory <file>] [--namespace <namespace>]
+                               [--scaffold [--entry <program>] [--framework <framework>]]
+    fortrania restore --name <project> [settings]... [--summary <file>] [--if-needed]
     fortrania --version
 
-- **Each settings file is named, or the one found in one folder.** Named
-  as a folder, or not at all, the command takes the one `fortrania.json`
-  or `*.fortrania.json` in that folder or the one it is run in, and
-  refuses none or several. It looks in no folder above, so that no file
-  is taken that nobody pointed at; a project's build names its own. Its
-  paths are taken from where it lies, as `Translator.Run`'s are, so a
-  translation is the same from whatever folder it is started.
-- **Several settings files are one run**, their projects translated
-  together and calling into each other, as `Translator.Run` does with
-  several; one whose settings say `never` is read from its summary, as *A
-  project is translated apart by the summaries of those it calls into*
-  has. Only the sources of the projects translated are fetched.
+- **A run is one project, and its name is always given.** `--name` is the
+  project's, its assembly's, and is never guessed: a build passes its
+  assembly's, and nothing else is the same wherever the project is
+  compiled. A project translated against another names the other by
+  `--reference`, an assembly or a summary file.
+- **Each settings file is named, or those of a folder taken.** Named as a
+  folder, or not at all, the command takes every `fortrania.json` and
+  `*.fortrania.json` in that folder or the one it is run in, and refuses
+  none. It looks in no folder above, so that no file is taken that nobody
+  pointed at. Its paths are taken from where it lies, as
+  `Translator.Run`'s are, so a translation is the same from whatever folder
+  it is started. All of them are the one project.
+- **What the project is, is the command's to say**, for a translation
+  made from the command line alone: `--scaffold` writes the project around
+  it, with `--entry` and `--framework` for what it writes, `--namespace`
+  gives its classes another namespace, and `--summary` keeps its summary
+  elsewhere than beside the first settings file. `--entry` and
+  `--framework` without `--scaffold` are refused, since they would do
+  nothing.
 - **`restore` fetches and translates nothing**, for a pipeline that wants
   fetching as a step of its own and for a build's restore: the sources of
-  the projects it would translate that say where to download them and are
-  not on the machine. `--if-needed` passes over a project that has a
-  translation, its summary beside it, so a build fetches only what it
-  could not compile otherwise. Two fetches of the same sources at once,
-  as two projects of one build may make, each download to a folder of
-  their own, and the one that finishes second takes the first's folder.
+  the project that say where to download them and are not on the machine.
+  `--if-needed` passes over a project whose translation is all there, so a
+  build fetches only what it could not compile otherwise. Two fetches of
+  the same sources at once, as two projects of one build may make, each
+  download to a folder of their own, and the one that finishes second
+  takes the first's folder.
 - **`--offline` reaches no server**: nothing is fetched, and a project
-  whose sources are not on the machine is read from the summary its last
-  translation wrote, as one not translated is, so that what was translated is
-  compiled as it is. One with neither fails and says to restore. A build
-  translates so.
-- **`--record` is for a build**: the record of what was read and made,
-  by which it tells when to translate again; *A project translates its
-  FORTRAN as it builds* has it.
+  whose sources are not on the machine is compiled as it was translated
+  last, read from its summary, where that is all there. One with neither
+  fails and says to restore. A build translates so.
+- **`--inventory` is for a build**: a list of what the run read and what
+  its translation is made of, by which the build tells when to translate
+  again and what to compile; *A project translates its FORTRAN as it
+  builds* has it. It holds every path in full, so it is the build's own
+  and lies in its intermediate folder, where the summary, which is
+  embedded and committed, holds none.
 - **The first word is what to do, and the second what to translate to.**
   Another thing to do, `restore`, and later `build` or `run`, is a word
   beside `translate`, and another target a word beside `csharp`, each
@@ -1049,12 +1073,13 @@ layout already, for what is never published.
   spell it, and `cs` stays at hand as a shortening.
 - **A word or an option may be shortened at a prompt** to any start of
   it that no other shares, as the consoles of network switches and
-  `diskpart` take one: `fortrania t cs --f`. A word given in full is
-  always that word; a start that several share is refused with each of
-  them named. Since a word added later may share a start, a script, a
-  build file and the build package spell every word in full. No library
-  was taken for it: the common ones for .NET have no such matching, and
-  the rule is a few lines.
+  `diskpart` take one: `fortrania t cs --name Example --fo`. A word given
+  in full is always that word, `--name` beside `--namespace` among them;
+  a start that several share is refused with each of them named. Since a
+  word added later may share a start, a script, a build file and the
+  build package spell every word in full. No library was taken for it:
+  the common ones for .NET have no such matching, and the rule is a few
+  lines.
 - **Not a name made of the target**, as `f2c` and `f2j` are: that needs
   a name for each, and the obvious ones are not all free, `f2fs` being a
   file system and `f2` alone a tool that renames files. The short names
@@ -1075,62 +1100,82 @@ finds everything in order. It is built in `libraries/core` with the
 translator and the runtime, so that the three keep one version, and is a
 development dependency, which a package of the project does not pass on.
 
-- **Each project has its settings file beside it**, the one
-  `fortrania.json` or `*.fortrania.json` in its folder, or the one
-  `FortraniaSettings` names, and the build translates the project it
-  describes.
+- **A project's settings files are items of their own**, `Fortrania`, as
+  its `.proto` files are `Protobuf` items: every `fortrania.json` and
+  `*.fortrania.json` in its folder, which a project may take out or add
+  to the usual way, `<Fortrania Remove="old.fortrania.json" />`, or turn
+  off with `EnableDefaultFortraniaItems`. They are picked up by default,
+  where protobuf's are not, since a settings file beside a project is
+  there to be translated, where a `.proto` is often another's to import.
+  They are no longer `None` items, and an editor offers `Fortrania` as
+  what a file is for. The package's props add them, so that they are
+  there before the project's own items.
+- **The project is named for its assembly.** The build passes
+  `$(AssemblyName)` as the translation's name, and all its settings files
+  are the one translation; the project file is the project's own, and the
+  build never scaffolds.
 - **References are what the project references.** The build passes the
   translator the assemblies its project and package references resolve
   to, the framework's left out, and the translator reads the summary each
-  translated one carries; *A summary can come in an assembly*, above, has
-  it. MSBuild is the one place references are said, and a program that
-  has a translated library only as a package is translated against it
-  rightly.
-- **The summary is embedded in what is compiled**, as
-  `Fortrania.Summary.json`, for a project that references this one, and
-  a copy is put beside the assembly for that project's build to watch.
+  translated one carries; *A summary comes in an assembly or as a file*,
+  above, has it. MSBuild is the one place references are said, and a
+  program that has a translated library only as a package is translated
+  against it rightly.
+- **The summary is kept beside the project file and embedded**, as
+  `<assembly>.fortrania-summary.json` and `Fortrania.Summary.json`, for a
+  project that references this one, and a copy is put beside the assembly
+  for that project's build to watch.
 - **Whether a translation is kept is where it lands.** In the project's
   folder the SDK compiles it as any file there, and the build adds only
   what it wrote there for the first time, which the SDK did not see when
   it listed the folder; whether it is committed is the repository's
   `.gitignore`'s to say. Anywhere else the build adds the whole
-  translation to the compilation. The variable `$(IntermediateOutput)`
-  is the build's intermediate folder, so that `"output":
-  "$(IntermediateOutput)/fortrania"` lies under `obj/`, per project and per
-  configuration, and goes with `dotnet clean`; the command, which has no
-  such folder, says the variable has no value. The project file is the
-  one beside the settings, which the translator takes for a project's own
-  where the project's folder has none, so none is scaffolded beside such
-  a translation.
-- **`FortraniaTranslate`**, `never`, `ifChanged` or `always`, is `translate`
-  for one build: `never` compiles what is there, `always` translates every
-  unit again. Empty, the settings decide.
+  translation to the compilation. The variable `$(IntermediateOutput)` is
+  the build's intermediate folder, so that `"output":
+  "$(IntermediateOutput)/fortrania"` lies under `obj/`, per project and
+  per configuration, and goes with `dotnet clean`; the command, which has
+  no such folder, says the variable has no value. A clean removes only
+  what lies in that folder, so a translation kept in the project's folder
+  stays, and so does the summary.
+- **`FortraniaTranslate`**, `never`, `ifChanged` or `always`, is for one
+  build, and for the whole project, since its settings files are one
+  translation. `never` runs nothing: no settings read, no sources, no
+  download. The SDK compiles what the project's folder holds, what a
+  translation in the intermediate folder left is compiled as the last
+  inventory lists it, and the summary beside the project file is
+  embedded; a project told never that has no summary is refused, since
+  nothing could call into it. It is protobuf's `ProtoCompile="false"`,
+  for a project and not a file. `always` writes every file again. Empty or
+  `ifChanged`, the project is translated when what it was made from
+  changed.
 
 **The step runs only when its outcome could differ.** A translation that
 changes nothing still reads and analyses every unit, eighteen seconds for
 the toolkit's library, so the build does not ask the translator. The
-command writes a record of each translation, `--record`: every file it
-read, the file patterns its sources name, and every file the translation
-is made of. The build runs the step when one of those it read is newer
-than the record, when a file comes to match a pattern or one read or made
-is gone, when the command line changes, a new version of the package or
-other references among it, or when the copy of a referenced project's
-summary changes, which it does only when the summary does, so that a
-library compiled again for any other reason translates nothing that calls
-into it. A variable's value taken from the environment is not watched; a
-build told `always` translates whatever is there.
+command writes an inventory of each run, `--inventory`, as
+`obj/fortrania.inventory`: every file it read, the file patterns its
+sources name, and every file the translation is made of. The build runs
+the step when one of those it read is newer than the inventory, when a
+file comes to match a pattern or one read or made is gone, when the
+command line changes, a new version of the package or other settings or
+references among it, or when the copy of a referenced project's summary
+changes, which it does only when the summary does, so that a library
+compiled again for any other reason translates nothing that calls into
+it. A variable's value taken from the environment is not watched; a build
+told `always` translates whatever is there.
 
 **Sources are fetched before translating, and only where needed.** A
 package's targets are imported once restore has run, so its first
 restore, on a clean machine, cannot fetch anything; the step fetches
 instead, before it translates, and only when it is to translate. The
 build fetches with `fortrania restore --if-needed`, which passes over a
-project that has a translation to compile, and then translates with
-`--offline`, which fetches nothing and reads a project whose sources are
-not there from its summary: a pipeline whose translation is committed
-never reaches the toolkit's server. `FortraniaFetch`, `never`, `ifNeeded`
-or `always`, overrides that for a machine that is never to reach a server,
-or one that is to fetch whatever is not there.
+project whose translation is all there, and then translates with
+`--offline`, which fetches nothing and compiles a project whose sources are
+not there as it was translated last. A pipeline whose translation is
+committed builds told `never`, and never reaches the toolkit's server.
+`FortraniaFetch`, `never`, `ifNeeded` or `always`, overrides that for a
+machine that is never to reach a server, or one that is to fetch whatever
+is not there.
 
 **The targets run the command as a program of its own**, carried in the
 package under `tools/`, with the `dotnet` the build runs on, and load

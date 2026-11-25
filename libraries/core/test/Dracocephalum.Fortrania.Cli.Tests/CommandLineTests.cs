@@ -15,9 +15,7 @@ public sealed class CommandLineTests : IDisposable
     private const string Settings =
         """
         {
-          "name": "Example.Toolkit",
           "output": "out/Example.Toolkit",
-          "runtime": { "package": "1.2.3" },
           "sources": [ { "name": "Core", "files": [ "src/*.f" ] } ]
         }
         """;
@@ -43,7 +41,7 @@ public sealed class CommandLineTests : IDisposable
         Put("example.fortrania.json", Settings);
 
         // Act
-        var code = Run("translate", "csharp");
+        var code = Run("translate", "csharp", "--name", "Example.Toolkit");
 
         // Assert
         code.ShouldBe(CommandLine.Done, _error.ToString());
@@ -61,7 +59,7 @@ public sealed class CommandLineTests : IDisposable
         Directory.CreateDirectory(Path.Combine(_root, "elsewhere"));
 
         // Act
-        var code = RunIn(Path.Combine(_root, "elsewhere"), "translate", "csharp", "../project/settings.json");
+        var code = RunIn(Path.Combine(_root, "elsewhere"), "translate", "csharp", "--name", "Example.Toolkit", "../project/settings.json");
 
         // Assert
         code.ShouldBe(CommandLine.Done, _error.ToString());
@@ -74,12 +72,12 @@ public sealed class CommandLineTests : IDisposable
         // Arrange
         Put("src/twice.f", Source);
         Put("fortrania.json", Settings);
-        Run("translate", "csharp").ShouldBe(CommandLine.Done);
+        Run("translate", "csharp", "--name", "Example.Toolkit").ShouldBe(CommandLine.Done);
 
         // Act
-        Run("translate", "csharp").ShouldBe(CommandLine.Done);
+        Run("translate", "csharp", "--name", "Example.Toolkit").ShouldBe(CommandLine.Done);
         var again = _output.ToString();
-        Run("translate", "csharp", "--force").ShouldBe(CommandLine.Done);
+        Run("translate", "csharp", "--name", "Example.Toolkit", "--force").ShouldBe(CommandLine.Done);
         var forced = _output.ToString()[again.Length..];
 
         // Assert
@@ -95,7 +93,7 @@ public sealed class CommandLineTests : IDisposable
         Put("fortrania.json", Settings);
 
         // Act
-        var code = Run("translate", "csharp");
+        var code = Run("translate", "csharp", "--name", "Example.Toolkit");
 
         // Assert
         code.ShouldBe(CommandLine.Failed);
@@ -103,23 +101,33 @@ public sealed class CommandLineTests : IDisposable
         _output.ToString().ShouldStartWith("Not translated:");
     }
 
-    [Theory]
-    [InlineData]
-    [InlineData("a.fortrania.json", "b.fortrania.json")]
-    public void Run_WhenTheFolderHasNoneOrSeveralSettingsFiles_ShouldSayToNameOneAndFail(params string[] files)
+    [Fact]
+    public void Run_WhenTheFolderHasNoSettingsFile_ShouldSayToNameOneAndFail()
     {
-        // Arrange
-        foreach (var file in files)
-        {
-            Put(file, Settings);
-        }
-
         // Act
-        var code = Run("translate", "csharp");
+        var code = Run("translate", "csharp", "--name", "Example.Toolkit");
 
         // Assert
         code.ShouldBe(CommandLine.Failed);
-        _error.ToString().ShouldContain("name the");
+        _error.ToString().ShouldContain("name the settings file.");
+    }
+
+    [Fact]
+    public void Run_WhenTheFolderHasSeveralSettingsFiles_ShouldTranslateThemAsOneProject()
+    {
+        // Arrange
+        Put("src/twice.f", Source);
+        Put("other/thrice.f", "      SUBROUTINE THRICE ( N )\n      INTEGER N\n      CALL TWICE ( N )\n      END\n");
+        Put("a.fortrania.json", Settings);
+        Put("b.fortrania.json", """{ "output": "out/Example.Other", "sources": [ { "name": "More", "files": [ "other/*.f" ] } ] }""");
+
+        // Act
+        var code = Run("translate", "csharp", "--name", "Example.Toolkit");
+
+        // Assert
+        code.ShouldBe(CommandLine.Done, _error.ToString());
+        _output.ToString().ShouldStartWith("Translated: 2 program units,");
+        File.ReadAllText(Path.Combine(_root, "out/Example.Other/Generated/More/THRICE.g.cs")).ShouldContain("TWICE(");
     }
 
     [Fact]
@@ -129,7 +137,7 @@ public sealed class CommandLineTests : IDisposable
         Put("fortrania.json", """{ "sources": [], "colour": "red" }""");
 
         // Act
-        var code = Run("translate", "csharp");
+        var code = Run("translate", "csharp", "--name", "Example.Toolkit");
 
         // Assert
         code.ShouldBe(CommandLine.Failed);
@@ -141,6 +149,7 @@ public sealed class CommandLineTests : IDisposable
     [InlineData("vb")]
     [InlineData("translate", "csharp", "--quick")]
     [InlineData("translate", "csharp", "--project", "Example.Toolkit")]
+    [InlineData("translate", "csharp", "--f")]
     public void Run_WhenTheCommandLineIsNotOneItTakes_ShouldShowHowToUseItAndSaySo(params string[] arguments)
     {
         // Act
@@ -152,26 +161,26 @@ public sealed class CommandLineTests : IDisposable
     }
 
     [Fact]
-    public void Run_WhenNamedSeveralSettingsFiles_ShouldTranslateTheirProjectsTogether()
+    public void Run_WhenNamedSeveralSettingsFiles_ShouldTranslateThemAsOneProject()
     {
         // Arrange: a library and a program that calls it, each with its
-        // settings in its own folder, the program's naming no output of
-        // its own and taking its name from its project file.
+        // settings in its own folder, the program's beside a project file
+        // of its own, which is left as it is.
         Put("lib/twice.f", Source);
-        Put("lib/lib.fortrania.json", """{ "name": "Example.Toolkit", "output": ".", "sources": [ { "name": "Core", "files": [ "*.f" ] } ] }""");
+        Put("lib/lib.fortrania.json", """{ "output": ".", "sources": [ { "name": "Core", "files": [ "*.f" ] } ] }""");
         Put("app/main.f", "      PROGRAM APP\n      INTEGER N\n      N = 4\n      CALL TWICE ( N )\n      END\n");
         Put("app/Example.App.csproj", "<Project Sdk=\"Microsoft.NET.Sdk\" />\n");
         Put("app/app.fortrania.json", """{ "output": ".", "sources": [ { "name": "AppMain", "files": [ "*.f" ] } ] }""");
 
         // Act
-        var code = Run("translate", "csharp", "lib", "app/app.fortrania.json");
+        var code = Run("translate", "csharp", "--name", "Example.App", "lib", "app/app.fortrania.json");
 
-        // Assert: the program reaches the library's procedure, and is told
-        // its project file does not refer to the library.
+        // Assert: the program reaches the library's procedure.
         code.ShouldBe(CommandLine.Done, _error.ToString());
         _output.ToString().ShouldStartWith("Translated: 2 program units,");
         File.ReadAllText(Path.Combine(_root, "app/Generated/AppMain/APP.g.cs")).ShouldContain("TWICE(");
-        _error.ToString().ShouldContain("The project calls into Example.Toolkit and its project file does not refer to it.");
+        _error.ToString().ShouldBeEmpty();
+        File.ReadAllText(Path.Combine(_root, "app/Example.App.csproj")).ShouldBe("<Project Sdk=\"Microsoft.NET.Sdk\" />\n");
     }
 
     [Fact]
@@ -182,7 +191,7 @@ public sealed class CommandLineTests : IDisposable
         Put("fortrania.json", Settings);
 
         // Act
-        var code = Run("translate", "csharp", "fortrania.json", "missing.fortrania.json");
+        var code = Run("translate", "csharp", "--name", "Example.Toolkit", "fortrania.json", "missing.fortrania.json");
 
         // Assert
         code.ShouldBe(CommandLine.Failed);
@@ -191,9 +200,9 @@ public sealed class CommandLineTests : IDisposable
     }
 
     [Theory]
-    [InlineData("t", "cs")]
-    [InlineData("tr", "c", "--f")]
-    [InlineData("translate", "csh", "--fo")]
+    [InlineData("t", "cs", "--name", "Example.Toolkit")]
+    [InlineData("tr", "c", "--name", "Example.Toolkit", "--of")]
+    [InlineData("translate", "csh", "--name", "Example.Toolkit", "--fo")]
     public void Run_WhenWordsAndOptionsAreShortenedToAStartNoOtherShares_ShouldTakeThemForTheWholeWords(params string[] arguments)
     {
         // Arrange
@@ -268,7 +277,7 @@ public sealed class CommandLineTests : IDisposable
         Directory.CreateDirectory(Path.Combine(_root, "deep"));
 
         // Act
-        var code = RunIn(Path.Combine(_root, "deep"), "translate", "csharp");
+        var code = RunIn(Path.Combine(_root, "deep"), "translate", "csharp", "--name", "Example.Toolkit");
 
         // Assert
         code.ShouldBe(CommandLine.Failed);
@@ -276,7 +285,7 @@ public sealed class CommandLineTests : IDisposable
     }
 
     [Fact]
-    public void Run_WhenAFolderIsNamedForTheSettings_ShouldTakeTheOneInIt()
+    public void Run_WhenAFolderIsNamedForTheSettings_ShouldTakeThoseInIt()
     {
         // Arrange: the settings beside the sources, named by their folder
         // from elsewhere, as a build names its project's.
@@ -285,7 +294,7 @@ public sealed class CommandLineTests : IDisposable
         Directory.CreateDirectory(Path.Combine(_root, "elsewhere"));
 
         // Act
-        var code = RunIn(Path.Combine(_root, "elsewhere"), "translate", "csharp", "../project");
+        var code = RunIn(Path.Combine(_root, "elsewhere"), "translate", "csharp", "--name", "Example.Toolkit", "../project");
 
         // Assert
         code.ShouldBe(CommandLine.Done, _error.ToString());
@@ -298,13 +307,13 @@ public sealed class CommandLineTests : IDisposable
         // Arrange
         Put("src/twice.f", Source);
         Put("fortrania.json", Settings);
-        Run("translate", "csharp").ShouldBe(CommandLine.Done);
+        Run("translate", "csharp", "--name", "Example.Toolkit").ShouldBe(CommandLine.Done);
         File.Delete(Path.Combine(_root, "src/twice.f"));
         var before = _output.ToString().Length;
 
         // Act
-        var offline = Run("translate", "csharp", "--offline");
-        var online = Run("translate", "csharp");
+        var offline = Run("translate", "csharp", "--name", "Example.Toolkit", "--offline");
+        var online = Run("translate", "csharp", "--name", "Example.Toolkit");
 
         // Assert
         offline.ShouldBe(CommandLine.Done, _error.ToString());
@@ -320,7 +329,7 @@ public sealed class CommandLineTests : IDisposable
         Put("fortrania.json", Settings);
 
         // Act
-        var code = Run("translate", "csharp", "--offline");
+        var code = Run("translate", "csharp", "--name", "Example.Toolkit", "--offline");
 
         // Assert
         code.ShouldBe(CommandLine.Failed);
@@ -328,9 +337,9 @@ public sealed class CommandLineTests : IDisposable
     }
 
     [Theory]
-    [InlineData("restore")]
-    [InlineData("restore", "--if-needed")]
-    [InlineData("res", "fortrania.json", "--if")]
+    [InlineData("restore", "--name", "Example.Toolkit")]
+    [InlineData("restore", "--name", "Example.Toolkit", "--if-needed")]
+    [InlineData("res", "--name", "Example.Toolkit", "fortrania.json", "--if")]
     public void Run_WhenToldToRestoreWhatNeedsNoDownload_ShouldFetchNothingAndSucceed(params string[] arguments)
     {
         // Arrange
@@ -347,55 +356,167 @@ public sealed class CommandLineTests : IDisposable
     }
 
     [Fact]
-    public void Run_WhenToldToRecord_ShouldWriteWhatWasReadMatchedAndMade()
+    public void Run_WhenToldToKeepAnInventory_ShouldWriteWhatWasReadMatchedAndMade()
     {
         // Arrange
         Put("src/twice.f", Source);
         Put("fortrania.json", Settings);
 
         // Act
-        var code = Run("translate", "csharp", "--record", "obj/fortrania.record");
+        var code = Run("translate", "csharp", "--name", "Example.Toolkit", "--inventory", "obj/fortrania.inventory");
 
         // Assert
         code.ShouldBe(CommandLine.Done, _error.ToString());
-        File.ReadAllLines(Path.Combine(_root, "obj/fortrania.record")).ShouldBe(
+        File.ReadAllLines(Path.Combine(_root, "obj/fortrania.inventory")).ShouldBe(
             [
                 "read " + Path.Combine(_root, "fortrania.json"),
                 "read " + Path.GetFullPath(Path.Combine(_root, "src/twice.f")),
                 "pattern " + Path.GetFullPath(Path.Combine(_root, "src/*.f")),
                 "file " + Path.GetFullPath(Path.Combine(_root, "out/Example.Toolkit/Generated/Core/TWICE.g.cs")),
                 "file " + Path.GetFullPath(Path.Combine(_root, "out/Example.Toolkit/Generated/Core/Core.g.cs")),
-                "file " + Path.GetFullPath(Path.Combine(_root, "out/Example.Toolkit/Generated/.fortrania-summary.json")),
+                "file " + Path.Combine(_root, "Example.Toolkit.fortrania-summary.json"),
             ]);
     }
 
     [Fact]
-    public void Run_WhenATranslationToBeRecordedFails_ShouldRemoveTheLastRecord()
+    public void Run_WhenATranslationWithAnInventoryFails_ShouldRemoveTheLastInventory()
     {
-        // Arrange: a record of a translation that was done, then its
+        // Arrange: an inventory of a translation that was made, then its
         // sources gone.
         Put("src/twice.f", Source);
         Put("fortrania.json", Settings);
-        Run("translate", "csharp", "--record", "fortrania.record").ShouldBe(CommandLine.Done);
+        Run("translate", "csharp", "--name", "Example.Toolkit", "--inventory", "fortrania.inventory").ShouldBe(CommandLine.Done);
         File.Delete(Path.Combine(_root, "src/twice.f"));
 
         // Act
-        var code = Run("translate", "csharp", "--record", "fortrania.record");
+        var code = Run("translate", "csharp", "--name", "Example.Toolkit", "--inventory", "fortrania.inventory");
 
         // Assert
         code.ShouldBe(CommandLine.Failed);
-        File.Exists(Path.Combine(_root, "fortrania.record")).ShouldBeFalse();
+        File.Exists(Path.Combine(_root, "fortrania.inventory")).ShouldBeFalse();
     }
 
     [Fact]
-    public void Run_WhenTheRecordIsNamedTwice_ShouldSaySo()
+    public void Run_WhenTheInventoryIsNamedTwice_ShouldSaySo()
     {
         // Act
-        var code = Run("translate", "csharp", "--record", "a", "--record", "b");
+        var code = Run("translate", "csharp", "--name", "Example.Toolkit", "--inventory", "a", "--inventory", "b");
 
         // Assert
         code.ShouldBe(CommandLine.Misused);
-        _error.ToString().ShouldContain("--record is given twice; it takes one.");
+        _error.ToString().ShouldContain("--inventory is given twice; it takes one.");
+    }
+
+    [Fact]
+    public void Run_WhenToldToScaffold_ShouldWriteAProjectFileOfTheProjectsNameBesideItsSummaryForTheFrameworkGiven()
+    {
+        // Arrange
+        Put("src/twice.f", Source);
+        Put("fortrania.json", Settings);
+
+        // Act
+        var code = Run("translate", "csharp", "--name", "Example.Toolkit", "--scaffold", "--framework", "net11.0");
+
+        // Assert
+        code.ShouldBe(CommandLine.Done, _error.ToString());
+        File.ReadAllText(Path.Combine(_root, "Example.Toolkit.csproj")).ShouldContain("<TargetFramework>net11.0</TargetFramework>");
+    }
+
+    [Fact]
+    public void Run_WhenNotToldToScaffold_ShouldWriteNoProjectFile()
+    {
+        // Arrange
+        Put("src/twice.f", Source);
+        Put("fortrania.json", Settings);
+
+        // Act
+        var code = Run("translate", "csharp", "--name", "Example.Toolkit");
+
+        // Assert
+        code.ShouldBe(CommandLine.Done, _error.ToString());
+        Directory.GetFiles(_root, "*.csproj", SearchOption.AllDirectories).ShouldBeEmpty();
+    }
+
+    [Theory]
+    [InlineData("--entry", "MAIN")]
+    [InlineData("--framework", "net11.0")]
+    public void Run_WhenAScaffoldsOptionIsGivenWithoutScaffold_ShouldSaySo(string option, string value)
+    {
+        // Act
+        var code = Run("translate", "csharp", "--name", "Example.Toolkit", option, value);
+
+        // Assert
+        code.ShouldBe(CommandLine.Misused);
+        _error.ToString().ShouldContain($"{option} says what a scaffold writes, and is given without --scaffold.");
+    }
+
+    [Fact]
+    public void Run_WhenANamespaceIsGiven_ShouldTranslateToIt()
+    {
+        // Arrange
+        Put("src/twice.f", Source);
+        Put("fortrania.json", Settings);
+
+        // Act
+        var code = Run("translate", "csharp", "--name", "Example.Toolkit", "--namespace", "Example.Chosen");
+
+        // Assert
+        code.ShouldBe(CommandLine.Done, _error.ToString());
+        File.ReadAllText(Path.Combine(_root, "out/Example.Toolkit/Generated/Core/Core.g.cs")).ShouldContain("namespace Example.Chosen;");
+    }
+
+    [Theory]
+    [InlineData("translate", "csharp")]
+    [InlineData("restore")]
+    public void Run_WhenNoNameIsGiven_ShouldSayItIsToBeAndTranslateNothing(params string[] arguments)
+    {
+        // Arrange
+        Put("src/twice.f", Source);
+        Put("fortrania.json", Settings);
+
+        // Act
+        var code = Run(arguments);
+
+        // Assert
+        code.ShouldBe(CommandLine.Misused);
+        _error.ToString().ShouldContain("--name is to be given: the name of the project, its assembly's.");
+        Directory.Exists(Path.Combine(_root, "out")).ShouldBeFalse();
+    }
+
+    [Fact]
+    public void Run_WhenASummaryFileIsNamed_ShouldKeepTheSummaryThere()
+    {
+        // Arrange
+        Put("src/twice.f", Source);
+        Put("fortrania.json", Settings);
+
+        // Act
+        var code = Run("translate", "csharp", "--name", "Example.Toolkit", "--summary", "kept/toolkit.json");
+
+        // Assert
+        code.ShouldBe(CommandLine.Done, _error.ToString());
+        File.ReadAllText(Path.Combine(_root, "kept/toolkit.json")).ShouldContain("\"project\": \"Example.Toolkit\"");
+        File.Exists(Path.Combine(_root, "Example.Toolkit.fortrania-summary.json")).ShouldBeFalse();
+    }
+
+    [Fact]
+    public void Run_WhenAReferenceIsASummaryFile_ShouldTranslateAgainstIt()
+    {
+        // Arrange: a library translated on its own, then a program that
+        // calls into it, against its summary.
+        Put("lib/twice.f", Source);
+        Put("lib/fortrania.json", """{ "output": ".", "sources": [ { "name": "Core", "files": [ "*.f" ] } ] }""");
+        Put("app/main.f", "      PROGRAM APP\n      INTEGER N\n      N = 4\n      CALL TWICE ( N )\n      END\n");
+        Put("app/fortrania.json", """{ "output": ".", "sources": [ { "name": "AppMain", "files": [ "*.f" ] } ] }""");
+        Run("translate", "csharp", "--name", "Example.Toolkit", "lib").ShouldBe(CommandLine.Done, _error.ToString());
+
+        // Act
+        var code = Run("translate", "csharp", "--name", "Example.App", "app", "--reference", "lib/Example.Toolkit.fortrania-summary.json");
+
+        // Assert
+        code.ShouldBe(CommandLine.Done, _error.ToString());
+        _error.ToString().ShouldBeEmpty();
+        File.ReadAllText(Path.Combine(_root, "app/Generated/AppMain/APP.g.cs")).ShouldContain("TWICE(");
     }
 
     [Fact]
@@ -407,7 +528,7 @@ public sealed class CommandLineTests : IDisposable
         Put("lib/not-an-assembly.dll", "text");
 
         // Act
-        var code = Run("translate", "csharp", "--reference", "lib/not-an-assembly.dll");
+        var code = Run("translate", "csharp", "--name", "Example.Toolkit", "--reference", "lib/not-an-assembly.dll");
 
         // Assert
         code.ShouldBe(CommandLine.Failed);
@@ -418,11 +539,11 @@ public sealed class CommandLineTests : IDisposable
     public void Run_WhenAReferenceHasNoPath_ShouldShowHowToUseItAndSaySo()
     {
         // Act
-        var code = Run("translate", "csharp", "--reference");
+        var code = Run("translate", "csharp", "--name", "Example.Toolkit", "--reference");
 
         // Assert
         code.ShouldBe(CommandLine.Misused);
-        _error.ToString().ShouldContain("--reference is to be followed by the path of an assembly.");
+        _error.ToString().ShouldContain("--reference is to be followed by the path of an assembly or of a summary file.");
     }
 
     [Fact]
