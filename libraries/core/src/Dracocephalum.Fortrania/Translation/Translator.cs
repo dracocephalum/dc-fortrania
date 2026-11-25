@@ -863,8 +863,36 @@ public static partial class Translator
         // it asks of its context for them.
         private void WriteWithPlaces()
         {
+            // The procedures of each source that are written as an entry and
+            // a core, by the names they are called by.
+            var cores = _sources
+                .Where(source => !source.IsSummarized)
+                .ToDictionary(
+                    source => source,
+                    source => source.Emitted.Values
+                        .SelectMany(emitted => CSharpEmitter.FindCores(emitted, procedure => _places.TryGetValue((source, procedure), out var place) ? place : null))
+                        .ToHashSet(StringComparer.Ordinal));
+
             foreach (var source in _sources.Where(source => !source.IsSummarized))
             {
+                // A call as written reaches a procedure of this source, or of
+                // another of the project by the member that gives its library;
+                // a library of another project is another assembly, and its
+                // core not to be reached.
+                bool HasCore(string called)
+                {
+                    var dot = called.LastIndexOf('.');
+                    if (dot < 0)
+                    {
+                        return cores[source].Contains(called);
+                    }
+
+                    var accessor = called[..dot];
+                    return cores.Any(pair => pair.Key.Project == source.Project
+                        && "_" + pair.Key.ClassName == accessor
+                        && pair.Value.Contains(called[(dot + 1)..]));
+                }
+
                 // In the order of the files' names, so that a constant has
                 // the same place however the units came to be read.
                 var text = source.Part.Settings.InlineTextConstants ? null : new TextBlock();
@@ -875,7 +903,8 @@ public static partial class Translator
                         procedure => _places.TryGetValue((source, procedure), out var place) ? place : null,
                         text,
                         source.Part.Settings.PlainArrayLoops,
-                        procedure => _whyOnStack.TryGetValue((source, procedure), out var why) && why.Count > 0 ? why : null);
+                        procedure => _whyOnStack.TryGetValue((source, procedure), out var why) && why.Count > 0 ? why : null,
+                        HasCore);
                 }
 
                 var region = _workingRegions.Single(region => region.Project == source.Project.Name);

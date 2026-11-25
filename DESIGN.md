@@ -387,15 +387,22 @@ place in the arena cannot.
   procedure's first call comes while others run, and to ask on every call
   would cost every call a test.
 - **The arena is used in copies, opened one on top of another.** A call
-  from outside, while nothing translated runs, opens the first: the
-  region says so on entry, `BufferSource.None`, and the method calls
-  itself again through one written beside it, which pushes a copy, calls,
-  and pops it in a `finally`. A procedure called through an argument may
-  call back into a library whose chain is still running, which no layout
-  of one project can foresee, so its forwarder opens one more copy for the
-  call. Every copy is laid out alike, and a procedure takes its buffers
-  from the one open when it is entered. How deep the copies go is the
-  host's to limit, sixteen callbacks unless it says otherwise.
+  from outside, while nothing translated runs, opens the first. So a
+  procedure that has buffers and a place is written as three methods: its
+  entry, public and of its own name, tests whether a copy is open, the
+  region saying `BufferSource.None` where none is, and calls the core, or
+  calls it through `_NAME_with_arena`, which pushes a copy, calls, and pops
+  it in a `finally`; the core, `_NAME_core`, internal, takes the buffers and
+  does the work, testing only for the stack. A core calls the cores of the
+  procedures of its project it calls that have one, since a copy is open
+  while it runs, and everything else, the host, another project, a
+  procedure of the project without buffers that may itself be the
+  outermost call, calls the entry. A procedure called through an argument
+  may call back into a library whose chain is still running, which no
+  layout of one project can foresee, so its forwarder opens one more copy
+  for the call. Every copy is laid out alike, and a procedure takes its
+  buffers from the one open when it is entered. How deep the copies go is
+  the host's to limit, sixteen callbacks unless it says otherwise.
 - **Memory is never taken from under a procedure that runs.** A library
   that asks for more than the arena has, or that moves a region, changes
   the layout while procedures may be running in it, and some code that
@@ -452,31 +459,37 @@ and asks nothing:
   the frame. That, with the test, is what the slowest shape on an empty
   method paid.
 
-Telling the copies apart added a third way to the test: the stack, the
-arena, or a call that opens a copy. Measured against the test of two ways
-it replaced, `BufferSourceBenchmarks`, the stack is tested first, since
-testing the arena first cost the stack a quarter of an empty method and
-saved the arena less:
+Telling the copies apart needs a third way, a call that opens a copy, and
+where that test is made decides what it costs. Made on entry to every
+method, the stack tested first, it cost little on the stack and some 0.5
+to 1.4 ns a call in the arena, 8% to 30% of a method that does little:
+whichever way the compiler lays out to run straight through is the cheap
+one, and the other pays a second test. Made in an entry that only calls
+from outside a running chain reach, with the core testing the stack alone,
+as the methods are now written, it was measured against the test on every
+method, `BufferSourceBenchmarks`:
 
-| Shape | On the stack | In the arena |
+| A call of | On the stack | In the arena |
 |---|---|---|
-| a method that calls nothing | the same | 30% slower, some 1.4 ns |
-| a method that calls something, as translated ones do | 3% to 8% slower | 8% to 26% slower, some 0.5 to 1.4 ns |
+| a core that calls nothing, from inside the project | the same | 13% faster |
+| a core that calls something, as translated ones do, from inside the project | 14% faster | 8% to 12% faster |
+| its entry, compiled into the caller, from outside | the same for one that calls something; 10% slower, half a nanosecond, for one that calls nothing | the same for one that calls something; 13% faster for one that calls nothing |
 
-The stack, which is the default, costs nothing that counts; the arena costs
-a second test and the call behind it, about a nanosecond on each call of a
-procedure that has buffers, a few hundredths of one that works. The ratios
-moved with what else the benchmark held, as the tool's `README.md` warns.
+A call from inside a project, which nearly all are, so costs what it did
+before copies were opened, in both modes, and the two modes come within a
+tenth of each other. The ratios move with what else the benchmark holds, as
+the tool's `README.md` warns.
 
-Taking the `stackalloc` out of the method was measured against it as well:
-a body given its buffers' address, by an entry that tests and calls it with
-its place in the arena, or calls a method of its own that takes the
-buffers from the stack and calls the body from there. In the arena it was
-the same, 0.95 to 1.06, whether the entry was compiled into its caller or
-called; on the stack it was a fifth slower with the entry compiled into its
-caller and three fifths slower with it called. A call costs more than the
-frame pointer and the cookie it saves the body, so the `stackalloc` stays
-in the method, in its branch.
+Two other shapes were measured and set aside. Working out the address in
+the arena only in the branch that takes it, and not before the test, made
+the arena some 9% faster and the stack as much slower; the stack, the
+default, keeps the shorter way. Taking the `stackalloc` out of the method
+altogether, a body given its buffers' address by an entry that tests, and
+a method of its own taking them from the stack and calling the body from
+there, was the same in the arena, 0.95 to 1.06, whether the entry was
+compiled into its caller or called, and a fifth to three fifths slower on
+the stack. A call costs more than the frame pointer and the cookie it saves
+the body, so the `stackalloc` stays in the core, in its branch.
 
 Two designs were set aside. Limits that split a method's buffers between
 the stack and the heap as it runs cost a cut to compute and a choice per

@@ -376,8 +376,9 @@ sealed unsafe class BufferArena : IDisposable
 
     // Each region of the arena told where its procedures take their
     // buffers now: from the copy open, or through a call that opens one
-    // when none is. Where the copy cannot be made, none is open to them,
-    // and a procedure entered opens one of its own.
+    // when none is. Where the copy cannot be made, the stack: a procedure
+    // reached from one running tests for nothing else, and the stack is
+    // memory that is there.
     private void Point()
     {
         byte* copy = null;
@@ -393,7 +394,7 @@ sealed unsafe class BufferArena : IDisposable
                 {
                     if (!region.IsOnStack)
                     {
-                        region.CurrentSource = BufferSource.None;
+                        region.CurrentSource = BufferSource.Stack;
                         region.Start = null;
                     }
                 }

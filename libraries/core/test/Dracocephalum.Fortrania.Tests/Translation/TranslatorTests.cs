@@ -951,8 +951,14 @@ public sealed class TranslatorTests : IDisposable
         var runf = Text("out/Example.Toolkit/Generated/Core/RUNF.g.cs");
         runf.ShouldContain("byte* _locals = _region.Start + 80;");
         runf.ShouldContain("if (_region.CurrentSource == BufferSource.Stack)");
-        runf.ShouldContain("else if (_region.CurrentSource == BufferSource.None)");
-        runf.ShouldContain("_RUNF_opens_arena(");
+        runf.ShouldNotContain("else if (_region.CurrentSource == BufferSource.None)");
+        runf.ShouldContain("public void RUNF(");
+        runf.ShouldContain("if (_region.CurrentSource == BufferSource.None)");
+        runf.ShouldContain("_RUNF_with_arena(");
+        runf.ShouldContain("internal void _RUNF_core(");
+
+        // A core calls the core of the procedure it calls, which has one too.
+        Text("out/Example.Toolkit/Generated/Core/TOP.g.cs").ShouldContain("_RUNF_core(");
         runf.ShouldContain("byte* _onStack = stackalloc byte[160];");
         runf.ShouldContain("double* w = (double*)_locals;");
         Text("out/Example.Toolkit/Generated/Core/SUMUP.g.cs").ShouldContain("byte* tag = _locals + 240;");
@@ -2045,6 +2051,60 @@ public sealed class TranslatorTests : IDisposable
         var compiled = TranslatedProgram.FromSources(
             Directory.GetFiles(Path.Combine(_root, "out"), "*.cs", SearchOption.AllDirectories).Select(File.ReadAllText).Append(Driver));
         compiled.Run<int[]>("RunInArena").ShouldBe([3, 0]);
+    }
+
+    [Fact]
+    public void Run_WhenProceduresWithBuffersCallEachOther_ShouldHaveCoresCallCoresAndOthersTheEntry()
+    {
+        // Arrange: PLAIN has no buffers and is called from outside; it
+        // calls OUTER, whose core calls INNER of another library of the
+        // project, both with buffers.
+        Put("first/first.f", """
+                  SUBROUTINE PLAIN ( N )
+                  INTEGER N
+                  CALL OUTER ( N )
+                  END
+
+                  SUBROUTINE OUTER ( N )
+                  INTEGER N, W ( 4 )
+                  W ( 1 ) = N
+                  CALL INNER ( W ( 1 ) )
+                  N = W ( 1 )
+                  END
+            """);
+        Put("second/second.f", "      SUBROUTINE INNER ( N )\n      INTEGER N, B ( 4 )\n      B ( 1 ) = N * 2\n      N = B ( 1 )\n      END\n");
+        const string Driver =
+            """
+            using Dracocephalum.Fortrania.Runtime;
+
+            namespace Translated;
+
+            public static unsafe class Driver
+            {
+                public static int[] RunInArena()
+                {
+                    using var context = new FortranContext(new FortranContextOptions { BufferPlacement = BufferPlacement.Arena });
+                    int n = 5;
+                    context.Get<Example.Toolkit.FirstLib>().PLAIN(&n);
+                    return [n, context.Arena.Depth];
+                }
+            }
+            """;
+
+        // Act
+        var result = Translate(Project("Example.Toolkit", Source("FirstLib", "first/*.f"), Source("SecondLib", "second/*.f")));
+
+        // Assert: PLAIN, which may be the outermost call, reaches OUTER by its
+        // entry; OUTER's core reaches INNER's core in the other library.
+        result.Succeeded.ShouldBeTrue(string.Join('\n', result.Messages));
+        var plain = Text("out/Example.Toolkit/Generated/FirstLib/PLAIN.g.cs");
+        plain.ShouldContain("OUTER(");
+        plain.ShouldNotContain("_OUTER_core(");
+        Text("out/Example.Toolkit/Generated/FirstLib/OUTER.g.cs").ShouldContain("_SecondLib._INNER_core(");
+
+        var compiled = TranslatedProgram.FromSources(
+            Directory.GetFiles(Path.Combine(_root, "out"), "*.cs", SearchOption.AllDirectories).Select(File.ReadAllText).Append(Driver));
+        compiled.Run<int[]>("RunInArena").ShouldBe([10, 0]);
     }
 
     // A command for the system's own shell: the test needs one that is
