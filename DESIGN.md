@@ -443,9 +443,14 @@ and asks nothing:
   only a method with arrays or character variables tests.
 - **A scalar stays an ordinary local in either mode**: the arena was the
   slower place for it in every run.
-- **A `stackalloc` inside a branch is dearer than one at the top of a
-  method**, more than the test itself, which is why a method that tests
-  and then takes from the stack was the slowest shape on an empty method.
+- **A `stackalloc` costs by being in the method, not by where it stands.**
+  The machine code for one at the top of a method and one inside a branch
+  is the same but for the test: either way the method sets up a frame
+  pointer and checks the stack's cookie on every return, which a method
+  with no `stackalloc` does neither of, and a constant one larger than a
+  few dozen bytes is taken by moving the stack pointer and not folded into
+  the frame. That, with the test, is what the slowest shape on an empty
+  method paid.
 
 Telling the copies apart added a third way to the test: the stack, the
 arena, or a call that opens a copy. Measured against the test of two ways
@@ -462,6 +467,16 @@ The stack, which is the default, costs nothing that counts; the arena costs
 a second test and the call behind it, about a nanosecond on each call of a
 procedure that has buffers, a few hundredths of one that works. The ratios
 moved with what else the benchmark held, as the tool's `README.md` warns.
+
+Taking the `stackalloc` out of the method was measured against it as well:
+a body given its buffers' address, by an entry that tests and calls it with
+its place in the arena, or calls a method of its own that takes the
+buffers from the stack and calls the body from there. In the arena it was
+the same, 0.95 to 1.06, whether the entry was compiled into its caller or
+called; on the stack it was a fifth slower with the entry compiled into its
+caller and three fifths slower with it called. A call costs more than the
+frame pointer and the cookie it saves the body, so the `stackalloc` stays
+in the method, in its branch.
 
 Two designs were set aside. Limits that split a method's buffers between
 the stack and the heap as it runs cost a cut to compute and a choice per
