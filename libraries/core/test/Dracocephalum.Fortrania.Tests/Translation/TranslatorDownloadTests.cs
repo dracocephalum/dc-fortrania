@@ -38,7 +38,7 @@ public sealed class TranslatorDownloadTests : IDisposable
         var settings = Settings(Variable(name, archive, strip: 1));
 
         // Act
-        var result = Translator.Run(settings, _root, new TranslationOptions { HttpHandler = server });
+        var result = Translator.Run(settings, new TranslationOptions { HttpHandler = server });
 
         // Assert
         result.Messages.ShouldBeEmpty();
@@ -58,7 +58,7 @@ public sealed class TranslatorDownloadTests : IDisposable
         var settings = Settings(Variable("toolkit.tar", [], strip: 1));
 
         // Act
-        var result = Translator.Run(settings, _root, new TranslationOptions { HttpHandler = server });
+        var result = Translator.Run(settings, new TranslationOptions { HttpHandler = server });
 
         // Assert
         result.Messages.ShouldBeEmpty();
@@ -75,7 +75,7 @@ public sealed class TranslatorDownloadTests : IDisposable
         settings.LocalVariables["Sources"] = "mine";
 
         // Act
-        var result = Translator.Run(settings, _root, new TranslationOptions { HttpHandler = server });
+        var result = Translator.Run(settings, new TranslationOptions { HttpHandler = server });
 
         // Assert
         result.Messages.ShouldBeEmpty();
@@ -92,7 +92,7 @@ public sealed class TranslatorDownloadTests : IDisposable
         variable.Sha256 = null;
 
         // Act
-        var result = Translator.Run(Settings(variable), _root, new TranslationOptions { HttpHandler = server });
+        var result = Translator.Run(Settings(variable), new TranslationOptions { HttpHandler = server });
 
         // Assert
         result.Succeeded.ShouldBeFalse();
@@ -110,7 +110,7 @@ public sealed class TranslatorDownloadTests : IDisposable
         var settings = Settings(Variable("toolkit.tar", MakeArchive("toolkit.tar", ("src/core/other.f", Core)), strip: 0));
 
         // Act
-        var result = Translator.Run(settings, _root, new TranslationOptions { HttpHandler = server });
+        var result = Translator.Run(settings, new TranslationOptions { HttpHandler = server });
 
         // Assert
         result.Succeeded.ShouldBeFalse();
@@ -128,7 +128,7 @@ public sealed class TranslatorDownloadTests : IDisposable
         var server = new FakeServer(archive);
 
         // Act
-        var result = Translator.Run(Settings(Variable("toolkit.tar", archive, strip: 0)), _root, new TranslationOptions { HttpHandler = server });
+        var result = Translator.Run(Settings(Variable("toolkit.tar", archive, strip: 0)), new TranslationOptions { HttpHandler = server });
 
         // Assert
         result.Succeeded.ShouldBeFalse();
@@ -144,7 +144,7 @@ public sealed class TranslatorDownloadTests : IDisposable
         var server = new FakeServer([1, 2, 3]);
 
         // Act
-        var result = Translator.Run(Settings(Variable("toolkit.tar.Z", [1, 2, 3], strip: 0)), _root, new TranslationOptions { HttpHandler = server });
+        var result = Translator.Run(Settings(Variable("toolkit.tar.Z", [1, 2, 3], strip: 0)), new TranslationOptions { HttpHandler = server });
 
         // Assert
         result.Messages.ShouldHaveSingleItem().Text.ShouldContain("is of a kind that cannot be expanded");
@@ -158,7 +158,7 @@ public sealed class TranslatorDownloadTests : IDisposable
         var server = new FakeServer([], HttpStatusCode.NotFound);
 
         // Act
-        var result = Translator.Run(Settings(Variable("toolkit.tar", [], strip: 0)), _root, new TranslationOptions { HttpHandler = server });
+        var result = Translator.Run(Settings(Variable("toolkit.tar", [], strip: 0)), new TranslationOptions { HttpHandler = server });
 
         // Assert
         result.Messages.ShouldHaveSingleItem().Text.ShouldContain("could not be fetched");
@@ -171,11 +171,11 @@ public sealed class TranslatorDownloadTests : IDisposable
         // Arrange
         Put("sources/src/core/core.f", Core);
         var settings = Settings(new VariableSettings { Path = "sources" });
-        Translator.Run(settings, _root).Succeeded.ShouldBeTrue();
+        Translator.Run(settings).Succeeded.ShouldBeTrue();
 
         // Act
-        var unforced = Translator.Run(settings, _root);
-        var forced = Translator.Run(settings, _root, new TranslationOptions { Force = true });
+        var unforced = Translator.Run(settings);
+        var forced = Translator.Run(settings, new TranslationOptions { Force = true });
 
         // Assert
         unforced.Written.ShouldBeEmpty();
@@ -193,7 +193,7 @@ public sealed class TranslatorDownloadTests : IDisposable
                 "Plain": "somewhere",
                 "Fetched": { "path": "sources", "url": "https://example.org/toolkit.tar", "sha256": "ab12", "strip": 1 }
               },
-              "projects": []
+              "sources": []
             }
             """);
 
@@ -213,7 +213,7 @@ public sealed class TranslatorDownloadTests : IDisposable
         var settings = Settings(Variable("toolkit.tar", archive, strip: 1));
 
         // Act
-        var result = Translator.Restore(settings, _root, new TranslationOptions { HttpHandler = server }, onlyWhereNotTranslated: false);
+        var result = Translator.Restore([settings], new TranslationOptions { HttpHandler = server }, onlyWhereNotTranslated: false);
 
         // Assert
         result.Succeeded.ShouldBeTrue(string.Join('\n', result.Messages));
@@ -230,12 +230,12 @@ public sealed class TranslatorDownloadTests : IDisposable
         var archive = MakeArchive("toolkit.tar", ("toolkit/src/core/core.f", Core));
         var server = new FakeServer(archive);
         var settings = Settings(Variable("toolkit.tar", archive, strip: 1));
-        Translator.Run(settings, _root, new TranslationOptions { HttpHandler = server }).Succeeded.ShouldBeTrue();
+        Translator.Run(settings, new TranslationOptions { HttpHandler = server }).Succeeded.ShouldBeTrue();
         Directory.Delete(Path.Combine(_root, "sources"), recursive: true);
 
         // Act
-        var needed = Translator.Restore(settings, _root, new TranslationOptions { HttpHandler = server }, onlyWhereNotTranslated: true);
-        var offline = Translator.Run(settings, _root, new TranslationOptions { HttpHandler = server, Offline = true });
+        var needed = Translator.Restore([settings], new TranslationOptions { HttpHandler = server }, onlyWhereNotTranslated: true);
+        var offline = Translator.Run(settings, new TranslationOptions { HttpHandler = server, Offline = true });
 
         // Assert: neither reaches the server again, and offline the
         // project is read from what was translated.
@@ -262,7 +262,7 @@ public sealed class TranslatorDownloadTests : IDisposable
         var settings = Settings(Variable("toolkit.tar", archive, strip: 1));
 
         // Act
-        var result = Translator.Run(settings, _root, new TranslationOptions { HttpHandler = server });
+        var result = Translator.Run(settings, new TranslationOptions { HttpHandler = server });
 
         // Assert
         result.Succeeded.ShouldBeTrue(string.Join('\n', result.Messages));
@@ -270,23 +270,26 @@ public sealed class TranslatorDownloadTests : IDisposable
     }
 
     [Fact]
-    public void Run_WhenTheProjectWhoseSourcesAreToBeFetchedIsLeftOut_ShouldFetchNothing()
+    public void Run_WhenTheProjectWhoseSourcesAreToBeFetchedIsNotTranslated_ShouldFetchNothing()
     {
-        // Arrange: a second project of the settings, translated, with
-        // sources of its own on disk; the first, whose sources are to be
-        // downloaded, is left out and has no summary.
+        // Arrange: a second project of the run, translated, with sources of
+        // its own on disk; the first, whose sources are to be downloaded,
+        // says never to translate and has no summary.
         var archive = MakeArchive("toolkit.tar", ("toolkit/src/core/core.f", Core));
         var server = new FakeServer(archive);
         var settings = Settings(Variable("toolkit.tar", archive, strip: 1));
-        settings.Projects.Add(new ProjectSettings
+        settings.Translate = TranslateMode.Never;
+        var mine = new TranslationSettings
         {
+            Folder = _root,
             Name = "Example.Mine",
+            Output = "out/Example.Mine",
             Sources = [new SourceSettings { Name = "Own", Files = ["own/*.f"] }],
-        });
+        };
         Put("own/own.f", "      SUBROUTINE OWN ( N )\n      INTEGER N\n      N = 1\n      END\n");
 
         // Act
-        var result = Translator.Run(settings, _root, new TranslationOptions { HttpHandler = server, Projects = ["Example.Mine"] });
+        var result = Translator.Run([settings, mine], new TranslationOptions { HttpHandler = server });
 
         // Assert
         result.Succeeded.ShouldBeTrue(string.Join('\n', result.Messages));
@@ -303,20 +306,15 @@ public sealed class TranslatorDownloadTests : IDisposable
         Strip = strip,
     };
 
-    private static TranslationSettings Settings(VariableSettings sources)
+    private TranslationSettings Settings(VariableSettings sources)
     {
         var settings = new TranslationSettings
         {
-            Output = "out",
+            Folder = _root,
+            Name = "Example.Toolkit",
+            Output = "out/Example.Toolkit",
             Runtime = new RuntimeSettings { Package = "1.2.3" },
-            Projects =
-            [
-                new ProjectSettings
-                {
-                    Name = "Example.Toolkit",
-                    Sources = [new SourceSettings { Name = "Core", Files = ["$(Sources)/src/core/*.f"] }],
-                },
-            ],
+            Sources = [new SourceSettings { Name = "Core", Files = ["$(Sources)/src/core/*.f"] }],
         };
         settings.Variables["Sources"] = sources;
         return settings;

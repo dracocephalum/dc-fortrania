@@ -7,7 +7,7 @@ namespace Dracocephalum.Fortrania.Translation;
 public enum TranslateMode
 {
     /// <summary>
-    /// Only when asked for by name or forced: what was translated before is
+    /// Only when forced: what was translated before is
     /// left as it is, even where the sources are there, and the project is
     /// read from its summary.
     /// </summary>

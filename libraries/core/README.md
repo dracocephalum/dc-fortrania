@@ -39,8 +39,9 @@ naming the construct and the line, and never writes a partial translation.
 
 Everything up to the emitter is independent of the output language, and the
 emitter sits behind a seam of its own, so another back end is an addition
-and not a rewrite. A whole translation, several projects made of several FORTRAN libraries
-each, is described by one settings file and done by `Translator.Run`. The
+and not a rewrite. A project, made of one or more FORTRAN libraries, is
+described by a settings file beside it, and `Translator.Run` translates one
+project or several together. The
 command, `fortrania`, is a thin program over that and holds no logic of
 its own.
 
@@ -59,12 +60,13 @@ The command is a .NET tool. From a build of this folder it runs as
 and, installed from its package, as
 
     dotnet tool install --global Dracocephalum.Fortrania.Cli
-    fortrania translate csharp [settings] [--project <name>]... [--reference <assembly>]...
+    fortrania translate csharp [settings]... [--reference <assembly>]...
                                [--force] [--offline] [--record <file>]
-    fortrania restore [settings] [--project <name>]... [--if-needed]
+    fortrania restore [settings]... [--if-needed]
 
 With no settings file named it takes the one `fortrania.json` or
-`*.fortrania.json` in the folder it is run in. `fortrania --help` says
+`*.fortrania.json` in the folder it is run in; several named are
+translated together. `fortrania --help` says
 the rest; [`DESIGN.md`](../../DESIGN.md), *The command is `fortrania`,
 and its first word what to do*, has why it is shaped so; at a prompt
 `fortrania t cs` will do.

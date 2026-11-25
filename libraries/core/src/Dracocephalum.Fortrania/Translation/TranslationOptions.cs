@@ -14,20 +14,11 @@ public sealed class TranslationOptions
     public bool Force { get; set; }
 
     /// <summary>
-    /// Gets or sets the projects to translate, by name; every project of the
-    /// settings unless set. A project left out is not read: what the
-    /// projects translated need of it is read from the summary its last
-    /// translation wrote beside its translated sources, and it is not
-    /// written. One left out that has no summary takes no part.
-    /// </summary>
-    public IReadOnlyCollection<string>? Projects { get; set; }
-
-    /// <summary>
     /// Gets or sets a value indicating whether the run reaches no server:
     /// nothing is downloaded, and a project to translate whose sources are
     /// not on the machine is read from the summary its last translation
-    /// wrote, as one left out is. One that has no summary then fails. A
-    /// build runs so, and fetches in its restore.
+    /// wrote, as one that says never to translate is. One that has no
+    /// summary then fails. A build runs so, and fetches in its restore.
     /// </summary>
     public bool Offline { get; set; }
 
@@ -35,7 +26,8 @@ public sealed class TranslationOptions
     /// Gets or sets assemblies a translation may call into, by their paths:
     /// each one a translation of another project compiled, carrying that
     /// project's summary, as a build's project and package references do.
-    /// An assembly that carries none is passed over.
+    /// An assembly that carries none is passed over. A path that is not
+    /// full is taken from the current directory.
     /// </summary>
     public IReadOnlyCollection<string>? References { get; set; }
 

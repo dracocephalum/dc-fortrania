@@ -2,8 +2,7 @@ namespace Dracocephalum.Fortrania.Translation;
 
 /// <summary>
 /// Whether the translator writes the files around a translation: a
-/// project's file, and <c>Program.cs</c> for an executable; and, at the
-/// root, the solution the settings name.
+/// project's file, and <c>Program.cs</c> for an executable.
 /// </summary>
 public enum ScaffoldMode
 {
@@ -16,7 +15,7 @@ public enum ScaffoldMode
     /// <summary>
     /// No file is written; they are somebody else's. The translator only
     /// checks that a project file refers to the projects its project calls
-    /// into, and that the solution holds every project.
+    /// into.
     /// </summary>
     Never,
 }
