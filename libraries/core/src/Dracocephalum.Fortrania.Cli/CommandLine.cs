@@ -37,61 +37,68 @@ internal static class CommandLine
 
     private const string Usage =
         """
-        Usage: fortrania translate csharp [settings]... [--reference <assembly>]... [--force] [--offline]
+        Usage: fortrania translate csharp --name <project> [settings]... [--summary <file>]
+                                          [--reference <assembly or summary>]... [--force] [--offline]
                                           [--inventory <file>] [--namespace <namespace>]
                                           [--scaffold [--entry <program>] [--framework <framework>]]
-               fortrania restore [settings]... [--if-needed]
+               fortrania restore --name <project> [settings]... [--summary <file>] [--if-needed]
                fortrania --version
 
-          translate csharp   makes in C# the translation each settings file says
+          translate csharp   translates to C# the project the settings files make
           restore            fetches the sources a translation would read, where
                              the settings say where from, and translates nothing
+          --name             the project's name, which is its assembly's: what
+                             other projects know it by and its summary is named
+                             for; always given
           settings           a settings file, or a folder whose fortrania.json
                              and *.fortrania.json are all taken; this folder
-                             where none is given; all are made in one run, each
-                             calling into those it needs of the others
-          --reference        an assembly a translation may call into, compiled
-                             from translations and carrying their summaries;
-                             may be given more than once
-          --force            makes every translation, those whose settings say
-                             not to among them, and writes every file again
-          --offline          fetches nothing, and reads a translation whose
-                             sources are not here from the summary it wrote last
+                             where none is given; all of them are one project
+          --summary          the file the project's summary is kept in, beside
+                             its project file; <project>.fortrania-summary.json
+                             beside the first settings file unless given
+          --reference        what the project may call into: an assembly that
+                             carries a summary, or a summary file; may be given
+                             more than once
+          --force            writes every translated file again
+          --offline          fetches nothing, and compiles a project whose
+                             sources are not here as it was translated last
           --inventory        writes to the file what was read and what the
                              translation is made of, for a build to tell when
                              to translate again; removes it if it fails
-          --namespace        the namespace of the translation's classes, over
-                             what its settings say; for one settings file
-          --scaffold         writes a project file of each translation's name
-                             in its folder where there is none, and Program.cs
+          --namespace        the namespace of the project's classes, over what
+                             its settings say
+          --scaffold         writes a project file of the project's name beside
+                             its summary where there is none, and Program.cs
                              where it has a main program; after that they are
                              yours to change
-          --entry            the main program Program.cs starts with, where a
-                             translation has several; for one settings file
+          --entry            the main program Program.cs starts with, where the
+                             project has several
           --framework        the target framework of a project file written;
                              net10.0 unless given
 
-          --if-needed        fetches only for a translation never made
+          --if-needed        fetches only where the translation is not all there
           --version          says which version this is
 
         At a prompt, a word or an option may be shortened to any start of it
-        that no other shares: fortrania t cs --fo. A script or a build file
-        spells each in full, since a word added later may share the start.
+        that no other shares: fortrania t cs --name Example --fo. A script or a
+        build file spells each in full, since a word added later may share the
+        start.
         """;
 
     private static readonly string[] Commands = ["help", "restore", "translate"];
     private static readonly string[] Options = ["--help", "--version"];
     private static readonly string[] Targets = ["csharp"];
-    private static readonly string[] TranslateOptions = ["--entry", "--force", "--framework", "--inventory", "--namespace", "--offline", "--reference", "--scaffold"];
-    private static readonly string[] RestoreOptions = ["--if-needed"];
+    private static readonly string[] TranslateOptions =
+        ["--entry", "--force", "--framework", "--inventory", "--name", "--namespace", "--offline", "--reference", "--scaffold", "--summary"];
+
+    private static readonly string[] RestoreOptions = ["--if-needed", "--name", "--summary"];
 
     // The options followed by a value; --reference may be given more than
     // once, and the others once.
-    private static readonly string[] ValuedOptions = ["--entry", "--framework", "--inventory", "--namespace", "--reference"];
+    private static readonly string[] ValuedOptions = ["--entry", "--framework", "--inventory", "--name", "--namespace", "--reference", "--summary"];
 
-    // The options only a scaffold reads, and those said of one translation.
+    // The options only a scaffold reads.
     private static readonly string[] ScaffoldOptions = ["--entry", "--framework"];
-    private static readonly string[] SingleOptions = ["--namespace", "--entry"];
 
     /// <summary>Runs the command.</summary>
     /// <param name="arguments">The command line, without the command's own name.</param>
@@ -229,8 +236,10 @@ internal static class CommandLine
         "--entry" => "the name of a main program",
         "--framework" => "a target framework, net10.0 say",
         "--inventory" => "the path of the file to write",
+        "--name" => "the project's name",
         "--namespace" => "a namespace",
-        _ => "the path of an assembly",
+        "--summary" => "the path of the summary file",
+        _ => "the path of an assembly or of a summary file",
     };
 
     private static int TranslateToCSharp(Arguments arguments, TextWriter output, TextWriter error, string workingDirectory)
@@ -241,26 +250,24 @@ internal static class CommandLine
             return Refuse(error, $"{scaffolding} says what a scaffold writes, and is given without --scaffold.");
         }
 
+        if (RequireName(arguments, error) is not { } name)
+        {
+            return Misused;
+        }
+
         if (Load(arguments.Settings, workingDirectory, error) is not { } loaded)
         {
             return Failed;
         }
 
-        // Said of one translation, they would be said of every one of the
-        // run, which is never what was meant.
-        if (loaded.Count > 1 && SingleOptions.FirstOrDefault(arguments.Values.ContainsKey) is { } single)
-        {
-            return Refuse(error, $"{single} is for one translation, and {loaded.Count} settings files were found.");
-        }
-
         // Every path in the settings is taken from where the file lies, so
         // that a translation is the same from whatever folder it is run.
-        var result = Translator.Run([.. loaded.Select(file => file.Settings)], new TranslationOptions
+        var result = Translator.Run(ToProject(name, arguments, loaded, workingDirectory), new TranslationOptions
         {
             Force = arguments.Flags.Contains("--force"),
             Offline = arguments.Flags.Contains("--offline"),
 
-            // An assembly named on the command line is taken from where the
+            // A path named on the command line is taken from where the
             // command runs, as a person typing it means.
             References = arguments.References?.Select(reference => Path.GetFullPath(reference, workingDirectory)).ToList(),
             Namespace = arguments.Values.GetValueOrDefault("--namespace"),
@@ -283,6 +290,26 @@ internal static class CommandLine
             $"{(result.Succeeded ? "Translated" : "Not translated")}: {result.Units} program units, {result.Written.Count} files written, {result.Removed.Count} removed.");
         return result.Succeeded ? Done : Failed;
     }
+
+    // The project's name, which is never guessed: a build gives its
+    // assembly's, and nothing else is the same wherever it is compiled.
+    private static string? RequireName(Arguments arguments, TextWriter error)
+    {
+        if (arguments.Values.GetValueOrDefault("--name") is { Length: > 0 } name)
+        {
+            return name;
+        }
+
+        Refuse(error, "--name is to be given: the name of the project, its assembly's.");
+        return null;
+    }
+
+    private static TranslationProject ToProject(string name, Arguments arguments, List<(string Path, TranslationSettings Settings)> loaded, string workingDirectory) => new()
+    {
+        Name = name,
+        Settings = [.. loaded.Select(file => file.Settings)],
+        Summary = arguments.Values.GetValueOrDefault("--summary") is { } summary ? Path.GetFullPath(summary, workingDirectory) : null,
+    };
 
     // What a build reads to tell when to translate again, a line a file:
     // "read" for what the translation was made from, the settings files among it,
@@ -317,13 +344,18 @@ internal static class CommandLine
 
     private static int RestoreSources(Arguments arguments, TextWriter output, TextWriter error, string workingDirectory)
     {
+        if (RequireName(arguments, error) is not { } name)
+        {
+            return Misused;
+        }
+
         if (Load(arguments.Settings, workingDirectory, error) is not { } loaded)
         {
             return Failed;
         }
 
         var result = Translator.Restore(
-            [.. loaded.Select(file => file.Settings)],
+            [ToProject(name, arguments, loaded, workingDirectory)],
             new TranslationOptions(),
             onlyWhereNotTranslated: arguments.Flags.Contains("--if-needed"));
         foreach (var message in result.Messages)

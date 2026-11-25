@@ -72,7 +72,7 @@ public sealed class TranslatorDownloadTests : IDisposable
         Put("mine/src/core/core.f", Core);
         var server = new FakeServer([]);
         var settings = Settings(Variable("toolkit.tar", [], strip: 1));
-        settings.LocalVariables["Sources"] = "mine";
+        settings.Part.LocalVariables["Sources"] = "mine";
 
         // Act
         var result = Translator.Run(settings, new TranslationOptions { HttpHandler = server });
@@ -270,33 +270,25 @@ public sealed class TranslatorDownloadTests : IDisposable
     }
 
     [Fact]
-    public void Run_WhenTheTranslationWhoseSourcesAreToBeFetchedIsNotToBeMade_ShouldFetchNothing()
+    public void Restore_WhenOnlyWhereNotTranslatedAndOnlyTheSummaryIsThere_ShouldFetch()
     {
-        // Arrange: a second translation of the run, made, with sources of
-        // its own on disk; the first, whose sources are to be downloaded,
-        // says not to translate it and has no summary.
+        // Arrange: translated once from a download, then the sources and the
+        // translation go, and the summary stays, as a checkout has it whose
+        // summary is committed and whose translation is not.
         var archive = MakeArchive("toolkit.tar", ("toolkit/src/core/core.f", Core));
         var server = new FakeServer(archive);
         var settings = Settings(Variable("toolkit.tar", archive, strip: 1));
-        settings.Translate = false;
-        var mine = new TranslationSettings
-        {
-            Folder = _root,
-            Name = "Example.Mine",
-            Output = "out/Example.Mine",
-            Sources = [new SourceSettings { Name = "Own", Files = ["own/*.f"] }],
-        };
-        Put("own/own.f", "      SUBROUTINE OWN ( N )\n      INTEGER N\n      N = 1\n      END\n");
+        Translator.Run(settings, new TranslationOptions { HttpHandler = server }).Succeeded.ShouldBeTrue();
+        Directory.Delete(Path.Combine(_root, "sources"), recursive: true);
+        Directory.Delete(Path.Combine(_root, "out/Example.Toolkit/Generated"), recursive: true);
 
         // Act
-        var result = Translator.Run([settings, mine], new TranslationOptions { HttpHandler = server });
+        var result = Translator.Restore([settings], new TranslationOptions { HttpHandler = server }, onlyWhereNotTranslated: true);
 
-        // Assert: nothing is fetched for it, and with no summary to read it
-        // from the run says so.
-        server.Requests.ShouldBe(0);
-        Directory.Exists(Path.Combine(_root, "sources")).ShouldBeFalse();
-        result.Succeeded.ShouldBeFalse();
-        result.Messages.ShouldHaveSingleItem().Text.ShouldContain("say not to translate it, and it has no summary");
+        // Assert
+        result.Succeeded.ShouldBeTrue(string.Join('\n', result.Messages));
+        server.Requests.ShouldBe(2);
+        result.Fetched.ShouldBe([Path.Combine(_root, "sources")]);
     }
 
     private static VariableSettings Variable(string name, byte[] archive, int strip) => new()
@@ -307,17 +299,23 @@ public sealed class TranslatorDownloadTests : IDisposable
         Strip = strip,
     };
 
-    private TranslationSettings Settings(VariableSettings sources)
+    // A project of one settings file whose sources are under $(Sources),
+    // with its summary beside its translation.
+    private TranslationProject Settings(VariableSettings sources)
     {
         var settings = new TranslationSettings
         {
             Folder = _root,
-            Name = "Example.Toolkit",
             Output = "out/Example.Toolkit",
             Sources = [new SourceSettings { Name = "Core", Files = ["$(Sources)/src/core/*.f"] }],
         };
         settings.Variables["Sources"] = sources;
-        return settings;
+        return new TranslationProject
+        {
+            Name = "Example.Toolkit",
+            Settings = [settings],
+            Summary = Path.Combine(_root, "out/Example.Toolkit", ProjectSummary.GetFileName("Example.Toolkit")),
+        };
     }
 
     // An archive of the kind its name says, holding the files given.

@@ -7,8 +7,8 @@
   <ItemGroup>
     <ProjectReference Include="../../src/Dracocephalum.Fortrania.Cli/Dracocephalum.Fortrania.Cli.csproj" />
     <ProjectReference Include="../../src/Dracocephalum.Fortrania.Runtime/Dracocephalum.Fortrania.Runtime.csproj" />
-    <!-- The package's targets, which the tests lay out beside the command as the package has them. -->
-    <None Include="../../src/Dracocephalum.Fortrania.Build/build/*.targets" Link="package/build/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The package's props and targets, which the tests lay out beside the command as the package has them. -->
+    <None Include="../../src/Dracocephalum.Fortrania.Build/build/*.props;../../src/Dracocephalum.Fortrania.Build/build/*.targets" Link="package/build/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

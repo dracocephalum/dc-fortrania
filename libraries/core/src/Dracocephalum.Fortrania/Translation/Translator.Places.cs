@@ -4,33 +4,33 @@ namespace Dracocephalum.Fortrania.Translation;
 
 /// <content>
 /// Gives each procedure of a translation a place for its working buffers
-/// in a region of the translation's own, so that procedures of it
+/// in a region of its project's own, so that procedures of the project
 /// that can be running at the same time never share bytes.
 /// </content>
 public static partial class Translator
 {
     private sealed partial class Translation
     {
-        // Where each procedure's buffers start in its translation's region. One
+        // Where each procedure's buffers start in its project's region. One
         // that has none is given a place all the same, since its callees
         // start after its callers' buffers as well as its own.
         private readonly Dictionary<(Source Source, string Name), long> _places = [];
         private readonly List<WorkingRegion> _workingRegions = [];
 
         // A procedure starts where the buffers of its deepest caller in its
-        // own translation end. FORTRAN 77 has no recursion, so the calls form a
+        // own project end. FORTRAN 77 has no recursion, so the calls form a
         // graph without cycles, and a place is the longest way down to the
-        // procedure from any that nothing of the translation calls.
+        // procedure from any that nothing of the project calls.
         //
-        // Only calls by name within one translation count. A call into
-        // another leaves this region for that one's, which lies after
+        // Only calls by name within one project count. A call into another
+        // project leaves this region for that project's, which lies after
         // it. A procedure called through an argument runs in a region of
         // its own, since the runtime gives every such call the next level's,
         // so neither it nor what it calls can meet a buffer of the chain
         // that led to it.
         private void WorkOutPlaces()
         {
-            // A translation read from its summary brings its sizes with it.
+            // A project read from its summary brings its sizes with it.
             var sizes = new Dictionary<Project, long>();
             var reaches = new Dictionary<Project, long>();
             foreach (var project in _projects)
@@ -46,9 +46,9 @@ public static partial class Translator
                 }
             }
 
-            // What a translation can need when it is the first to be called:
-            // its own region and, after it, the most any chain of those it
-            // refers to needs.
+            // What a project can need when it is the first to be called: its
+            // own region and, after it, the most any chain of the projects
+            // it refers to needs.
             long ReachOf(Project project) => reaches.TryGetValue(project, out var known)
                 ? known
                 : reaches[project] = sizes[project] + _references.GetValueOrDefault(project, []).Select(ReachOf).DefaultIfEmpty(0).Max();

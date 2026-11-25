@@ -4,11 +4,11 @@ using System.Text.Json.Serialization;
 namespace Dracocephalum.Fortrania.Translation;
 
 /// <summary>
-/// What one translation shows to another that calls into it: how each of
-/// its procedures is called and how deep a call of it can go, and the
-/// working region the translation needs. Each translation made writes its
-/// own, and a run reads it in place of the translation's sources where it
-/// is told not to translate that one.
+/// What one project's translation shows to another that calls into it:
+/// how each of its procedures is called and how deep a call of it can go,
+/// and the working region the project needs. Each project translated
+/// writes its own, beside its project file, and its assembly carries it;
+/// a run reads it in place of the project's sources.
 /// </summary>
 /// <remarks>
 /// It holds nothing of the FORTRAN but what a caller has to know, so that
@@ -17,10 +17,10 @@ namespace Dracocephalum.Fortrania.Translation;
 /// caller sees writes the same bytes.
 /// </remarks>
 /// <param name="Format">The version of this form; a reader refuses another.</param>
-/// <param name="Project">The translation's name.</param>
-/// <param name="OwnBytes">What the translation's own region of working buffers takes.</param>
-/// <param name="ReachBytes">What a call into the translation can need: its own region and the deepest chain of those it calls into.</param>
-/// <param name="References">The translations it calls into, by name.</param>
+/// <param name="Project">The project's name.</param>
+/// <param name="OwnBytes">What the project's own region of working buffers takes.</param>
+/// <param name="ReachBytes">What a call into the project can need: its own region and the deepest chain of the projects it refers to.</param>
+/// <param name="References">The projects it refers to, by name.</param>
 /// <param name="Sources">Its sources, in the order of the settings.</param>
 internal sealed record ProjectSummary(
     int Format,
@@ -33,15 +33,11 @@ internal sealed record ProjectSummary(
     /// <summary>The version of the form written now.</summary>
     public const int CurrentFormat = 1;
 
-    /// <summary>What the name of a summary's file ends in, after the name of its translation.</summary>
+    /// <summary>What the name of a summary's file ends in, after the name of its project.</summary>
     public const string FileSuffix = ".fortrania-summary.json";
 
-    /// <summary>
-    /// What the name of a resource that carries a summary in an assembly
-    /// starts with, before the name of the summary's file; an assembly
-    /// compiled from several translations carries a summary of each.
-    /// </summary>
-    public const string ResourcePrefix = "Fortrania/";
+    /// <summary>The name of the resource that carries the summary in the assembly its project compiles to.</summary>
+    public const string ResourceName = "Fortrania.Summary.json";
 
     // The settings' own form, leaving out what is not there. A summary is
     // written a procedure to a line, since that of a large library is a few
@@ -53,10 +49,10 @@ internal sealed record ProjectSummary(
 
     private static readonly JsonSerializerOptions Line = new(Json) { WriteIndented = false };
 
-    /// <summary>Gives the name of the file of a translation's summary, which lies in its folder of translated sources.</summary>
-    /// <param name="translation">The translation's name.</param>
+    /// <summary>Gives the name of the file of a project's summary, which lies beside its project file.</summary>
+    /// <param name="project">The project's name.</param>
     /// <returns>The file's name.</returns>
-    public static string GetFileName(string translation) => translation + FileSuffix;
+    public static string GetFileName(string project) => project + FileSuffix;
 
     /// <summary>Reads a summary.</summary>
     /// <param name="path">The file.</param>
@@ -74,7 +70,7 @@ internal sealed record ProjectSummary(
             ?? throw new JsonException("The summary is empty.");
         return summary.Format == CurrentFormat
             ? summary
-            : throw new JsonException($"The summary is of form {summary.Format}, and this translator reads form {CurrentFormat}; make the translation again.");
+            : throw new JsonException($"The summary is of form {summary.Format}, and this translator reads form {CurrentFormat}; translate the project again.");
     }
 
     /// <summary>Gives the summary's text: a procedure to a line, with a line feed at the end of each.</summary>

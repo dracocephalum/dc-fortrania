@@ -4,19 +4,19 @@ using Shouldly;
 namespace Dracocephalum.Fortrania.Build.Tests;
 
 /// <summary>
-/// The package's targets in a build: a library of two translations and a
-/// program, each project with settings files of its own, one of the
-/// library's translations kept in its folder and the others in intermediate
-/// folders, built with <c>dotnet build</c> as someone who references the
-/// package builds them.
+/// The package's targets in a build: a library made of two settings files
+/// and a program, each project with settings files of its own, the
+/// library's translation kept in its folder and the program's in its
+/// intermediate folder, built with <c>dotnet build</c> as someone who
+/// references the package builds them.
 /// </summary>
 /// <remarks>
 /// The package is laid out as it is packed, the command beside the targets,
-/// and the projects import the targets where a package's are imported:
-/// after the SDK's. The folder the projects lie in holds empty files of the
-/// names MSBuild looks upward for, so that nothing of this repository's own
-/// build reaches them. The SDK is what runs the tests, so it is no live
-/// dependency of theirs.
+/// and the projects import the props and the targets where a package's are
+/// imported: after the SDK's props, and after its targets. The folder the
+/// projects lie in holds empty files of the names MSBuild looks upward for,
+/// so that nothing of this repository's own build reaches them. The SDK is
+/// what runs the tests, so it is no live dependency of theirs.
 /// </remarks>
 public sealed class BuildTargetsTests : IDisposable
 {
@@ -90,13 +90,13 @@ public sealed class BuildTargetsTests : IDisposable
         }
 
         Put("Lib/Example.Lib.csproj", ProjectFile(string.Empty));
-        Put("Lib/lib.fortrania.json", """{ "name": "Example.Lib", "output": ".", "sources": [ { "name": "Core", "files": [ "fortran/*.f" ] } ] }""");
+        Put("Lib/lib.fortrania.json", """{ "output": ".", "sources": [ { "name": "Core", "files": [ "fortran/*.f" ] } ] }""");
         Put("Lib/fortran/lib.f", Library);
-        Put("Lib/more.fortrania.json", """{ "name": "Example.More", "output": "$(IntermediateOutput)/more", "sources": [ { "name": "Halves", "files": [ "more/*.f" ] } ] }""");
+        Put("Lib/more.fortrania.json", """{ "output": "more", "sources": [ { "name": "Halves", "files": [ "more/*.f" ] } ] }""");
         Put("Lib/more/half.f", Half);
 
         Put("App/Example.App.csproj", ProjectFile("""<PropertyGroup><OutputType>Exe</OutputType></PropertyGroup><ItemGroup><ProjectReference Include="../Lib/Example.Lib.csproj" /></ItemGroup>"""));
-        Put("App/app.fortrania.json", """{ "name": "Example.App", "output": "$(IntermediateOutput)/fortrania", "sources": [ { "name": "AppMain", "files": [ "fortran/*.f" ] } ] }""");
+        Put("App/app.fortrania.json", """{ "output": "$(IntermediateOutput)/fortrania", "sources": [ { "name": "AppMain", "files": [ "fortran/*.f" ] } ] }""");
         Put("App/fortran/main.f", Program);
         Put("App/Program.cs", Main);
     }
@@ -110,21 +110,68 @@ public sealed class BuildTargetsTests : IDisposable
     }
 
     [Fact]
-    public async Task Build_WhenALibraryOfTwoTranslationsAndAProgramHaveSettingsOfTheirOwn_ShouldTranslateCompileAndRunThem()
+    public async Task Build_WhenALibraryOfTwoSettingsFilesAndAProgramHaveSettingsOfTheirOwn_ShouldTranslateCompileAndRunThem()
     {
         // Act
         var (code, output) = await BuildAsync();
 
-        // Assert: one of the library's translations kept in its folder, the
-        // other and the program's in intermediate ones, and the program
-        // reaching both of the library's through the summaries in its
-        // assembly.
+        // Assert: the library's two settings files one translation, kept in
+        // its folder with its summary beside its project file; the
+        // program's in its intermediate folder, reaching the library
+        // through the summary in its assembly.
         code.ShouldBe(0, output);
         File.Exists(Path.Combine(_root, "Lib/Generated/Core/TWICE.g.cs")).ShouldBeTrue();
-        Directory.GetFiles(Path.Combine(_root, "Lib/obj"), "HALF.g.cs", SearchOption.AllDirectories).ShouldHaveSingleItem();
+        File.Exists(Path.Combine(_root, "Lib/more/Generated/Halves/HALF.g.cs")).ShouldBeTrue();
+        File.ReadAllText(Path.Combine(_root, "Lib/Example.Lib.fortrania-summary.json")).ShouldContain("\"project\": \"Example.Lib\"");
+        File.Exists(Path.Combine(_root, "App/Example.App.fortrania-summary.json")).ShouldBeTrue();
         Directory.GetFiles(Path.Combine(_root, "App/obj"), "TOOL.g.cs", SearchOption.AllDirectories).ShouldHaveSingleItem();
         output.ShouldNotContain(": warning", Case.Sensitive);
         (await RunAsync("dotnet", Path.Combine(_root, "App/bin/Debug/net10.0/Example.App.dll"))).Code.ShouldBe(9 + 2 + 2);
+    }
+
+    [Fact]
+    public async Task Build_WhenToldNeverOnAFreshCheckout_ShouldTranslateNothingAndCompileWhatIsCommitted()
+    {
+        // Arrange: the library translated once, then its build and its
+        // sources gone, as a checkout with its translation committed has it.
+        (await BuildAsync()).Code.ShouldBe(0);
+        foreach (var folder in new[] { "Lib/obj", "Lib/bin", "Lib/fortran", "Lib/more/half.f" })
+        {
+            var path = Path.Combine(_root, folder);
+            if (Directory.Exists(path))
+            {
+                Directory.Delete(path, recursive: true);
+            }
+            else
+            {
+                File.Delete(path);
+            }
+        }
+
+        // Act
+        var (code, output) = await BuildAsync("-p:FortraniaTranslate=never");
+
+        // Assert
+        code.ShouldBe(0, output);
+        output.ShouldNotContain("Translated:");
+        (await RunAsync("dotnet", Path.Combine(_root, "App/bin/Debug/net10.0/Example.App.dll"))).Code.ShouldBe(9 + 2 + 2);
+    }
+
+    [Fact]
+    public async Task Build_WhenASettingsFileIsRemovedFromTheItems_ShouldTranslateWithoutIt()
+    {
+        // Arrange: the library's second settings file taken out, and the
+        // program no longer calling what it brought.
+        Put("Lib/Example.Lib.csproj", ProjectFile("""<ItemGroup><Fortrania Remove="more.fortrania.json" /></ItemGroup>"""));
+        Put("App/fortran/main.f", Program.Replace(" + HALF ( 4.0D0 )", string.Empty, StringComparison.Ordinal));
+
+        // Act
+        var (code, output) = await BuildAsync();
+
+        // Assert
+        code.ShouldBe(0, output);
+        Directory.Exists(Path.Combine(_root, "Lib/more/Generated")).ShouldBeFalse();
+        (await RunAsync("dotnet", Path.Combine(_root, "App/bin/Debug/net10.0/Example.App.dll"))).Code.ShouldBe(9 + 2);
     }
 
     [Fact]
@@ -144,9 +191,9 @@ public sealed class BuildTargetsTests : IDisposable
         unchanged.Code.ShouldBe(0, unchanged.Output);
         unchanged.Output.ShouldNotContain("Translated:");
 
-        // The library only, both of its translations in one run: their
-        // summaries are the same, so the program that calls into them is
-        // not translated again.
+        // The library only, both of its settings files in one run: its
+        // summary is the same, so the program that calls into it is not
+        // translated again.
         touched.Output.Split("Translated:").Length.ShouldBe(2, touched.Output);
         touched.Output.ShouldContain("Translated: 3 program units, 0 files written");
         added.Code.ShouldBe(0, added.Output);
@@ -165,13 +212,14 @@ public sealed class BuildTargetsTests : IDisposable
 
         // Assert
         code.ShouldNotBe(0);
-        output.ShouldContain("The project's folder has no fortrania.json or *.fortrania.json");
+        output.ShouldContain("The project has no settings to translate");
     }
 
     private static string ProjectFile(string body) =>
         $"""
         <Project>
           <Import Project="Sdk.props" Sdk="Microsoft.NET.Sdk" />
+          <Import Project="../package/build/Dracocephalum.Fortrania.Build.props" />
           <PropertyGroup>
             <TargetFramework>net10.0</TargetFramework>
             <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
@@ -190,8 +238,8 @@ public sealed class BuildTargetsTests : IDisposable
     // outcome and what it said. No build node is left to be reused, so that
     // nothing of a build is left running but the compiler's server, as
     // after any build.
-    private Task<(int Code, string Output)> BuildAsync() =>
-        RunAsync("dotnet", "build", Path.Combine(_root, "App/Example.App.csproj"), "-nodeReuse:false", "-v:n");
+    private Task<(int Code, string Output)> BuildAsync(params string[] properties) =>
+        RunAsync("dotnet", ["build", Path.Combine(_root, "App/Example.App.csproj"), "-nodeReuse:false", "-v:n", .. properties]);
 
     private static async Task<(int Code, string Output)> RunAsync(string program, params string[] arguments)
     {
@@ -218,7 +266,8 @@ public sealed class BuildTargetsTests : IDisposable
     }
 
     // The package as it is packed: the command under tools, and the
-    // targets under build; the runtime beside them, for the projects.
+    // props and targets under build; the runtime beside them, for the
+    // projects.
     private void LayOutPackage()
     {
         var tools = Path.Combine(_root, "package/tools/net10.0");
@@ -232,9 +281,10 @@ public sealed class BuildTargetsTests : IDisposable
 
         File.Copy(Path.Combine(AppContext.BaseDirectory, "Dracocephalum.Fortrania.Runtime.dll"), Path.Combine(lib, "Dracocephalum.Fortrania.Runtime.dll"));
         Directory.CreateDirectory(Path.Combine(_root, "package/build"));
-        File.Copy(
-            Path.Combine(AppContext.BaseDirectory, "package/build/Dracocephalum.Fortrania.Build.targets"),
-            Path.Combine(_root, "package/build/Dracocephalum.Fortrania.Build.targets"));
+        foreach (var name in new[] { "Dracocephalum.Fortrania.Build.props", "Dracocephalum.Fortrania.Build.targets" })
+        {
+            File.Copy(Path.Combine(AppContext.BaseDirectory, "package/build", name), Path.Combine(_root, "package/build", name));
+        }
     }
 
     private void Put(string path, string text)

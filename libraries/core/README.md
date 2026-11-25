@@ -39,9 +39,9 @@ naming the construct and the line, and never writes a partial translation.
 
 Everything up to the emitter is independent of the output language, and the
 emitter sits behind a seam of its own, so another back end is an addition
-and not a rewrite. A translation, made of one or more FORTRAN libraries, is
-described by a settings file, and `Translator.Run` makes one translation
-or several together; a project compiles one or several of them. The
+and not a rewrite. A project, made of one or more FORTRAN libraries, is described
+by the settings files it compiles, and `Translator.Run` translates one
+project or several together. The
 command, `fortrania`, is a thin program over that and holds no logic of
 its own.
 
@@ -55,23 +55,24 @@ there fails with `MSB1003` on purpose.
 
 The command is a .NET tool. From a build of this folder it runs as
 
-    dotnet run --project src/Dracocephalum.Fortrania.Cli -- translate csharp path/to/settings.json
+    dotnet run --project src/Dracocephalum.Fortrania.Cli -- translate csharp --name Example path/to/settings.json
 
 and, installed from its package, as
 
     dotnet tool install --global Dracocephalum.Fortrania.Cli
-    fortrania translate csharp [settings]... [--reference <assembly>]... [--force] [--offline]
+    fortrania translate csharp --name <project> [settings]... [--summary <file>]
+                               [--reference <assembly or summary>]... [--force] [--offline]
                                [--inventory <file>] [--namespace <namespace>]
                                [--scaffold [--entry <program>] [--framework <framework>]]
-    fortrania restore [settings]... [--if-needed]
+    fortrania restore --name <project> [settings]... [--summary <file>] [--if-needed]
 
-With no settings file named it takes every `fortrania.json` and
-`*.fortrania.json` in the folder it is run in, and all named are made in
-one run; `--scaffold` writes a project around each translation that has
-none. `fortrania --help` says
+The settings files named, or every `fortrania.json` and
+`*.fortrania.json` in the folder it is run in, are one project, named by
+`--name`; its summary is kept beside the first, and `--scaffold` writes a
+project file there where there is none. `fortrania --help` says
 the rest; [`DESIGN.md`](../../DESIGN.md), *The command is `fortrania`,
 and its first word what to do*, has why it is shaped so; at a prompt
-`fortrania t cs` will do.
+`fortrania t cs --name Example` will do.
 
 A project translates as it builds with the build package, its settings
 files beside its project file:

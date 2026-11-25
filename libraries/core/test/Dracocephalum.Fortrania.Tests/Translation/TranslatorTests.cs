@@ -96,16 +96,16 @@ public sealed class TranslatorTests : IDisposable
         Files("out").ShouldBe(
         [
             "out/Example.Tool/Example.Tool.csproj",
+            "out/Example.Tool/Example.Tool.fortrania-summary.json",
             "out/Example.Tool/Generated/.fortrania-manifest.json",
-            "out/Example.Tool/Generated/Example.Tool.fortrania-summary.json",
             "out/Example.Tool/Generated/ToolMain/TOOL.g.cs",
             "out/Example.Tool/Generated/ToolMain/ToolMain.g.cs",
             "out/Example.Tool/Program.cs",
             "out/Example.Toolkit/Example.Toolkit.csproj",
+            "out/Example.Toolkit/Example.Toolkit.fortrania-summary.json",
             "out/Example.Toolkit/Generated/.fortrania-manifest.json",
             "out/Example.Toolkit/Generated/Core/CPUT.g.cs",
             "out/Example.Toolkit/Generated/Core/Core.g.cs",
-            "out/Example.Toolkit/Generated/Example.Toolkit.fortrania-summary.json",
         ]);
         result.Written.Count.ShouldBe(9);
 
@@ -186,7 +186,6 @@ public sealed class TranslatorTests : IDisposable
             "out/Example.Toolkit/Generated/Core/Core.g.cs",
             "out/Example.Toolkit/Generated/Core/Mine.g.cs",
             "out/Example.Toolkit/Generated/Core/Partial.cs",
-            "out/Example.Toolkit/Generated/Example.Toolkit.fortrania-summary.json",
         ]);
     }
 
@@ -227,7 +226,7 @@ public sealed class TranslatorTests : IDisposable
 
         // Assert
         refused.Succeeded.ShouldBeFalse();
-        refused.Messages.ShouldHaveSingleItem().Text.ShouldBe("The translation Example.Tool has 2 main programs, OTHER, TOOL; name the one its program starts with as the entry.");
+        refused.Messages.ShouldHaveSingleItem().Text.ShouldBe("The project Example.Tool has 2 main programs, OTHER, TOOL; name the one its program starts with as the entry.");
         refused.Written.ShouldBeEmpty();
         accepted.Succeeded.ShouldBeTrue();
         Text("out/Example.Tool/Program.cs").ShouldContain("context.Get<ToolMain>().OTHER();");
@@ -247,7 +246,7 @@ public sealed class TranslatorTests : IDisposable
 
         // Assert
         result.Succeeded.ShouldBeFalse();
-        result.Messages.ShouldHaveSingleItem().Text.ShouldBe("The entry MISSING is not one of the main programs of the translation Example.Tool: TOOL.");
+        result.Messages.ShouldHaveSingleItem().Text.ShouldBe("The entry MISSING is not one of the main programs of the project Example.Tool: TOOL.");
         Directory.Exists(Path.Combine(_root, "out")).ShouldBeFalse();
     }
 
@@ -260,34 +259,34 @@ public sealed class TranslatorTests : IDisposable
         var settings = Settings(Project("Example.Toolkit", Source("Core", "core/*.f")), Project("Example.Tool", Source("ToolMain", "tool/*.pgm")));
 
         // Act
-        var result = Translator.Run(settings);
+        var result = Translator.Run(settings, new TranslationOptions());
 
         // Assert
         result.Succeeded.ShouldBeTrue();
         result.Messages.ShouldBeEmpty();
         Files("out").ShouldBe(
         [
+            "out/Example.Tool/Example.Tool.fortrania-summary.json",
             "out/Example.Tool/Generated/.fortrania-manifest.json",
-            "out/Example.Tool/Generated/Example.Tool.fortrania-summary.json",
             "out/Example.Tool/Generated/ToolMain/TOOL.g.cs",
             "out/Example.Tool/Generated/ToolMain/ToolMain.g.cs",
+            "out/Example.Toolkit/Example.Toolkit.fortrania-summary.json",
             "out/Example.Toolkit/Generated/.fortrania-manifest.json",
             "out/Example.Toolkit/Generated/Core/CPUT.g.cs",
             "out/Example.Toolkit/Generated/Core/Core.g.cs",
-            "out/Example.Toolkit/Generated/Example.Toolkit.fortrania-summary.json",
         ]);
     }
 
     [Theory]
-    [InlineData("Example.Core", "Core", null, "The class Core of the translation Example.Core has the name of a part of its namespace Example.Core; give the source a class of another name.")]
-    [InlineData("Example.Kit", "Core", "not a class", "The source Core of the translation Example.Kit needs a class name; 'not a class' is not one.")]
-    [InlineData("Example Kit", "Core", null, "The namespace Example Kit of the translation Example Kit is not a namespace; give it one.")]
+    [InlineData("Example.Core", "Core", null, "The class Core of the project Example.Core has the name of a part of its namespace Example.Core; give the source a class of another name.")]
+    [InlineData("Example.Kit", "Core", "not a class", "The source Core of the project Example.Kit needs a class name; 'not a class' is not one.")]
+    [InlineData("Example Kit", "Core", null, "The namespace Example Kit of the project Example Kit is not a namespace; give it one.")]
     public void Run_WhenANameCannotBeUsed_ShouldRefuseAndNotRenameByItself(string project, string source, string? className, string message)
     {
         // Arrange
         Put("core/core.f", Core);
         var settings = Settings(Project(project, Source(source, "core/*.f")));
-        settings[0].Sources[0].Class = className;
+        settings[0].Part.Sources[0].Class = className;
 
         // Act
         var result = Translate(settings);
@@ -303,7 +302,7 @@ public sealed class TranslatorTests : IDisposable
         // Arrange
         Put("core/core.f", Core);
         var settings = Settings(Project("Example.Core", Source("Core", "core/*.f")));
-        settings[0].Sources[0].Class = "CoreLibrary";
+        settings[0].Part.Sources[0].Class = "CoreLibrary";
 
         // Act
         var result = Translate(settings);
@@ -321,7 +320,7 @@ public sealed class TranslatorTests : IDisposable
             Project("One", Source("A", "missing/*.f"), Source("A", "missing/*.f")),
             Project("One"),
             Project("Two", new SourceSettings { Name = "B" }));
-        settings[1].Output = null;
+        settings[1].Part.Output = null;
 
         // Act
         var result = Translate(settings);
@@ -331,10 +330,10 @@ public sealed class TranslatorTests : IDisposable
         result.Messages.Select(message => message.Text).ShouldBe(
         [
             "Two sources become the class One.A.",
-            "Two translations are named One.",
-            "The settings of the translation One name no output: say where it is written, \"output\": \".\" for the folder the settings file is in.",
-            "The translation One has no sources.",
-            "The source B of the translation Two names no files.",
+            "Two projects are named One.",
+            "The project One has no sources.",
+            "Settings of the project One name no output: say where they are written, \"output\": \".\" for the folder the settings file is in.",
+            "The source B of the project Two names no files.",
         ]);
         Directory.Exists(Path.Combine(_root, "out")).ShouldBeFalse();
     }
@@ -353,7 +352,7 @@ public sealed class TranslatorTests : IDisposable
 
         // Assert
         result.Succeeded.ShouldBeFalse();
-        result.Messages.ShouldContain(message => message.Text == "The source Core of the translation Example.Toolkit names 'none/*.f', and there is no such file.");
+        result.Messages.ShouldContain(message => message.Text == "The source Core of the project Example.Toolkit names 'none/*.f', and there is no such file.");
         var broken = result.Messages.Single(message => message.File is not null);
         broken.File!.ShouldEndWith("broken.f");
         broken.ToString().ShouldContain("broken.f: error: Line 1:");
@@ -392,7 +391,7 @@ public sealed class TranslatorTests : IDisposable
 
         // Assert
         apart.Succeeded.ShouldBeFalse();
-        apart.Messages.ShouldHaveSingleItem().Text.ShouldStartWith("The translation PA calls into itself by way of the translations it calls into");
+        apart.Messages.ShouldHaveSingleItem().Text.ShouldStartWith("The project PA calls into itself by way of the projects it calls into");
         together.Succeeded.ShouldBeTrue();
     }
 
@@ -448,7 +447,8 @@ public sealed class TranslatorTests : IDisposable
         // Arrange
         Put("core/core.f", Core);
         var project = Project("Example.Toolkit", Source("Core", "core/*.f"));
-        project.Output = "elsewhere/kit";
+        project.Part.Output = "elsewhere/kit";
+        project.Summary = Full("elsewhere/kit/Example.Toolkit.fortrania-summary.json");
         var runtime = new RuntimeSettings { Project = Path.Combine(_root, "runtime/Runtime.csproj") };
 
         // Act
@@ -539,7 +539,7 @@ public sealed class TranslatorTests : IDisposable
         // Arrange
         Put("core/core.f", Core);
         var settings = Settings(Project("Example.Toolkit", Source("Core", "core/*.f")));
-        settings[0].OnSuccess = [Shell("echo %FORTRANIA_OUTPUT%> output.txt & type %FORTRANIA_WRITTEN% > written.txt", "echo \"$FORTRANIA_OUTPUT\" > output.txt; cat \"$FORTRANIA_WRITTEN\" > written.txt")];
+        settings[0].Part.OnSuccess = [Shell("echo %FORTRANIA_OUTPUT%> output.txt & type %FORTRANIA_WRITTEN% > written.txt", "echo \"$FORTRANIA_OUTPUT\" > output.txt; cat \"$FORTRANIA_WRITTEN\" > written.txt")];
 
         // Act
         var result = Translate(settings);
@@ -558,12 +558,12 @@ public sealed class TranslatorTests : IDisposable
         Put("p/core/core.f", Core);
         Put("q/tool/tool.pgm", Tool);
         var library = Project("Example.Toolkit", Source("Core", "core/*.f"));
-        library.Folder = Path.Combine(_root, "p");
+        library.Part.Folder = Path.Combine(_root, "p");
         var tool = Project("Example.Tool", Source("ToolMain", "tool/*.pgm"));
-        tool.Folder = Path.Combine(_root, "q");
+        tool.Part.Folder = Path.Combine(_root, "q");
         foreach (var project in new[] { library, tool })
         {
-            project.OnSuccess = [Shell("type %FORTRANIA_WRITTEN% > written.txt", "cat \"$FORTRANIA_WRITTEN\" > written.txt")];
+            project.Part.OnSuccess = [Shell("type %FORTRANIA_WRITTEN% > written.txt", "cat \"$FORTRANIA_WRITTEN\" > written.txt")];
         }
 
         // Act
@@ -578,14 +578,14 @@ public sealed class TranslatorTests : IDisposable
     }
 
     [Fact]
-    public void Run_WhenTheSettingsGiveNoName_ShouldSaySoAndWriteNothing()
+    public void Run_WhenTheProjectHasNoName_ShouldSaySoAndWriteNothing()
     {
         // Arrange: settings beside a project file, whose name is not taken.
         Put("lib/core/core.f", Core);
         Put("lib/Example.Lib.csproj", "<Project Sdk=\"Microsoft.NET.Sdk\" />\n");
         var settings = Project("ignored", Source("Core", "core/*.f"));
         settings.Name = null;
-        settings.Folder = Path.Combine(_root, "lib");
+        settings.Part.Folder = Path.Combine(_root, "lib");
 
         // Act
         var result = Translate(settings);
@@ -593,18 +593,18 @@ public sealed class TranslatorTests : IDisposable
         // Assert
         result.Succeeded.ShouldBeFalse();
         result.Messages.ShouldHaveSingleItem().Text.ShouldBe(
-            "The settings give the translation no name; give it one. It is what other translations know it by, and what its summary and namespace are named after.");
+            "The project to translate has no name; give it the name of its assembly.");
         result.Written.ShouldBeEmpty();
     }
 
     [Fact]
-    public void Run_WhenSeveralTranslationsGoToOneFolder_ShouldSaySoAndWriteNothing()
+    public void Run_WhenSettingsOfTwoProjectsGoToOneFolder_ShouldSaySoAndWriteNothing()
     {
         // Arrange
         Put("core/core.f", Core);
         Put("tool/tool.pgm", Tool);
         var tool = Project("Example.Tool", Source("ToolMain", "tool/*.pgm"));
-        tool.Output = "out/Example.Toolkit";
+        tool.Part.Output = "out/Example.Toolkit";
 
         // Act
         var result = Translate(Settings(Project("Example.Toolkit", Source("Core", "core/*.f")), tool));
@@ -612,7 +612,7 @@ public sealed class TranslatorTests : IDisposable
         // Assert
         result.Succeeded.ShouldBeFalse();
         result.Messages.ShouldHaveSingleItem().Text.ShouldBe(
-            $"The translations Example.Toolkit and Example.Tool are both written to {Full("out/Example.Toolkit")}; give each an output of its own.");
+            $"Two settings files, of Example.Toolkit and of Example.Tool, are both written to {Full("out/Example.Toolkit")}; give each an output of its own.");
         Directory.Exists(Path.Combine(_root, "out")).ShouldBeFalse();
     }
 
@@ -622,7 +622,7 @@ public sealed class TranslatorTests : IDisposable
         // Arrange
         Put("core/core.f", Core);
         var settings = Project("Example.Toolkit", Source("Core", "core/*.f"));
-        settings.Namespace = "Example.Given";
+        settings.Part.Namespace = "Example.Given";
 
         // Act
         var result = Translator.Run(settings, new TranslationOptions { Namespace = "Example.Chosen" });
@@ -637,7 +637,7 @@ public sealed class TranslatorTests : IDisposable
     {
         // Arrange
         var settings = Project("Example.Toolkit", Source("Core", "core/*.f"));
-        settings.Folder = null;
+        settings.Part.Folder = null;
 
         // Act & Assert
         Should.Throw<ArgumentException>(() => Translator.Run(settings));
@@ -649,7 +649,7 @@ public sealed class TranslatorTests : IDisposable
         // Arrange
         Put("core/core.f", Core);
         var settings = Settings(Project("Example.Toolkit", Source("Core", "core/*.f")));
-        settings[0].OnSuccess =
+        settings[0].Part.OnSuccess =
         [
             Shell("echo it went wrong & exit 3", "echo it went wrong; exit 3"),
             Shell("echo ran > after.txt", "echo ran > after.txt"),
@@ -673,9 +673,9 @@ public sealed class TranslatorTests : IDisposable
         // Arrange
         Put("core/core.f", Core);
         var missing = Settings(Project("Example.Toolkit", Source("Core", "core/*.f")));
-        missing[0].OnSuccess = [new CommandSettings { Run = ["no-such-program-" + Guid.NewGuid().ToString("N")] }];
+        missing[0].Part.OnSuccess = [new CommandSettings { Run = ["no-such-program-" + Guid.NewGuid().ToString("N")] }];
         var empty = Settings(Project("Example.Toolkit", Source("Core", "core/*.f")));
-        empty[0].OnSuccess = [new CommandSettings()];
+        empty[0].Part.OnSuccess = [new CommandSettings()];
 
         // Act
         var notStarted = Translate(missing);
@@ -683,7 +683,7 @@ public sealed class TranslatorTests : IDisposable
 
         // Assert
         notStarted.Messages.ShouldHaveSingleItem().Text.ShouldContain("could not be started");
-        refused.Messages.ShouldHaveSingleItem().Text.ShouldBe("Command 1 of onSuccess of the translation Example.Toolkit names no program to run.");
+        refused.Messages.ShouldHaveSingleItem().Text.ShouldBe("Command 1 of onSuccess names no program to run.");
         refused.Written.ShouldBeEmpty();
     }
 
@@ -692,7 +692,7 @@ public sealed class TranslatorTests : IDisposable
     {
         // Arrange
         var settings = Settings(Project("Example.Toolkit", Source("Core", "missing/*.f")));
-        settings[0].OnSuccess = [Shell("echo ran > ran.txt", "echo ran > ran.txt")];
+        settings[0].Part.OnSuccess = [Shell("echo ran > ran.txt", "echo ran > ran.txt")];
 
         // Act
         var result = Translate(settings);
@@ -711,13 +711,13 @@ public sealed class TranslatorTests : IDisposable
         Put("third/core.f", Core);
         var name = "FORTRANIA_TEST_" + Guid.NewGuid().ToString("N");
         var settings = Settings(Project("Example.Toolkit", Source("Core", $"$({name})/*.f")));
-        settings[0].Variables[name] = new VariableSettings { Path = "third" };
+        settings[0].Part.Variables[name] = new VariableSettings { Path = "third" };
 
         // Act
         var fromSettings = Translate(settings);
         Environment.SetEnvironmentVariable(name, "second");
         var fromEnvironment = Translate(settings);
-        settings[0].LocalVariables[name] = "first";
+        settings[0].Part.LocalVariables[name] = "first";
         var fromLocal = Translate(settings);
         Environment.SetEnvironmentVariable(name, null);
 
@@ -1041,7 +1041,7 @@ public sealed class TranslatorTests : IDisposable
                   END
             """);
         var settings = Settings(Project("Example.Toolkit", Source("Core", "core/*.f")));
-        settings[0].InlineTextConstants = true;
+        settings[0].Part.InlineTextConstants = true;
 
         // Act
         var result = Translate(settings);
@@ -1286,7 +1286,7 @@ public sealed class TranslatorTests : IDisposable
             }
             """;
         var settings = Settings(Project("Example.Toolkit", Source("Core", "core/*.f")));
-        settings[0].PlainArrayLoops = keepsLoops;
+        settings[0].Part.PlainArrayLoops = keepsLoops;
 
         // Act
         var result = Translate(settings);
@@ -1318,7 +1318,7 @@ public sealed class TranslatorTests : IDisposable
     }
 
     [Fact]
-    public void Run_WhenATranslationIsReadFromItsSummary_ShouldWriteTheOthersAsMakingAllAtOnceDoes()
+    public void Run_WhenAProjectIsTranslatedAgainstASummaryFile_ShouldWriteWhatTranslatingBothAtOnceDoes()
     {
         // Arrange: the tool passes a function of its own to the library,
         // which calls it beneath a buffer of its own, so that the tool's
@@ -1335,10 +1335,9 @@ public sealed class TranslatorTests : IDisposable
         // The tool's translation goes, and so do the library's sources.
         Directory.Delete(Path.Combine(_root, "out/Example.Tool"), recursive: true);
         File.Delete(Path.Combine(_root, "core/lib.f"));
-        settings[0].Translate = false;
 
-        // Act
-        var apart = Translate(settings);
+        // Act: the tool alone, against the library's summary.
+        var apart = Translate(settings[1], new TranslationOptions { References = [Full("out/Example.Toolkit/Example.Toolkit.fortrania-summary.json")] });
 
         // Assert
         apart.Succeeded.ShouldBeTrue(string.Join('\n', apart.Messages));
@@ -1361,7 +1360,7 @@ public sealed class TranslatorTests : IDisposable
         Put("core/lib.f", Library);
         var settings = Settings(Project("Example.Toolkit", Source("Core", "core/*.f")));
         Translate(settings).Succeeded.ShouldBeTrue();
-        var first = Text("out/Example.Toolkit/Generated/Example.Toolkit.fortrania-summary.json");
+        var first = Text("out/Example.Toolkit/Example.Toolkit.fortrania-summary.json");
 
         // Act
         var again = Translate(settings, new TranslationOptions { Force = true });
@@ -1370,7 +1369,7 @@ public sealed class TranslatorTests : IDisposable
         // written again; and it says how APPLY is called and how deep a
         // procedure passed to it is called.
         again.Written.ShouldNotContain(path => path.EndsWith(".fortrania-summary.json", StringComparison.Ordinal));
-        Text("out/Example.Toolkit/Generated/Example.Toolkit.fortrania-summary.json").ShouldBe(first);
+        Text("out/Example.Toolkit/Example.Toolkit.fortrania-summary.json").ShouldBe(first);
         first.ShouldContain("\"project\": \"Example.Toolkit\"");
         first.ShouldContain("{\"name\":\"APPLY\",");
         first.ShouldContain("\"kind\":\"function\"");
@@ -1378,25 +1377,22 @@ public sealed class TranslatorTests : IDisposable
     }
 
     [Fact]
-    public void Run_WhenATranslationNotToBeMadeHasNoSummary_ShouldSaySoAndFail()
+    public void Run_WhenAReferencedSummaryFileIsNotThere_ShouldSayWhichAndFail()
     {
         // Arrange
         Put("tool/main.f", Caller);
-        var library = Project("Example.Toolkit", Source("Core", "core/*.f"));
-        library.Translate = false;
-        var tool = Project("Example.Tool", Source("ToolMain", "tool/*.f"));
+        var summary = Full("out/Example.Toolkit/Example.Toolkit.fortrania-summary.json");
 
         // Act
-        var result = Translate(Settings(library, tool));
+        var result = Translate(Project("Example.Tool", Source("ToolMain", "tool/*.f")), new TranslationOptions { References = [summary] });
 
         // Assert
         result.Succeeded.ShouldBeFalse();
-        result.Messages.ShouldHaveSingleItem().Text.ShouldBe(
-            $"The settings of the translation Example.Toolkit say not to translate it, and it has no summary at {Full("out/Example.Toolkit/Generated/Example.Toolkit.fortrania-summary.json")} to be read from instead; make it once, forced.");
+        result.Messages.ShouldContain(message => message.IsError && message.File == summary);
     }
 
     [Fact]
-    public void Run_WhenASummaryIsOfOtherSourcesThanTheSettingsHave_ShouldSayToMakeItAgain()
+    public void Run_WhenASummaryIsOfOtherSourcesThanTheSettingsHave_ShouldSayToTranslateItAgain()
     {
         // Arrange
         Put("core/lib.f", Library);
@@ -1404,15 +1400,15 @@ public sealed class TranslatorTests : IDisposable
         var library = Project("Example.Toolkit", Source("Core", "core/*.f"));
         var settings = Settings(library, Project("Example.Tool", Source("ToolMain", "tool/*.f")));
         Translate(settings).Succeeded.ShouldBeTrue();
-        library.Sources[0].Name = "Renamed";
-        library.Translate = false;
+        library.Part.Sources[0].Name = "Renamed";
+        File.Delete(Path.Combine(_root, "core/lib.f"));
 
-        // Act
-        var result = Translate(settings);
+        // Act: offline, the library is read from its summary.
+        var result = Translate(settings, new TranslationOptions { Offline = true });
 
         // Assert
         result.Succeeded.ShouldBeFalse();
-        result.Messages.ShouldContain(message => message.IsError && message.Text.Contains("make Example.Toolkit again", StringComparison.Ordinal));
+        result.Messages.ShouldContain(message => message.IsError && message.Text.Contains("translate Example.Toolkit again", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -1421,7 +1417,7 @@ public sealed class TranslatorTests : IDisposable
         // Arrange
         Put("core/core.f", Core);
         var settings = Settings(Project("Example.Toolkit", Source("Core", "core/*.f")));
-        settings[0].Output = null;
+        settings[0].Part.Output = null;
 
         // Act
         var result = Translate(settings);
@@ -1440,11 +1436,13 @@ public sealed class TranslatorTests : IDisposable
         Put("p/core/core.f", Core);
         Put("q/tool/tool.f", Tool);
         var library = Project("Example.Toolkit", Source("Core", "core/*.f"));
-        library.Folder = Path.Combine(_root, "p");
-        library.Output = "A";
+        library.Part.Folder = Path.Combine(_root, "p");
+        library.Part.Output = "A";
+        library.Summary = Full("p/A/Example.Toolkit.fortrania-summary.json");
         var program = Project("Example.Tool", Source("ToolMain", "tool/*.f"));
-        program.Folder = Path.Combine(_root, "q");
-        program.Output = "../r/B";
+        program.Part.Folder = Path.Combine(_root, "q");
+        program.Part.Output = "../r/B";
+        program.Summary = Full("r/B/Example.Tool.fortrania-summary.json");
 
         // Act
         var result = Translate(Settings(library, program));
@@ -1456,28 +1454,26 @@ public sealed class TranslatorTests : IDisposable
     }
 
     [Fact]
-    public void Run_WhenATranslationSaysNotToTranslate_ShouldReadItFromItsSummaryUnlessForced()
+    public void Run_WhenOfflineAndAProjectsSourcesAreGone_ShouldReadItFromItsSummaryAndTranslateTheRest()
     {
-        // Arrange: both made once; then the library says not to translate
-        // it, and its sources go.
+        // Arrange: both translated once; then the library's sources go.
         Put("core/lib.f", Library);
         Put("tool/main.f", Caller);
         var library = Project("Example.Toolkit", Source("Core", "core/*.f"));
         var settings = Settings(library, Project("Example.Tool", Source("ToolMain", "tool/*.f")));
         Translate(settings).Succeeded.ShouldBeTrue();
-        library.Translate = false;
         File.Delete(Path.Combine(_root, "core/lib.f"));
 
         // Act
-        var plain = Translate(settings);
-        var forced = Translate(settings, new TranslationOptions { Force = true });
+        var offline = Translate(settings, new TranslationOptions { Offline = true });
+        var online = Translate(settings);
 
-        // Assert: the library is read from its summary; forced, it is
-        // translated, and its sources are missed.
-        plain.Succeeded.ShouldBeTrue(string.Join('\n', plain.Messages));
-        plain.Units.ShouldBe(2);
-        forced.Succeeded.ShouldBeFalse();
-        forced.Messages.ShouldContain(message => message.IsError && message.Text.Contains("there is no such file", StringComparison.Ordinal));
+        // Assert: offline, the library is read from its summary; online, it
+        // is translated, and its sources are missed.
+        offline.Succeeded.ShouldBeTrue(string.Join('\n', offline.Messages));
+        offline.Units.ShouldBe(2);
+        online.Succeeded.ShouldBeFalse();
+        online.Messages.ShouldContain(message => message.IsError && message.Text.Contains("there is no such file", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -1500,30 +1496,31 @@ public sealed class TranslatorTests : IDisposable
     [Fact]
     public void Run_WhenTranslated_ShouldSayWhatItReadWhatItMatchedAndWhatTheTranslationIsMadeOf()
     {
-        // Arrange: a translation read from its summary, and one made. Its
-        // program is not scaffolded again, the project file being there.
-        // What the one read is made of is what its folder holds.
+        // Arrange: a project read from its summary, offline and its sources
+        // gone, and one translated. Its program is not scaffolded again, the
+        // project file being there. What the one read is made of is what
+        // its folders hold.
         Put("core/lib.f", Library);
         Put("tool/main.f", Caller);
         var toolkit = Project("Example.Toolkit", Source("Core", "core/*.f"));
         var tool = Project("Example.Tool", Source("ToolMain", "tool/*.f"));
         Translate(Settings(toolkit, tool)).Succeeded.ShouldBeTrue();
-        toolkit.Translate = false;
+        File.Delete(Path.Combine(_root, "core/lib.f"));
 
         // Act
-        var result = Translate(Settings(toolkit, tool));
+        var result = Translate(Settings(toolkit, tool), new TranslationOptions { Offline = true });
 
         // Assert
         result.Succeeded.ShouldBeTrue(string.Join('\n', result.Messages));
-        result.Read.ShouldBe([Full("out/Example.Toolkit/Generated/Example.Toolkit.fortrania-summary.json"), Full("tool/main.f")]);
+        result.Read.ShouldBe([Full("out/Example.Toolkit/Example.Toolkit.fortrania-summary.json"), Full("tool/main.f")]);
         result.Patterns.ShouldBe([Full("tool/*.f")]);
         result.Files.Order(StringComparer.Ordinal).ShouldBe(
             [
-                Full("out/Example.Tool/Generated/Example.Tool.fortrania-summary.json"),
+                Full("out/Example.Tool/Example.Tool.fortrania-summary.json"),
                 Full("out/Example.Tool/Generated/ToolMain/SQUARE.g.cs"),
                 Full("out/Example.Tool/Generated/ToolMain/TOOL.g.cs"),
                 Full("out/Example.Tool/Generated/ToolMain/ToolMain.g.cs"),
-                Full("out/Example.Toolkit/Generated/Example.Toolkit.fortrania-summary.json"),
+                Full("out/Example.Toolkit/Example.Toolkit.fortrania-summary.json"),
                 Full("out/Example.Toolkit/Generated/Core/APPLY.g.cs"),
                 Full("out/Example.Toolkit/Generated/Core/Core.g.cs"),
                 Full("out/Example.Toolkit/Generated/Core/TWICE.g.cs"),
@@ -1533,15 +1530,16 @@ public sealed class TranslatorTests : IDisposable
     }
 
     [Fact]
-    public void Run_WhenAProjectFileOfTheTranslationsNameLiesBesideTheSettings_ShouldScaffoldNoneForIt()
+    public void Run_WhenAProjectFileLiesBesideTheSummary_ShouldScaffoldNoneForIt()
     {
-        // Arrange: a program whose project file lies beside the settings, as
-        // one with a settings file of its own keeps it, its translation
-        // apart.
+        // Arrange: a program whose project file lies beside its settings and
+        // its summary, as a project keeps them whose translation lies apart.
         Put("core/lib.f", Library);
         Put("tool/main.f", Caller);
         Put("Example.Tool.csproj", "<Project Sdk=\"Microsoft.NET.Sdk\" />");
-        var settings = Settings(Project("Example.Toolkit", Source("Core", "core/*.f")), Project("Example.Tool", Source("ToolMain", "tool/*.f")));
+        var tool = Project("Example.Tool", Source("ToolMain", "tool/*.f"));
+        tool.Summary = Full("Example.Tool.fortrania-summary.json");
+        var settings = Settings(Project("Example.Toolkit", Source("Core", "core/*.f")), tool);
 
         // Act
         var result = Translate(settings);
@@ -1565,7 +1563,7 @@ public sealed class TranslatorTests : IDisposable
         var tool = Project("Example.Tool", Source("ToolMain", "tool/*.f"));
         Translate(Settings(Project("Example.Toolkit", Source("Core", "core/*.f")), tool)).Succeeded.ShouldBeTrue();
         var generated = Contents("out/Example.Tool/Generated");
-        var assembly = MakeAssembly("Example.Toolkit", Text("out/Example.Toolkit/Generated/Example.Toolkit.fortrania-summary.json"));
+        var assembly = MakeAssembly("Example.Toolkit", Text("out/Example.Toolkit/Example.Toolkit.fortrania-summary.json"));
         Directory.Delete(Path.Combine(_root, "out/Example.Tool"), recursive: true);
         File.Delete(Path.Combine(_root, "core/lib.f"));
 
@@ -1605,7 +1603,7 @@ public sealed class TranslatorTests : IDisposable
         Put("core/lib.f", Library);
         Put("tool/main.f", Caller);
         Translate(Settings(Project("Example.Toolkit", Source("Core", "core/*.f")))).Succeeded.ShouldBeTrue();
-        var summary = Text("out/Example.Toolkit/Generated/Example.Toolkit.fortrania-summary.json");
+        var summary = Text("out/Example.Toolkit/Example.Toolkit.fortrania-summary.json");
         var first = MakeAssembly("Example.First", summary.Replace("\"Example.Toolkit\"", "\"Example.First\"", StringComparison.Ordinal));
         var second = MakeAssembly("Example.Second", summary.Replace("\"Example.Toolkit\"", "\"Example.Second\"", StringComparison.Ordinal));
 
@@ -1624,14 +1622,14 @@ public sealed class TranslatorTests : IDisposable
         Put("core/lib.f", Library);
         var settings = Settings(Project("Example.Toolkit", Source("Core", "core/*.f")));
         Translate(settings).Succeeded.ShouldBeTrue();
-        var assembly = MakeAssembly("Example.Toolkit", Text("out/Example.Toolkit/Generated/Example.Toolkit.fortrania-summary.json"));
+        var assembly = MakeAssembly("Example.Toolkit", Text("out/Example.Toolkit/Example.Toolkit.fortrania-summary.json"));
 
         // Act
         var result = Translate(settings, new TranslationOptions { References = [assembly] });
 
         // Assert
         result.Succeeded.ShouldBeFalse();
-        result.Messages.ShouldContain(message => message.IsError && message.Text.Contains("holds the translation Example.Toolkit, which the run or another assembly has as well", StringComparison.Ordinal));
+        result.Messages.ShouldContain(message => message.IsError && message.Text.Contains("holds the project Example.Toolkit, which the run or another reference has as well", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -1786,6 +1784,95 @@ public sealed class TranslatorTests : IDisposable
         ]);
     }
 
+    [Fact]
+    public void Run_WhenAProjectIsMadeOfTwoSettingsFiles_ShouldTranslateThemAsOneWhoseSourcesCallEachOtherBothWays()
+    {
+        // Arrange: each settings file's source calls into the other's, which
+        // two projects could not do.
+        Put("a/a.f", "      SUBROUTINE AONE ( N )\n      INTEGER N\n      CALL BONE ( N )\n      END\n");
+        Put("b/b.f", "      SUBROUTINE BONE ( N )\n      INTEGER N\n      IF ( N .GT. 0 ) CALL AONE ( N - 1 )\n      END\n");
+        var project = new TranslationProject
+        {
+            Name = "Example.Both",
+            Settings =
+            [
+                new TranslationSettings { Folder = _root, Output = "out/a", Sources = [Source("A", "a/*.f")] },
+                new TranslationSettings { Folder = _root, Output = "out/b", Sources = [Source("B", "b/*.f")] },
+            ],
+        };
+
+        // Act
+        var result = Translator.Run(project);
+
+        // Assert: one summary, beside the first settings file, of both
+        // sources, and each settings file's translation in its own folder.
+        result.Succeeded.ShouldBeTrue(string.Join('\n', result.Messages));
+        var summary = Text("Example.Both.fortrania-summary.json");
+        summary.ShouldContain("\"project\": \"Example.Both\"");
+        summary.ShouldContain("\"name\": \"A\"");
+        summary.ShouldContain("\"name\": \"B\"");
+        File.Exists(Path.Combine(_root, "out/a/Generated/.fortrania-manifest.json")).ShouldBeTrue();
+        Text("out/b/Generated/B/BONE.g.cs").ShouldContain("namespace Example.Both;");
+        result.WorkingRegions.Select(region => region.Project).ShouldBe(["Example.Both"]);
+    }
+
+    [Fact]
+    public void Run_WhenScaffoldingAProjectWhoseTranslationLiesOutsideItsFolder_ShouldCompileTheTranslationFromWhereItLies()
+    {
+        // Arrange: the summary, and so the project, beside the settings, and
+        // the translation elsewhere.
+        Put("core/core.f", Core);
+        var project = Project("Example.Toolkit", Source("Core", "core/*.f"));
+        project.Summary = null;
+        project.Part.Output = "../generated";
+
+        // Act
+        var result = Translate(project);
+
+        // Assert
+        result.Succeeded.ShouldBeTrue(string.Join('\n', result.Messages));
+        File.Exists(Path.Combine(_root, "Example.Toolkit.fortrania-summary.json")).ShouldBeTrue();
+        Text("Example.Toolkit.csproj").ShouldContain("<Compile Include=\"../generated/Generated/**/*.g.cs\" />");
+    }
+
+    [Fact]
+    public void Run_WhenOfflineAndOnlyTheSummaryIsThere_ShouldSayToRestore()
+    {
+        // Arrange: translated once, then the sources and the translation go
+        // and the summary stays, as a checkout has it that commits only it.
+        Put("core/core.f", Core);
+        var project = Project("Example.Toolkit", Source("Core", "core/*.f"));
+        Translate(project).Succeeded.ShouldBeTrue();
+        File.Delete(Path.Combine(_root, "core/core.f"));
+        Directory.Delete(Path.Combine(_root, "out/Example.Toolkit/Generated"), recursive: true);
+
+        // Act
+        var result = Translate(project, new TranslationOptions { Offline = true });
+
+        // Assert
+        result.Succeeded.ShouldBeFalse();
+        result.Messages.ShouldHaveSingleItem().Text.ShouldContain("restore them first");
+    }
+
+    [Fact]
+    public void Run_WhenAProjectIsTranslatedAgainstASummaryFileBesideAProjectFile_ShouldScaffoldAReferenceToThatProject()
+    {
+        // Arrange: the library scaffolded on its own, then the tool against
+        // its summary file.
+        Put("core/core.f", Core);
+        Put("tool/tool.pgm", Tool);
+        Translate(Project("Example.Toolkit", Source("Core", "core/*.f"))).Succeeded.ShouldBeTrue();
+
+        // Act
+        var result = Translate(
+            Project("Example.Tool", Source("ToolMain", "tool/*.pgm")),
+            new TranslationOptions { References = [Full("out/Example.Toolkit/Example.Toolkit.fortrania-summary.json")] });
+
+        // Assert
+        result.Succeeded.ShouldBeTrue(string.Join('\n', result.Messages));
+        Text("out/Example.Tool/Example.Tool.csproj").ShouldContain("<ProjectReference Include=\"../Example.Toolkit/Example.Toolkit.csproj\" />");
+    }
+
     // A command for the system's own shell: the test needs one that is
     // on every machine the tests run on.
     private static CommandSettings Shell(string windows, string other) => new()
@@ -1796,7 +1883,7 @@ public sealed class TranslatorTests : IDisposable
     // A run that scaffolds, as most of these tests look at the project files
     // too, and whose project files refer to a runtime of a version that does
     // not change with the translator's, unless the options say otherwise.
-    private static TranslationResult Translate(IReadOnlyList<TranslationSettings> settings, TranslationOptions? options = null)
+    private static TranslationResult Translate(IReadOnlyList<TranslationProject> projects, TranslationOptions? options = null)
     {
         options ??= new TranslationOptions();
         options.Scaffold = true;
@@ -1805,22 +1892,22 @@ public sealed class TranslatorTests : IDisposable
             options.Runtime = new RuntimeSettings { Package = "1.2.3" };
         }
 
-        return Translator.Run(settings, options);
+        return Translator.Run(projects, options);
     }
 
-    private static TranslationResult Translate(TranslationSettings settings, TranslationOptions? options = null) => Translate([settings], options);
+    private static TranslationResult Translate(TranslationProject project, TranslationOptions? options = null) => Translate([project], options);
 
-    // A run of the translations given.
-    private static List<TranslationSettings> Settings(params TranslationSettings[] projects) => [.. projects];
+    // A run of the projects given.
+    private static List<TranslationProject> Settings(params TranslationProject[] projects) => [.. projects];
 
-    // A translation's settings, as a file in the test's folder would give
-    // them: written under out/, to a folder of its name.
-    private TranslationSettings Project(string name, params SourceSettings[] sources) => new()
+    // A project of one settings file, as a file in the test's folder would
+    // give it: written under out/, to a folder of its name, with its summary
+    // there as well, beside its project file.
+    private TranslationProject Project(string name, params SourceSettings[] sources) => new()
     {
-        Folder = _root,
         Name = name,
-        Output = "out/" + name,
-        Sources = [.. sources],
+        Settings = [new TranslationSettings { Folder = _root, Output = "out/" + name, Sources = [.. sources] }],
+        Summary = Path.Combine(_root, "out", name, ProjectSummary.GetFileName(name)),
     };
 
     private static SourceSettings Source(string name, params string[] files) => new() { Name = name, Files = [.. files] };
@@ -1850,7 +1937,7 @@ public sealed class TranslatorTests : IDisposable
         var bytes = summary is null ? null : Encoding.UTF8.GetBytes(summary);
         var result = compilation.Emit(
             file,
-            manifestResources: bytes is null ? null : [new ResourceDescription(ProjectSummary.ResourcePrefix + ProjectSummary.GetFileName(name), () => new MemoryStream(bytes), isPublic: true)]);
+            manifestResources: bytes is null ? null : [new ResourceDescription(ProjectSummary.ResourceName, () => new MemoryStream(bytes), isPublic: true)]);
         result.Success.ShouldBeTrue();
         return path;
     }
