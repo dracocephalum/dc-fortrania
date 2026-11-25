@@ -171,8 +171,8 @@ public static partial class Translator
         }
 
         // The source whose procedure a call reaches, in the order the
-        // emitter looks: the calling source, then the others its own
-        // project's first. None for the compiler's library, which is the
+        // emitter looks: the calling source, then the others, its own
+        // translation's first. None for the compiler's library, which is the
         // runtime's, or a procedure no source defines, warned of already.
         private Source? FindOwner(Source from, string name) =>
             HasMethod(from, name) ? from : Visible(from).FirstOrDefault(other => HasMethod(other, name));

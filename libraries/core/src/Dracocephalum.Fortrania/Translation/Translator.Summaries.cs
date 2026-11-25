@@ -6,47 +6,41 @@ using Dracocephalum.Fortrania.Analysis;
 namespace Dracocephalum.Fortrania.Translation;
 
 /// <content>
-/// Translating a project apart from the projects it calls into: each
-/// project translated writes its summary, and a project that is not
-/// translated is read from the summary its last translation wrote.
+/// Making a translation apart from those it calls into: each translation
+/// made writes its summary, and one that is not made is read from the
+/// summary it wrote last.
 /// </content>
 public static partial class Translator
 {
     private sealed partial class Translation
     {
-        // The projects not translated this time, by the summary each was
-        // read from.
+        // The translations not made this time, by the summary each was read
+        // from.
         private readonly Dictionary<Project, ProjectSummary> _summaries = [];
 
-        // The projects that take part: those translated, and those read
-        // from a summary. One of the run's that says never to translate and
-        // has no summary takes no part, and a project that calls into it is
-        // told so.
+        // The translations that take part: those made, and those read from
+        // a summary.
         private readonly List<Project> _projects = [];
 
-        // The projects the options' assemblies bring, which are no project
-        // of the run: read, never written, and referred to by whoever passed
+        // The translations the options' assemblies bring, which are none of
+        // the run's: read, never written, and referred to by whoever passed
         // the assembly.
         private readonly HashSet<Project> _external = [];
 
-        // What each procedure of a project translated this time does with
-        // its arguments, counting what is done further down, in other
-        // projects as well.
+        // What each procedure of a translation made this time does with its
+        // arguments, counting what is done further down, in other
+        // translations as well.
         private readonly Dictionary<Project, ArgumentEffects> _effects = [];
 
-        // Every project of the run is translated but one whose settings say
-        // never, unless the run is forced.
+        // Every translation of the run is made but one whose settings say
+        // not to, unless the run is forced.
         private bool IsTranslated(Project project) =>
-            !_summaries.ContainsKey(project) && (options.Force || project.Settings.Translate != TranslateMode.Never);
+            !_summaries.ContainsKey(project) && (options.Force || project.Settings.Translate);
 
-        // Whether every file of a project translated is written again,
-        // changed or not.
-        private bool IsForced(Project project) => options.Force || project.Settings.Translate == TranslateMode.Always;
+        private static string SummaryPathOf(Project project) => Path.Combine(FolderOf(project), GeneratedFolder, ProjectSummary.GetFileName(project.Name));
 
-        private static string SummaryPathOf(Project project) => Path.Combine(FolderOf(project), GeneratedFolder, ProjectSummary.FileName);
-
-        // A project not translated is read from its summary where there is one;
-        // its sources are not read at all. Says whether there was one.
+        // A translation not made is read from its summary where there is
+        // one; its sources are not read at all. Says whether there was one.
         private bool ReadSummary(Project project)
         {
             var path = SummaryPathOf(project);
@@ -70,7 +64,7 @@ public static partial class Translator
             var names = project.Sources.Select(source => source.Name).ToList();
             if (summary.Project != project.Name || !summary.Sources.Select(source => source.Name).SequenceEqual(names, StringComparer.Ordinal))
             {
-                Error($"The summary is of the project {summary.Project} with the sources {string.Join(", ", summary.Sources.Select(source => source.Name))}, where the settings have {project.Name} with {string.Join(", ", names)}; translate {project.Name} again.", path);
+                Error($"The summary is of the translation {summary.Project} with the sources {string.Join(", ", summary.Sources.Select(source => source.Name))}, where the settings have {project.Name} with {string.Join(", ", names)}; make {project.Name} again.", path);
                 return true;
             }
 
@@ -78,13 +72,15 @@ public static partial class Translator
             return true;
         }
 
+        // The sources of a translation read from its summary keep the
+        // namespaces it was made with, whatever this run would give them.
         private void AddSummarized(Project project, ProjectSummary summary)
         {
             _summaries[project] = summary;
             _projects.Add(project);
             foreach (var (sourceSettings, sourceSummary) in project.Sources.Zip(summary.Sources))
             {
-                var source = new Source(project, sourceSettings) { IsSummarized = true };
+                var source = new Source(project, sourceSettings) { IsSummarized = true, Namespace = sourceSummary.Namespace };
                 _sources.Add(source);
                 foreach (var procedure in sourceSummary.Procedures)
                 {
@@ -94,10 +90,10 @@ public static partial class Translator
             }
         }
 
-        // Each assembly the options name that carries a summary brings its
-        // project, as a project read from its summary is: its sources are
-        // its classes, by the names the summary gives them. One of the name
-        // of a project of the run, or that defines a procedure another
+        // Each summary an assembly the options name carries brings its
+        // translation, as one read from its summary is: its sources are its
+        // classes, by the names the summary gives them. One of the name of
+        // another that takes part, or that defines a procedure another
         // assembly defines too, is refused, since a call could not tell
         // which it reaches.
         private void ReadReferences()
@@ -105,10 +101,10 @@ public static partial class Translator
             var definedBy = new Dictionary<string, string>(StringComparer.Ordinal);
             foreach (var path in (options.References ?? []).Select(Path.GetFullPath).Distinct(StringComparer.OrdinalIgnoreCase))
             {
-                ProjectSummary? summary;
+                List<ProjectSummary> summaries;
                 try
                 {
-                    summary = ReadEmbeddedSummary(path);
+                    summaries = ReadEmbeddedSummaries(path);
                 }
                 catch (Exception exception) when (exception is JsonException or IOException or BadImageFormatException or UnauthorizedAccessException)
                 {
@@ -116,53 +112,59 @@ public static partial class Translator
                     continue;
                 }
 
-                if (summary is null)
+                if (summaries.Count > 0)
                 {
-                    continue;
+                    NoteRead(path);
                 }
 
-                NoteRead(path);
-                if (_given.Any(project => project.Name == summary.Project) || _external.Any(project => project.Name == summary.Project))
+                foreach (var summary in summaries)
                 {
-                    Error($"The assembly holds the project {summary.Project}, which the run or another assembly has as well.", path);
-                    continue;
-                }
-
-                foreach (var procedure in summary.Sources.SelectMany(source => source.Procedures))
-                {
-                    if (!definedBy.TryAdd(procedure.Name, summary.Project))
+                    if (_given.Any(project => project.Name == summary.Project) || _external.Any(project => project.Name == summary.Project))
                     {
-                        Error($"{procedure.Name} is defined by {definedBy[procedure.Name]} and by {summary.Project}; a call could not tell which it reaches.", path);
+                        Error($"The assembly holds the translation {summary.Project}, which the run or another assembly has as well.", path);
+                        continue;
                     }
-                }
 
-                var settings = new TranslationSettings
-                {
-                    Namespace = summary.Sources.Count > 0 ? summary.Sources[0].Namespace : null,
-                    Sources = [.. summary.Sources.Select(source => new SourceSettings { Name = source.Name, Class = source.Class })],
-                };
-                var project = new Project(settings, summary.Project, Path.GetDirectoryName(path) ?? path);
-                _external.Add(project);
-                AddSummarized(project, summary);
+                    foreach (var procedure in summary.Sources.SelectMany(source => source.Procedures))
+                    {
+                        if (!definedBy.TryAdd(procedure.Name, summary.Project))
+                        {
+                            Error($"{procedure.Name} is defined by {definedBy[procedure.Name]} and by {summary.Project}; a call could not tell which it reaches.", path);
+                        }
+                    }
+
+                    var settings = new TranslationSettings
+                    {
+                        Sources = [.. summary.Sources.Select(source => new SourceSettings { Name = source.Name, Class = source.Class })],
+                    };
+                    var project = new Project(settings, summary.Project, summary.Project, Path.GetDirectoryName(path) ?? path);
+                    _external.Add(project);
+                    AddSummarized(project, summary);
+                }
             }
         }
 
-        // The summary an assembly carries, read from its metadata without
-        // loading it; nothing for one that carries none.
-        private static ProjectSummary? ReadEmbeddedSummary(string path)
+        // The summaries an assembly carries, one for each translation
+        // compiled into it, read from its metadata without loading it; none
+        // for one that carries none.
+        private static List<ProjectSummary> ReadEmbeddedSummaries(string path)
         {
             using var stream = File.OpenRead(path);
             using var image = new PEReader(stream);
             if (!image.HasMetadata)
             {
-                return null;
+                return [];
             }
 
+            var summaries = new List<ProjectSummary>();
             var reader = image.GetMetadataReader();
             foreach (var handle in reader.ManifestResources)
             {
                 var resource = reader.GetManifestResource(handle);
-                if (!resource.Implementation.IsNil || reader.GetString(resource.Name) != ProjectSummary.ResourceName)
+                var name = reader.GetString(resource.Name);
+                if (!resource.Implementation.IsNil
+                    || !name.StartsWith(ProjectSummary.ResourcePrefix, StringComparison.Ordinal)
+                    || !name.EndsWith(ProjectSummary.FileSuffix, StringComparison.Ordinal))
                 {
                     continue;
                 }
@@ -173,31 +175,13 @@ public static partial class Translator
                 var at = image.GetSectionData(directory.RelativeVirtualAddress).GetReader();
                 at.Offset = (int)resource.Offset;
                 var length = at.ReadInt32();
-                return ProjectSummary.Parse(System.Text.Encoding.UTF8.GetString(at.ReadBytes(length)));
+                summaries.Add(ProjectSummary.Parse(System.Text.Encoding.UTF8.GetString(at.ReadBytes(length))));
             }
 
-            return null;
+            return summaries;
         }
 
-        // A project translated can refer only to those that take part: the
-        // run's own, translated or read from a summary, and those the
-        // assemblies bring. A project of the run that has no summary, or a
-        // name nothing brings, is an error, since its procedures cannot be
-        // known.
-        private void CheckReferencesNamed()
-        {
-            foreach (var project in _projects.Where(IsTranslated))
-            {
-                foreach (var reference in (project.Settings.References ?? []).Where(reference => !_projects.Any(other => other.Name == reference)))
-                {
-                    Error(_given.FirstOrDefault(other => other.Name == reference) is { } other
-                        ? $"The project {project.Name} refers to {reference}, which is not translated this time and has no summary at {SummaryPathOf(other)}; translate {reference} first."
-                        : $"The project {project.Name} refers to {reference}, which is neither translated with it nor in an assembly it is translated against.");
-                }
-            }
-        }
-
-        // What a project translated this time shows to those that call into
+        // What a translation made this time shows to those that call into
         // it, in the order of the settings' sources and of the procedures'
         // names, so that a translation that changes nothing a caller sees
         // writes the same bytes.
@@ -241,8 +225,8 @@ public static partial class Translator
                 sources);
         }
 
-        // The effects of each project translated, those it refers to first,
-        // so that a call into another project counts what that one does:
+        // The effects of each translation made, those it refers to first,
+        // so that a call into another one counts what that one does:
         // worked out this time, or read from its summary.
         private void WorkOutEffects()
         {

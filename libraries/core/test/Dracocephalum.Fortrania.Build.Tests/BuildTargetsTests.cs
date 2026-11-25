@@ -4,10 +4,11 @@ using Shouldly;
 namespace Dracocephalum.Fortrania.Build.Tests;
 
 /// <summary>
-/// The package's targets in a build: a library and a program, each with a
-/// settings file of its own, the library's translation kept in its folder
-/// and the program's in its intermediate folder, built with <c>dotnet
-/// build</c> as someone who references the package builds them.
+/// The package's targets in a build: a library of two translations and a
+/// program, each project with settings files of its own, one of the
+/// library's translations kept in its folder and the others in intermediate
+/// folders, built with <c>dotnet build</c> as someone who references the
+/// package builds them.
 /// </summary>
 /// <remarks>
 /// The package is laid out as it is packed, the command beside the targets,
@@ -39,15 +40,25 @@ public sealed class BuildTargetsTests : IDisposable
     private const string Program =
         """
               PROGRAM TOOL
-              DOUBLE PRECISION Y, SQUARE, TWICE
+              DOUBLE PRECISION Y, SQUARE, TWICE, HALF
               EXTERNAL SQUARE
               CALL APPLY ( SQUARE, 3.0D0, Y )
-              CALL EXIT ( INT ( Y + TWICE ( 1.0D0 ) ) )
+              CALL EXIT ( INT ( Y + TWICE ( 1.0D0 ) + HALF ( 4.0D0 ) ) )
               END
 
               DOUBLE PRECISION FUNCTION SQUARE ( X )
               DOUBLE PRECISION X
               SQUARE = X * X
+              END
+        """;
+
+    // The library's second translation, written to its intermediate folder
+    // and compiled into the same assembly.
+    private const string Half =
+        """
+              DOUBLE PRECISION FUNCTION HALF ( X )
+              DOUBLE PRECISION X
+              HALF = X / 2
               END
         """;
 
@@ -79,11 +90,13 @@ public sealed class BuildTargetsTests : IDisposable
         }
 
         Put("Lib/Example.Lib.csproj", ProjectFile(string.Empty));
-        Put("Lib/lib.fortrania.json", """{ "output": ".", "scaffold": "never", "sources": [ { "name": "Core", "files": [ "fortran/*.f" ] } ] }""");
+        Put("Lib/lib.fortrania.json", """{ "name": "Example.Lib", "output": ".", "sources": [ { "name": "Core", "files": [ "fortran/*.f" ] } ] }""");
         Put("Lib/fortran/lib.f", Library);
+        Put("Lib/more.fortrania.json", """{ "name": "Example.More", "output": "$(IntermediateOutput)/more", "sources": [ { "name": "Halves", "files": [ "more/*.f" ] } ] }""");
+        Put("Lib/more/half.f", Half);
 
         Put("App/Example.App.csproj", ProjectFile("""<PropertyGroup><OutputType>Exe</OutputType></PropertyGroup><ItemGroup><ProjectReference Include="../Lib/Example.Lib.csproj" /></ItemGroup>"""));
-        Put("App/app.fortrania.json", """{ "output": "$(IntermediateOutput)/fortrania", "scaffold": "never", "sources": [ { "name": "AppMain", "files": [ "fortran/*.f" ] } ] }""");
+        Put("App/app.fortrania.json", """{ "name": "Example.App", "output": "$(IntermediateOutput)/fortrania", "sources": [ { "name": "AppMain", "files": [ "fortran/*.f" ] } ] }""");
         Put("App/fortran/main.f", Program);
         Put("App/Program.cs", Main);
     }
@@ -97,19 +110,21 @@ public sealed class BuildTargetsTests : IDisposable
     }
 
     [Fact]
-    public async Task Build_WhenALibraryAndAProgramHaveSettingsOfTheirOwn_ShouldTranslateCompileAndRunThem()
+    public async Task Build_WhenALibraryOfTwoTranslationsAndAProgramHaveSettingsOfTheirOwn_ShouldTranslateCompileAndRunThem()
     {
         // Act
         var (code, output) = await BuildAsync();
 
-        // Assert: the library kept in its folder, the program in its
-        // intermediate one, and the program reaching the library through
-        // the summary in its assembly.
+        // Assert: one of the library's translations kept in its folder, the
+        // other and the program's in intermediate ones, and the program
+        // reaching both of the library's through the summaries in its
+        // assembly.
         code.ShouldBe(0, output);
         File.Exists(Path.Combine(_root, "Lib/Generated/Core/TWICE.g.cs")).ShouldBeTrue();
+        Directory.GetFiles(Path.Combine(_root, "Lib/obj"), "HALF.g.cs", SearchOption.AllDirectories).ShouldHaveSingleItem();
         Directory.GetFiles(Path.Combine(_root, "App/obj"), "TOOL.g.cs", SearchOption.AllDirectories).ShouldHaveSingleItem();
         output.ShouldNotContain(": warning", Case.Sensitive);
-        (await RunAsync("dotnet", Path.Combine(_root, "App/bin/Debug/net10.0/Example.App.dll"))).Code.ShouldBe(9 + 2);
+        (await RunAsync("dotnet", Path.Combine(_root, "App/bin/Debug/net10.0/Example.App.dll"))).Code.ShouldBe(9 + 2 + 2);
     }
 
     [Fact]
@@ -129,10 +144,11 @@ public sealed class BuildTargetsTests : IDisposable
         unchanged.Code.ShouldBe(0, unchanged.Output);
         unchanged.Output.ShouldNotContain("Translated:");
 
-        // The library only: its summary is the same, so the program that
-        // calls into it is not translated again.
+        // The library only, both of its translations in one run: their
+        // summaries are the same, so the program that calls into them is
+        // not translated again.
         touched.Output.Split("Translated:").Length.ShouldBe(2, touched.Output);
-        touched.Output.ShouldContain("Translated: 2 program units, 0 files written");
+        touched.Output.ShouldContain("Translated: 3 program units, 0 files written");
         added.Code.ShouldBe(0, added.Output);
         added.Output.ShouldContain("Translated: 3 program units, 2 files written");
     }
@@ -142,6 +158,7 @@ public sealed class BuildTargetsTests : IDisposable
     {
         // Arrange
         File.Delete(Path.Combine(_root, "Lib/lib.fortrania.json"));
+        File.Delete(Path.Combine(_root, "Lib/more.fortrania.json"));
 
         // Act
         var (code, output) = await BuildAsync();

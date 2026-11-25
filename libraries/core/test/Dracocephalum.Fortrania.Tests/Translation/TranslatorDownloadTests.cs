@@ -270,15 +270,15 @@ public sealed class TranslatorDownloadTests : IDisposable
     }
 
     [Fact]
-    public void Run_WhenTheProjectWhoseSourcesAreToBeFetchedIsNotTranslated_ShouldFetchNothing()
+    public void Run_WhenTheTranslationWhoseSourcesAreToBeFetchedIsNotToBeMade_ShouldFetchNothing()
     {
-        // Arrange: a second project of the run, translated, with sources of
+        // Arrange: a second translation of the run, made, with sources of
         // its own on disk; the first, whose sources are to be downloaded,
-        // says never to translate and has no summary.
+        // says not to translate it and has no summary.
         var archive = MakeArchive("toolkit.tar", ("toolkit/src/core/core.f", Core));
         var server = new FakeServer(archive);
         var settings = Settings(Variable("toolkit.tar", archive, strip: 1));
-        settings.Translate = TranslateMode.Never;
+        settings.Translate = false;
         var mine = new TranslationSettings
         {
             Folder = _root,
@@ -291,11 +291,12 @@ public sealed class TranslatorDownloadTests : IDisposable
         // Act
         var result = Translator.Run([settings, mine], new TranslationOptions { HttpHandler = server });
 
-        // Assert
-        result.Succeeded.ShouldBeTrue(string.Join('\n', result.Messages));
+        // Assert: nothing is fetched for it, and with no summary to read it
+        // from the run says so.
         server.Requests.ShouldBe(0);
         Directory.Exists(Path.Combine(_root, "sources")).ShouldBeFalse();
-        File.Exists(Path.Combine(_root, "out/Example.Mine/Generated/Own/OWN.g.cs")).ShouldBeTrue();
+        result.Succeeded.ShouldBeFalse();
+        result.Messages.ShouldHaveSingleItem().Text.ShouldContain("say not to translate it, and it has no summary");
     }
 
     private static VariableSettings Variable(string name, byte[] archive, int strip) => new()
@@ -313,7 +314,6 @@ public sealed class TranslatorDownloadTests : IDisposable
             Folder = _root,
             Name = "Example.Toolkit",
             Output = "out/Example.Toolkit",
-            Runtime = new RuntimeSettings { Package = "1.2.3" },
             Sources = [new SourceSettings { Name = "Core", Files = ["$(Sources)/src/core/*.f"] }],
         };
         settings.Variables["Sources"] = sources;

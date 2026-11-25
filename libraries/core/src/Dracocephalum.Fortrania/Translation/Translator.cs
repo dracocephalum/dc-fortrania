@@ -12,53 +12,53 @@ namespace Dracocephalum.Fortrania.Translation;
 
 /// <summary>
 /// Does a whole translation as its settings describe it: reads the FORTRAN
-/// of every source, checks it, and writes the C#, and a project around it
-/// where there is none yet. Either all of it is written or none: with an
+/// of every source, checks it, and writes the C#, and where the options
+/// say so a project around it. Either all of it is written or none: with an
 /// error in the settings or in any source, nothing on disk is touched.
 /// </summary>
 public static partial class Translator
 {
-    /// <summary>The folder of a project that translated sources are written to, a folder per source inside it.</summary>
+    /// <summary>The folder of a translation's own that its translated sources are written to, a folder per source inside it.</summary>
     public const string GeneratedFolder = "Generated";
 
     /// <summary>What the name of a translated file ends in.</summary>
     public const string GeneratedExtension = ".g.cs";
 
     /// <summary>
-    /// The file in each folder of translated sources that records what the
-    /// translator wrote there, so that a file a later step has changed is
-    /// left alone until what the translator would write is different.
+    /// The file in a translation's folder of translated sources that
+    /// records what the translator wrote there, so that a file a later step
+    /// has changed is left alone until what the translator would write is
+    /// different.
     /// </summary>
-    public const string ManifestName = ".fortrania.json";
+    public const string ManifestName = ".fortrania-manifest.json";
 
     private const string ProjectFileExtension = ".csproj";
 
-    /// <summary>Translates one project.</summary>
+    /// <summary>Translates one translation.</summary>
     /// <param name="settings">What to translate, and to what, with the folder they lie in.</param>
     /// <returns>What was done, and what there is to say about it.</returns>
     /// <exception cref="ArgumentException">The settings do not say what folder they lie in.</exception>
     public static TranslationResult Run(TranslationSettings settings) => Run([settings], new TranslationOptions());
 
-    /// <summary>Translates one project, in the way the options say.</summary>
+    /// <summary>Translates one translation, in the way the options say.</summary>
     /// <param name="settings">What to translate, and to what, with the folder they lie in.</param>
     /// <param name="options">How this run is to go.</param>
     /// <returns>What was done, and what there is to say about it.</returns>
     /// <exception cref="ArgumentException">The settings do not say what folder they lie in.</exception>
     public static TranslationResult Run(TranslationSettings settings, TranslationOptions options) => Run([settings], options);
 
-    /// <summary>Translates several projects in one run.</summary>
-    /// <param name="projects">The settings of each project, with the folder each lies in.</param>
+    /// <summary>Makes several translations in one run.</summary>
+    /// <param name="projects">The settings of each translation, with the folder each lies in.</param>
     /// <returns>What was done, and what there is to say about it.</returns>
     /// <exception cref="ArgumentException">Settings do not say what folder they lie in.</exception>
     public static TranslationResult Run(IReadOnlyList<TranslationSettings> projects) => Run(projects, new TranslationOptions());
 
     /// <summary>
-    /// Translates several projects in one run, in the way the options say.
-    /// The projects call into each other as one translation: a project
-    /// translated with those it calls into is translated as it would be
-    /// against their summaries.
+    /// Makes several translations in one run, in the way the options say.
+    /// They call into each other as they would apart: one made with those
+    /// it calls into is made as it would be against their summaries.
     /// </summary>
-    /// <param name="projects">The settings of each project, with the folder each lies in.</param>
+    /// <param name="projects">The settings of each translation, with the folder each lies in.</param>
     /// <param name="options">How this run is to go.</param>
     /// <returns>What was done, and what there is to say about it.</returns>
     /// <exception cref="ArgumentException">Settings do not say what folder they lie in.</exception>
@@ -69,16 +69,16 @@ public static partial class Translator
     }
 
     /// <summary>
-    /// Fetches the sources a translation would read and translates nothing:
-    /// those of every project to be translated that say where to download
-    /// them and are not on the machine.
+    /// Fetches the sources a run would read and translates nothing: those of
+    /// every translation to be made that say where to download them and are
+    /// not on the machine.
     /// </summary>
-    /// <param name="projects">The settings of each project that would be translated, with the folder each lies in.</param>
+    /// <param name="projects">The settings of each translation that would be made, with the folder each lies in.</param>
     /// <param name="options">How the run is to go.</param>
     /// <param name="onlyWhereNotTranslated">
-    /// Whether a project that has a translation already, its summary beside
-    /// it, is passed over: a build then fetches only for a project it could
-    /// not compile otherwise.
+    /// Whether a translation that was made already, its summary there, is
+    /// passed over: a build then fetches only for one it could not compile
+    /// otherwise.
     /// </param>
     /// <returns>What was fetched, and what there is to say about it; nothing is written but the sources.</returns>
     /// <exception cref="ArgumentException">Settings do not say what folder they lie in.</exception>
@@ -111,11 +111,11 @@ public static partial class Translator
     [GeneratedRegex(@"\$\(([A-Za-z_][A-Za-z0-9_.]*)\)")]
     private static partial Regex VariableReference();
 
-    // What the translator wrote to one folder of translated sources: which
-    // translator it was, and the hash of each file's text, by the file's
+    // What the translator wrote of one translation: which translator it
+    // was, and for each source the hash of each file's text, by the file's
     // name. The version is here and not in every file, so that a new
     // translator changes no file whose translation it does not change.
-    private sealed record Manifest(string Translator, IReadOnlyDictionary<string, string> Files);
+    private sealed record Manifest(string Translator, IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> Sources);
 
     // One program unit as it was read.
     private sealed record Unit(string File, SymbolTable Table, UnitSummary Summary)
@@ -123,17 +123,18 @@ public static partial class Translator
         public string Name => Summary.Name ?? CSharpEmitter.MainProgramName;
     }
 
-    // A project that takes part in a run: one of the run's, by its settings,
-    // or one an assembly brings. The name is the one it goes by, given or
-    // taken from its project file; the folder is the one its paths are
-    // taken from.
-    private sealed class Project(TranslationSettings settings, string name, string baseDirectory)
+    // A translation that takes part in a run: one of the run's, by its
+    // settings, or one an assembly brings. The folder is the one its paths
+    // are taken from.
+    private sealed class Project(TranslationSettings settings, string name, string @namespace, string baseDirectory)
     {
         public TranslationSettings Settings { get; } = settings;
 
         public string Name { get; } = name;
 
-        public string Namespace => Settings.Namespace ?? Name;
+        // The namespace its sources are translated to; one read from a
+        // summary has those the summary gives.
+        public string Namespace { get; } = @namespace;
 
         public string BaseDirectory { get; } = baseDirectory;
 
@@ -147,7 +148,7 @@ public static partial class Translator
 
         public SourceSettings Settings { get; } = settings;
 
-        // Whether the source was read from its project's summary and not
+        // Whether the source was read from its translation's summary and not
         // from its files; it is then not translated or written.
         public bool IsSummarized { get; init; }
 
@@ -155,7 +156,7 @@ public static partial class Translator
         // is called by; empty for a source that is translated.
         public Dictionary<string, ProcedureSummary> Summarized { get; } = new(StringComparer.Ordinal);
 
-        public string Namespace { get; } = project.Namespace;
+        public string Namespace { get; init; } = project.Namespace;
 
         public string ClassName { get; } = settings.Class ?? settings.Name;
 
@@ -178,8 +179,7 @@ public static partial class Translator
     {
         private readonly List<TranslationMessage> _messages = [];
 
-        // The projects of the run, in the order they were given, each by the
-        // name it goes by.
+        // The translations of the run, in the order they were given.
         private readonly List<Project> _given = [];
         private readonly List<Source> _sources = [];
         private readonly Dictionary<Project, List<Project>> _references = [];
@@ -187,7 +187,7 @@ public static partial class Translator
         private readonly Dictionary<string, IncludeFile?> _includes = new(StringComparer.Ordinal);
         private readonly List<string> _written = [];
 
-        // What was written of each project, for the commands it runs.
+        // What was written of each translation, for the commands it runs.
         private readonly Dictionary<Project, List<string>> _writtenOf = [];
         private readonly List<string> _fetched = [];
         private readonly List<string> _read = [];
@@ -199,8 +199,8 @@ public static partial class Translator
         private readonly List<UnalignedPlace> _unaligned = [];
         private readonly List<WidenedPlace> _widened = [];
 
-        // Whether a restore passes over a project that has a translation
-        // already, which a translation never does.
+        // Whether a restore passes over a translation that was made
+        // already, which a run that translates never does.
         private bool _onlyWhereNotTranslated;
 
         private bool HasErrors => _messages.Any(message => message.IsError);
@@ -220,11 +220,6 @@ public static partial class Translator
             {
                 Read();
                 ReadReferences();
-            }
-
-            if (!HasErrors)
-            {
-                CheckReferencesNamed();
             }
 
             if (!HasErrors)
@@ -302,8 +297,8 @@ public static partial class Translator
 
         private void Warning(string text, string? file = null, int line = 0) => _messages.Add(new TranslationMessage(false, file, line, text));
 
-        // Whether this run reads a project's sources: those of one it
-        // translates, unless a restore passes over it for its translation.
+        // Whether this run reads a translation's sources: those of one it
+        // makes, unless a restore passes over it for having been made.
         private bool ReadsSources(Project project) =>
             IsTranslated(project) && !(_onlyWhereNotTranslated && File.Exists(SummaryPathOf(project)));
 
@@ -314,23 +309,17 @@ public static partial class Translator
 
         private static bool HasProjectFile(string folder) => Directory.Exists(folder) && Directory.GetFiles(folder, "*" + ProjectFileExtension).Length > 0;
 
-        // Whether the files around a project's translation are written this
-        // time: always, where none is there yet, or never. A project file
-        // that is there and is not the translator's to write is somebody's,
-        // and the project is given sources and nothing else.
-        private static bool WillScaffold(Project project) => project.Settings.Scaffold switch
-        {
-            ScaffoldMode.Always => true,
-            ScaffoldMode.Once => FindProjectFile(project, FolderOf(project)) is null,
-            _ => false,
-        };
+        // Whether the files around a translation are written this time: when
+        // the options say to scaffold and none is there yet. A project file
+        // that is there is somebody's, and the translation is given sources
+        // and nothing else.
+        private bool WillScaffold(Project project) => options.Scaffold && FindProjectFile(project, FolderOf(project)) is null;
 
-        // The project file that compiles a project's translation: the one in
-        // its folder, or else the one of its name beside the settings, where
-        // a project keeps it whose translation lies elsewhere, under obj/ for
-        // one. Beside the settings only the name is taken, since settings
-        // that give the project a name of their own may lie beside
-        // somebody's other project.
+        // The project file that compiles a translation: the one in its
+        // folder, or else the one of its name beside the settings, where a
+        // project keeps it whose translation lies elsewhere, under obj/ for
+        // one. Beside the settings only the name is taken, since the
+        // settings may lie beside somebody's other project.
         private static string? FindProjectFile(Project project, string folder)
         {
             if (HasProjectFile(folder))
@@ -342,85 +331,70 @@ public static partial class Translator
             return File.Exists(beside) ? beside : null;
         }
 
-        // Each project of the run by the name it goes by.
+        // Each translation of the run, which every settings name.
         private void TakeProjects()
         {
             if (given.Count == 0)
             {
-                Error("There are no settings of a project to translate.");
+                Error("There are no settings of a translation to make.");
             }
 
             foreach (var (settings, folder) in given)
             {
-                if (FindName(settings, folder) is { } name)
+                if (string.IsNullOrWhiteSpace(settings.Name))
                 {
-                    _given.Add(new Project(settings, name, folder));
+                    Error("The settings give the translation no name; give it one. It is what other translations know it by, and what its summary and namespace are named after.", folder);
+                    continue;
                 }
-            }
-        }
 
-        // A project's name: the one its settings give, or else that of the
-        // one project file beside them, which is then the project they are
-        // the settings of.
-        private string? FindName(TranslationSettings settings, string folder)
-        {
-            if (settings.Name is { } name)
-            {
-                return name;
+                _given.Add(new Project(settings, settings.Name, options.Namespace ?? settings.Namespace ?? settings.Name, folder));
             }
-
-            var files = Directory.Exists(folder) ? Directory.GetFiles(folder, "*" + ProjectFileExtension) : [];
-            if (files.Length == 1)
-            {
-                return Path.GetFileNameWithoutExtension(files[0]);
-            }
-
-            Error(
-                files.Length == 0
-                    ? "The settings give the project no name, and no project file lies beside them to take one from; give it a name."
-                    : "The settings give the project no name, and several project files lie beside them; give it a name.",
-                folder);
-            return null;
         }
 
         private void CheckSettings()
         {
             var classes = new HashSet<string>(StringComparer.Ordinal);
             var projects = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var folders = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            if (options.Runtime is { OmitPackageVersion: true, Package: not null } runtime)
+            {
+                Error($"The options give the runtime's package the version {runtime.Package} and say to write none; it is one or the other.");
+            }
+
             foreach (var project in _given)
             {
                 var name = project.Name;
                 var space = project.Namespace;
-                if (name.Length == 0 || name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+                if (name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
                 {
-                    Error($"A project has to have a name that can name a file; '{name}' cannot.");
+                    Error($"A translation has to have a name that can name a file; '{name}' cannot.");
                     continue;
                 }
 
                 if (!projects.Add(name))
                 {
-                    Error($"Two projects are named {name}.");
+                    Error($"Two translations are named {name}.");
                 }
 
                 if (string.IsNullOrWhiteSpace(project.Settings.Output))
                 {
-                    Error($"The settings of the project {name} name no output: say where it is written, \"output\": \".\" for the folder the settings file is in.");
+                    Error($"The settings of the translation {name} name no output: say where it is written, \"output\": \".\" for the folder the settings file is in.");
                 }
-
-                if (project.Settings.Runtime is { OmitPackageVersion: true, Package: not null } runtime)
+                else if (!folders.TryAdd(FolderOf(project), name))
                 {
-                    Error($"The settings of the project {name} give the runtime's package the version {runtime.Package} and say to write none; it is one or the other.");
+                    // Each has a summary and a manifest of its own there.
+                    Error($"The translations {folders[FolderOf(project)]} and {name} are both written to {FolderOf(project)}; give each an output of its own.");
                 }
 
                 var parts = space.Split('.');
                 if (parts.Any(part => !Identifier().IsMatch(part)))
                 {
-                    Error($"The namespace {space} of the project {name} is not a namespace; give the project one.");
+                    Error($"The namespace {space} of the translation {name} is not a namespace; give it one.");
                 }
 
                 if (project.Sources.Count == 0)
                 {
-                    Error($"The project {name} has no sources.");
+                    Error($"The translation {name} has no sources.");
                 }
 
                 foreach (var source in project.Sources)
@@ -428,17 +402,17 @@ public static partial class Translator
                     var className = source.Class ?? source.Name;
                     if (source.Name.Length == 0 || source.Name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
                     {
-                        Error($"A source of the project {name} has to have a name that can name a folder; '{source.Name}' cannot.");
+                        Error($"A source of the translation {name} has to have a name that can name a folder; '{source.Name}' cannot.");
                     }
                     else if (!Identifier().IsMatch(className))
                     {
-                        Error($"The source {source.Name} of the project {name} needs a class name; '{className}' is not one.");
+                        Error($"The source {source.Name} of the translation {name} needs a class name; '{className}' is not one.");
                     }
                     else if (parts.Contains(className, StringComparer.Ordinal))
                     {
                         // C# allows it, and every use of the name then
                         // trips over it. Renaming is the user's to do.
-                        Error($"The class {className} of the project {name} has the name of a part of its namespace {space}; give the source a class of another name.");
+                        Error($"The class {className} of the translation {name} has the name of a part of its namespace {space}; give the source a class of another name.");
                     }
                     else if (!classes.Add(space + "." + className))
                     {
@@ -447,13 +421,13 @@ public static partial class Translator
 
                     if (source.Files.Count == 0)
                     {
-                        Error($"The source {source.Name} of the project {name} names no files.");
+                        Error($"The source {source.Name} of the translation {name} names no files.");
                     }
                 }
             }
         }
 
-        // Puts in the value of each variable a path of a project's names as
+        // Puts in the value of each variable a path of a translation names as
         // $(Name): from its local settings file, then the environment, then
         // its settings. A name with no value is left as it stands;
         // CheckVariables says so.
@@ -471,13 +445,13 @@ public static partial class Translator
             return Environment.GetEnvironmentVariable(name) ?? (project.Settings.Variables.TryGetValue(name, out var given) ? given.Path : null);
         }
 
-        // The variables a project's paths name that this run needs, so that
-        // one with no value is reported once and before anything is read. A
-        // project read from its summary needs its folder and none of its
+        // The variables a translation's paths name that this run needs, so
+        // that one with no value is reported once and before anything is
+        // read. One read from its summary needs its folder and none of its
         // sources.
         private HashSet<string> VariablesNamed(Project project)
         {
-            var paths = new[] { project.Settings.Output, project.Settings.Runtime.Project }
+            var paths = new[] { project.Settings.Output }
                 .Concat(ReadsSources(project) ? project.Sources.SelectMany(source => source.Files.Concat(source.Includes)) : [])
                 .OfType<string>();
             return new HashSet<string>(
@@ -491,7 +465,7 @@ public static partial class Translator
             {
                 foreach (var name in VariablesNamed(project).Where(name => ResolveVariable(project, name) is null))
                 {
-                    var whose = _given.Count == 1 ? string.Empty : $" in the settings of the project {project.Name}";
+                    var whose = _given.Count == 1 ? string.Empty : $" in the settings of the translation {project.Name}";
                     Error($"The variable {name} has no value{whose}. Give it one in the local settings file, in the environment, or under variables in the settings.");
                 }
             }
@@ -501,8 +475,8 @@ public static partial class Translator
         // folder is not there, and only for the path the settings give: a
         // value from the local settings file or the environment is somebody's
         // own folder, used as it is. Only what this run reads is fetched: the
-        // sources of a project read from its summary are not. Two projects
-        // that name one folder fetch it once.
+        // sources of a translation read from its summary are not. Two
+        // translations that name one folder fetch it once.
         private void FetchSources()
         {
             var fetcher = new SourceFetcher(options);
@@ -549,7 +523,7 @@ public static partial class Translator
                 {
                     if (commands[index].Run.Count == 0 || string.IsNullOrWhiteSpace(commands[index].Run[0]))
                     {
-                        Error(string.Create(System.Globalization.CultureInfo.InvariantCulture, $"Command {index + 1} of onSuccess of the project {project.Name} names no program to run."));
+                        Error(string.Create(System.Globalization.CultureInfo.InvariantCulture, $"Command {index + 1} of onSuccess of the translation {project.Name} names no program to run."));
                     }
                 }
             }
@@ -561,17 +535,21 @@ public static partial class Translator
             {
                 if (!IsTranslated(project))
                 {
-                    ReadSummary(project);
+                    if (!ReadSummary(project))
+                    {
+                        Error($"The settings of the translation {project.Name} say not to translate it, and it has no summary at {SummaryPathOf(project)} to be read from instead; make it once, forced.");
+                    }
+
                     continue;
                 }
 
-                // Offline, a project whose sources are not here is compiled
-                // as it was translated last, where there is a translation.
+                // Offline, a translation whose sources are not here is
+                // compiled as it was made last, where it was made.
                 if (options.Offline && !HasSources(project))
                 {
                     if (!ReadSummary(project))
                     {
-                        Error($"The sources of the project {project.Name} are not on this machine, and it has no translation to read instead; restore them first.");
+                        Error($"The sources of the translation {project.Name} are not on this machine, and it was never made, to be read from its summary instead; restore them first.");
                     }
 
                     continue;
@@ -591,7 +569,7 @@ public static partial class Translator
             }
         }
 
-        // Whether any file a project's sources name is on the machine.
+        // Whether any file a translation's sources name is on the machine.
         private static bool HasSources(Project project) => project.Sources
             .SelectMany(source => source.Files)
             .Select(entry => Path.GetFullPath(Path.Combine(project.BaseDirectory, Expand(project, entry))))
@@ -614,7 +592,7 @@ public static partial class Translator
                     : [];
                 if (found.Count == 0)
                 {
-                    Error($"The source {source.Name} of the project {project.Name} names '{entry}', and there is no such file.");
+                    Error($"The source {source.Name} of the translation {project.Name} names '{entry}', and there is no such file.");
                 }
 
                 files.AddRange(found.Where(file => !files.Contains(file, StringComparer.OrdinalIgnoreCase)));
@@ -678,7 +656,7 @@ public static partial class Translator
 
         // The libraries of a program may each have a procedure of one name;
         // a call reaches the one in its own source first, then one of its
-        // own project, then any.
+        // own translation, then any.
         private IEnumerable<Source> Visible(Source from) => _sources
             .Where(source => source != from)
             .OrderBy(source => source.Project == from.Project ? 0 : 1);
@@ -732,45 +710,32 @@ public static partial class Translator
         {
             foreach (var project in _projects)
             {
-                // A project read from its summary refers to what it did
-                // when it was translated.
+                // A translation read from its summary refers to what it did
+                // when it was made.
                 if (_summaries.TryGetValue(project, out var summary))
                 {
                     _references[project] = [.. _projects.Where(other => summary.References.Contains(other.Name, StringComparer.Ordinal))];
                     continue;
                 }
 
+                // One made now refers to what its calls reach.
                 var used = _sources
                     .Where(source => source.Project == project)
                     .SelectMany(Used)
                     .Where(owner => owner.Project != project)
                     .Select(owner => owner.Project)
-                    .Distinct()
-                    .ToList();
-
-                if (project.Settings.References is { } named)
-                {
-                    // A project an assembly brings is referred to by whoever
-                    // passed the assembly, a build by its own references.
-                    foreach (var missing in used.Where(other => !named.Contains(other.Name, StringComparer.Ordinal) && !_external.Contains(other)))
-                    {
-                        Error($"The project {project.Name} calls into {missing.Name} and does not refer to it.");
-                    }
-
-                    _references[project] = [.. _projects.Where(other => named.Contains(other.Name, StringComparer.Ordinal) || (used.Contains(other) && _external.Contains(other)))];
-                }
-                else
-                {
-                    _references[project] = [.. _projects.Where(used.Contains)];
-                }
+                    .ToHashSet();
+                _references[project] = [.. _projects.Where(used.Contains)];
             }
 
-            // Assemblies cannot refer to each other in a circle.
+            // Translations cannot refer to each other in a circle: a region
+            // of working buffers is laid out after those of what it refers
+            // to, and a scaffold's projects could not refer to each other so.
             foreach (var project in _projects)
             {
                 if (Reaches(project, project, []))
                 {
-                    Error($"The project {project.Name} refers to itself by way of the projects it refers to; sources that call each other both ways belong in one project.");
+                    Error($"The translation {project.Name} calls into itself by way of the translations it calls into; sources that call each other both ways belong in one translation.");
                     break;
                 }
             }
@@ -779,29 +744,26 @@ public static partial class Translator
         private bool Reaches(Project from, Project target, HashSet<Project> seen) =>
             _references.GetValueOrDefault(from, []).Any(next => next == target || (seen.Add(next) && Reaches(next, target, seen)));
 
-        // An executable starts with one main program. That is asked only
-        // of a project that is being made: in one that exists no Main is
-        // written, so there is nothing to choose.
+        // A translation with a main program is scaffolded as an executable,
+        // which starts with one of them. That is asked only of one that is
+        // scaffolded: elsewhere no Main is written, so there is nothing to
+        // choose.
         private void WorkOutEntries()
         {
-            foreach (var project in _projects.Where(IsTranslated))
+            foreach (var project in _projects.Where(project => IsTranslated(project) && WillScaffold(project)))
             {
                 var mains = _sources
                     .Where(source => source.Project == project)
                     .SelectMany(source => source.Units.Where(unit => unit.Summary.Kind == UnitKind.MainProgram).Select(unit => (Source: source, Unit: unit)))
                     .ToList();
+                var names = string.Join(", ", mains.Select(main => main.Unit.Name));
 
-                var kind = project.Settings.Kind ?? (mains.Count > 0 ? ProjectKind.Executable : ProjectKind.Library);
-                if (kind != ProjectKind.Executable || !WillScaffold(project))
+                if (mains.Count == 0)
                 {
                     continue;
                 }
 
-                if (mains.Count == 0)
-                {
-                    Error($"The project {project.Name} is to be an executable and has no main program.");
-                }
-                else if (project.Settings.Entry is { } entry)
+                if (options.Entry is { } entry)
                 {
                     var chosen = mains.Where(main => string.Equals(main.Unit.Name, entry, StringComparison.OrdinalIgnoreCase)).ToList();
                     if (chosen.Count == 1)
@@ -810,7 +772,7 @@ public static partial class Translator
                     }
                     else
                     {
-                        Error($"The project {project.Name} names {entry} as its entry, which is not one of its main programs: {string.Join(", ", mains.Select(main => main.Unit.Name))}.");
+                        Error($"The entry {entry} is not one of the main programs of the translation {project.Name}: {names}.");
                     }
                 }
                 else if (mains.Count == 1)
@@ -819,7 +781,7 @@ public static partial class Translator
                 }
                 else
                 {
-                    Error($"The project {project.Name} has {mains.Count} main programs, {string.Join(", ", mains.Select(main => main.Unit.Name))}; name one as its entry.");
+                    Error($"The translation {project.Name} has {mains.Count} main programs, {names}; name the one its program starts with as the entry.");
                 }
             }
         }
@@ -919,8 +881,8 @@ public static partial class Translator
 
         private void Write()
         {
-            // What a project is, is decided before any is written: writing
-            // one makes it a project that exists.
+            // What a translation is, is decided before any is written:
+            // writing a project file makes one that exists.
             var translated = _projects.Where(IsTranslated).ToList();
             var scaffolded = translated.Where(WillScaffold).ToHashSet();
 
@@ -928,35 +890,36 @@ public static partial class Translator
             {
                 var first = _written.Count;
                 var folder = FolderOf(project);
+                var generatedFolder = Path.Combine(folder, GeneratedFolder);
+                Directory.CreateDirectory(generatedFolder);
+
+                // A file is written when what the translator makes of it
+                // differs from what it made last time, or the file is gone;
+                // a file a later step changed is otherwise kept.
+                var manifestPath = Path.Combine(generatedFolder, ManifestName);
+                var before = options.Force ? [] : ReadManifest(manifestPath);
+                var after = new SortedDictionary<string, IReadOnlyDictionary<string, string>>(StringComparer.Ordinal);
                 foreach (var source in _sources.Where(source => source.Project == project))
                 {
-                    var generated = Path.Combine(folder, GeneratedFolder, source.Settings.Name);
+                    var generated = Path.Combine(generatedFolder, source.Settings.Name);
                     Directory.CreateDirectory(generated);
 
-                    // A file is written when what the translator makes of it
-                    // differs from what it made last time, or the file is
-                    // gone; a file a later step changed is otherwise kept.
-                    var manifestPath = Path.Combine(generated, ManifestName);
-                    var before = IsForced(project) ? [] : ReadManifest(manifestPath);
-                    var after = new SortedDictionary<string, string>(StringComparer.Ordinal);
+                    var known = before.GetValueOrDefault(source.Settings.Name);
+                    var hashes = new SortedDictionary<string, string>(StringComparer.Ordinal);
                     foreach (var (name, text) in source.Files)
                     {
                         var path = Path.Combine(generated, name);
                         _files.Add(path);
                         var hash = Hash(text);
-                        after[name] = hash;
-                        if (!File.Exists(path) || before.GetValueOrDefault(name) != hash)
+                        hashes[name] = hash;
+                        if (!File.Exists(path) || known?.GetValueOrDefault(name) != hash)
                         {
                             File.WriteAllText(path, text);
                             _written.Add(path);
                         }
                     }
 
-                    var manifest = JsonSerializer.Serialize(new Manifest("Fortrania " + OwnVersion(), after), TranslationJson.Default).ReplaceLineEndings("\n") + "\n";
-                    if (!File.Exists(manifestPath) || File.ReadAllText(manifestPath) != manifest)
-                    {
-                        File.WriteAllText(manifestPath, manifest);
-                    }
+                    after[source.Settings.Name] = hashes;
 
                     // What an earlier translation wrote and this one does
                     // not is removed, and only that: a file that does not
@@ -971,9 +934,14 @@ public static partial class Translator
                     }
                 }
 
-                // What the projects that call into this one need of it, for
-                // a translation that leaves this one out.
-                Directory.CreateDirectory(Path.Combine(folder, GeneratedFolder));
+                var manifest = JsonSerializer.Serialize(new Manifest("Fortrania " + OwnVersion(), after), TranslationJson.Default).ReplaceLineEndings("\n") + "\n";
+                if (!File.Exists(manifestPath) || File.ReadAllText(manifestPath) != manifest)
+                {
+                    File.WriteAllText(manifestPath, manifest);
+                }
+
+                // What the translations that call into this one need of it,
+                // for a run that leaves this one out.
                 WriteIfChanged(SummaryPathOf(project), SummarizeProject(project).ToJson());
                 _files.Add(SummaryPathOf(project));
 
@@ -986,21 +954,32 @@ public static partial class Translator
                         _files.Add(Path.Combine(folder, "Program.cs"));
                     }
                 }
-                else
-                {
-                    ReportMissingReferences(project, folder);
-                }
 
                 _writtenOf[project] = _written[first..];
             }
+
+            // A translation of the run that is not made this time is still
+            // what its folder holds, for a build to compile and to embed the
+            // summary of: what the manifest says was written there.
+            foreach (var project in _given.Where(_summaries.ContainsKey))
+            {
+                _files.Add(SummaryPathOf(project));
+                var generatedFolder = Path.Combine(FolderOf(project), GeneratedFolder);
+                foreach (var (source, hashes) in ReadManifest(Path.Combine(generatedFolder, ManifestName)))
+                {
+                    _files.AddRange(hashes.Keys
+                        .Select(name => Path.Combine(generatedFolder, source, name))
+                        .Where(File.Exists));
+                }
+            }
         }
 
-        private static Dictionary<string, string> ReadManifest(string path)
+        private static Dictionary<string, IReadOnlyDictionary<string, string>> ReadManifest(string path)
         {
             try
             {
-                return File.Exists(path)
-                    ? new Dictionary<string, string>(JsonSerializer.Deserialize<Manifest>(File.ReadAllText(path), TranslationJson.Default)?.Files ?? new Dictionary<string, string>(), StringComparer.Ordinal)
+                return File.Exists(path) && JsonSerializer.Deserialize<Manifest>(File.ReadAllText(path), TranslationJson.Default)?.Sources is { } sources
+                    ? new Dictionary<string, IReadOnlyDictionary<string, string>>(sources, StringComparer.Ordinal)
                     : [];
             }
             catch (JsonException)
@@ -1013,9 +992,9 @@ public static partial class Translator
 
         private static string Hash(string text) => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(text)));
 
-        // The commands of each project translated, once all of the run is
-        // written, the projects in the order given; the first that fails
-        // ends them all.
+        // The commands of each translation made, once all of the run is
+        // written, the translations in the order given; the first that
+        // fails ends them all.
         private void RunCommands()
         {
             foreach (var project in _given.Where(_writtenOf.ContainsKey))
@@ -1099,43 +1078,26 @@ public static partial class Translator
             }
         }
 
-        // A project file that exists is not changed. What it lacks of the
-        // references the calls need is said, for its owner to add.
-        private void ReportMissingReferences(Project project, string folder)
-        {
-            if (FindProjectFile(project, folder) is not { } file)
-            {
-                Warning($"The project {project.Name} is to have a project file of somebody's own, and neither its folder nor the settings' has one; make one, or say \"scaffold\": \"once\".", folder);
-                return;
-            }
-
-            var text = File.ReadAllText(file);
-            foreach (var reference in _references[project].Where(reference => !_external.Contains(reference)))
-            {
-                if (!text.Contains(reference.Name + ProjectFileExtension, StringComparison.OrdinalIgnoreCase))
-                {
-                    Warning($"The project calls into {reference.Name} and its project file does not refer to it.", file);
-                }
-            }
-        }
-
+        // The project file a scaffold writes: what the options say of the
+        // runtime and the framework, and a reference to the project of each
+        // translation of the run this one calls into.
         private string ProjectFile(Project project, string folder)
         {
             string Relative(string path) => Path.GetRelativePath(folder, path).Replace('\\', '/');
 
-            var settings = project.Settings;
+            var runtimeSettings = options.Runtime;
             string runtime;
-            if (Expand(project, settings.Runtime.Project) is { } runtimeProject)
+            if (runtimeSettings.Project is { } runtimeProject)
             {
-                runtime = $"    <ProjectReference Include=\"{Relative(Path.GetFullPath(Path.Combine(project.BaseDirectory, runtimeProject)))}\" />";
+                runtime = $"    <ProjectReference Include=\"{Relative(Path.GetFullPath(runtimeProject))}\" />";
             }
-            else if (settings.Runtime.OmitPackageVersion)
+            else if (runtimeSettings.OmitPackageVersion)
             {
                 runtime = "    <PackageReference Include=\"Dracocephalum.Fortrania.Runtime\" />";
             }
             else
             {
-                runtime = $"    <PackageReference Include=\"Dracocephalum.Fortrania.Runtime\" Version=\"{settings.Runtime.Package ?? OwnVersion()}\" />";
+                runtime = $"    <PackageReference Include=\"Dracocephalum.Fortrania.Runtime\" Version=\"{runtimeSettings.Package ?? OwnVersion()}\" />";
             }
 
             var lines = new List<string>
@@ -1143,7 +1105,7 @@ public static partial class Translator
                 "<Project Sdk=\"Microsoft.NET.Sdk\">",
                 string.Empty,
                 "  <PropertyGroup>",
-                $"    <TargetFramework>{settings.Framework}</TargetFramework>",
+                $"    <TargetFramework>{options.Framework}</TargetFramework>",
             };
 
             if (_entries.ContainsKey(project))
@@ -1158,7 +1120,6 @@ public static partial class Translator
                 "    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>",
             ]);
 
-            lines.AddRange(settings.Properties.Select(property => $"    <{property.Key}>{System.Security.SecurityElement.Escape(property.Value)}</{property.Key}>"));
             lines.AddRange(
             [
                 "  </PropertyGroup>",
@@ -1167,10 +1128,12 @@ public static partial class Translator
                 runtime,
             ]);
 
-            // A project an assembly brings has no folder here; it is
-            // referred to by whoever passed the assembly.
+            // A translation an assembly brings has no folder here; it is
+            // referred to by whoever passed the assembly. One of the run is
+            // referred to by its project file: its own, or the one a
+            // scaffold writes for it.
             lines.AddRange(_references[project].Where(reference => !_external.Contains(reference)).Select(reference =>
-                $"    <ProjectReference Include=\"{Relative(ProjectFileOf(reference, FolderOf(reference)))}\" />"));
+                $"    <ProjectReference Include=\"{Relative(FindProjectFile(reference, FolderOf(reference)) ?? ProjectFileOf(reference, FolderOf(reference)))}\" />"));
             lines.AddRange(["  </ItemGroup>", string.Empty, "</Project>", string.Empty]);
             return string.Join('\n', lines);
         }

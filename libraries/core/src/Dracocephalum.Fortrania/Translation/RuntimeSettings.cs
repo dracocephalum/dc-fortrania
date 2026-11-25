@@ -7,7 +7,10 @@ namespace Dracocephalum.Fortrania.Translation;
 /// </summary>
 public sealed class RuntimeSettings
 {
-    /// <summary>Gets or sets the path of the runtime's project, to refer to it as a project.</summary>
+    /// <summary>
+    /// Gets or sets the path of the runtime's project, to refer to it as a
+    /// project; one that is not full is taken from the current directory.
+    /// </summary>
     public string? Project { get; set; }
 
     /// <summary>Gets or sets the version of the runtime's package to refer to.</summary>
