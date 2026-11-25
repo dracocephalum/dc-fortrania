@@ -777,16 +777,16 @@ counted there before it is built, as the joined constants were.
 ## Working buffers: what is not built
 
 `DESIGN.md`, *Where a method keeps its working buffers is the context's to
-say*, has what is built: a context chooses the stack or its block, each
+say*, has what is built: a context chooses the stack or its arena, each
 method with arrays or character variables takes them as one piece from
 one or the other by a test on entry, each project has a region laid out
-from its own calls, and a call through a procedure argument runs at a
-level of its own. Left to do:
+from its own calls, and a call through a procedure argument runs in a
+copy of the arena of its own. Left to do:
 
 - **A translation fixed to one mode**, a setting of the translator's that
   writes each method in one shape with no test on entry. The context
   already refuses a library translated for the other mode than it asks
-  for; nothing yet makes such a library. Fixed to the block, a method
+  for; nothing yet makes such a library. Fixed to the arena, a method
   would also adjust no stack pointer, which measured fastest of all on a
   method that does nothing.
 - **Arrays kept in a unit's block only for being too large for the
@@ -797,16 +797,16 @@ level of its own. Left to do:
 - **What a statement function takes** stays on the stack in both modes, a
   few bytes for a value on its way.
 - **A procedure the host passes** reaches translated code through no
-  forwarder, so the managed layer is to enter and leave a level for it,
-  as a forwarder does.
-- **The page that cannot be touched at each end of a block**, and under
+  forwarder, so the managed layer is to open and close a copy of the
+  arena for it, `Push` and `Pop`, as a forwarder does.
+- **The page that cannot be touched at each end of a copy of the arena**, and under
   the setting that clears or fills every local a known value after each
   method's buffers, checked when the method returns; `TODO.md` has both.
 - **Guard bytes between regions** in a debug build of the runtime,
-  checked as a level is left, against a mistake in the layout that would
+  checked as a copy is closed, against a mistake in the layout that would
   let one routine overwrite another's buffers with nothing to see.
 - **The comparison to the last digit with the reference compiler's
-  build**, which was not run again in the block's mode.
+  build**, which was not run again in the arena's mode.
 - **A routine called again while it runs throws**, below.
 
 **A routine called again while it runs throws.** FORTRAN 77 does not allow

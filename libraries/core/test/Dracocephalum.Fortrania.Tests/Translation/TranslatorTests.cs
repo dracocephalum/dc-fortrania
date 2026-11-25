@@ -917,20 +917,20 @@ public sealed class TranslatorTests : IDisposable
 
             public static unsafe class Driver
             {
-                public static double RunOnStack() => Run(WorkingBuffers.Stack).Result;
+                public static double RunOnStack() => Run(BufferPlacement.Stack).Result;
 
-                public static double RunInBlock() => Run(WorkingBuffers.Block).Result;
+                public static double RunInArena() => Run(BufferPlacement.Arena).Result;
 
-                public static long BlockBytesOnStack() => Run(WorkingBuffers.Stack).BlockBytes;
+                public static long BytesOnStack() => Run(BufferPlacement.Stack).Bytes;
 
-                public static long BlockBytesInBlock() => Run(WorkingBuffers.Block).BlockBytes;
+                public static long BytesInArena() => Run(BufferPlacement.Arena).Bytes;
 
-                private static (double Result, long BlockBytes) Run(WorkingBuffers place)
+                private static (double Result, long Bytes) Run(BufferPlacement place)
                 {
-                    using var context = new FortranContext(new FortranContextOptions { WorkingBuffers = place });
+                    using var context = new FortranContext(new FortranContextOptions { BufferPlacement = place });
                     double result = 0;
                     context.Get<Example.Toolkit.Core>().TOP(&result);
-                    return (result, context.Working.BlockBytes);
+                    return (result, context.Arena.Bytes);
                 }
             }
             """;
@@ -949,21 +949,23 @@ public sealed class TranslatorTests : IDisposable
         result.WorkingRegions.ShouldBe([new WorkingRegion("Example.Toolkit", 496, 496)]);
 
         var runf = Text("out/Example.Toolkit/Generated/Core/RUNF.g.cs");
-        runf.ShouldContain("byte* _locals = _working.Start + 80;");
-        runf.ShouldContain("if (_working.IsOnStack)");
+        runf.ShouldContain("byte* _locals = _region.Start + 80;");
+        runf.ShouldContain("if (_region.CurrentSource == BufferSource.Stack)");
+        runf.ShouldContain("else if (_region.CurrentSource == BufferSource.None)");
+        runf.ShouldContain("_RUNF_opens_arena(");
         runf.ShouldContain("byte* _onStack = stackalloc byte[160];");
         runf.ShouldContain("double* w = (double*)_locals;");
         Text("out/Example.Toolkit/Generated/Core/SUMUP.g.cs").ShouldContain("byte* tag = _locals + 240;");
         Text("out/Example.Toolkit/Generated/Core/Core.g.cs")
-            .ShouldContain("_working = context.Working.Register(\"Example.Toolkit\", 496, 496, [], WorkingBuffers.Default);");
+            .ShouldContain("_region = context.Arena.Register(\"Example.Toolkit\", 496, 496, [], BufferPlacement.Default);");
 
         var compiled = TranslatedProgram.FromSources(
             Directory.GetFiles(Path.Combine(_root, "out"), "*.cs", SearchOption.AllDirectories).Select(File.ReadAllText).Append(Driver));
         const double Expected = (3 * 465) + 40 + 2 + 10;
         compiled.Run<double>("RunOnStack").ShouldBe(Expected);
-        compiled.Run<double>("RunInBlock").ShouldBe(Expected);
-        compiled.Run<long>("BlockBytesOnStack").ShouldBe(0);
-        compiled.Run<long>("BlockBytesInBlock").ShouldBe(496);
+        compiled.Run<double>("RunInArena").ShouldBe(Expected);
+        compiled.Run<long>("BytesOnStack").ShouldBe(0);
+        compiled.Run<long>("BytesInArena").ShouldBe(496);
     }
 
     [Fact]
@@ -1893,12 +1895,12 @@ public sealed class TranslatorTests : IDisposable
                 // the caller is too, which makes the larger on its first call.
                 public static long[] Sizes()
                 {
-                    using var context = new FortranContext(new FortranContextOptions { WorkingBuffers = WorkingBuffers.Block });
+                    using var context = new FortranContext(new FortranContextOptions { BufferPlacement = BufferPlacement.Arena });
                     double x = 1;
                     context.Get<Example.Kit.SmallLib>().SMALL(&x);
-                    var small = context.Working.BlockBytes;
+                    var small = context.Arena.Bytes;
                     context.Get<Example.Kit.CallerLib>().CALLER(&x);
-                    return [small, context.Working.BlockBytes, (long)x];
+                    return [small, context.Arena.Bytes, (long)x];
                 }
             }
             """;
@@ -1913,7 +1915,7 @@ public sealed class TranslatorTests : IDisposable
         long Asked(string source)
         {
             var match = System.Text.RegularExpressions.Regex.Match(
-                Text($"out/Example.Kit/Generated/{source}/{source}.g.cs"), @"Working\.Register\(""Example\.Kit"", (\d+), (\d+),");
+                Text($"out/Example.Kit/Generated/{source}/{source}.g.cs"), @"Arena.Register\(""Example\.Kit"", (\d+), (\d+),");
             match.Success.ShouldBeTrue();
             return long.Parse(match.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture);
         }
@@ -1929,6 +1931,120 @@ public sealed class TranslatorTests : IDisposable
         sizes[0].ShouldBe(Asked("SmallLib"));
         sizes[1].ShouldBe(region.OwnBytes);
         sizes[2].ShouldBe(1 + 20 + 200);
+    }
+
+    [Fact]
+    public void Run_WhenProceduresCallEachOtherInACircle_ShouldKeepTheirBuffersOnTheStackAndSayWhyAbove()
+    {
+        // Arrange: TOP and MID call each other, LEAF is called from MID,
+        // and OUTER calls into the circle from above it. Each has buffers.
+        Put("core/circle.f", """
+                  SUBROUTINE OUTER ( N )
+                  INTEGER N, A ( 4 )
+                  A ( 1 ) = N
+                  CALL TOP ( A ( 1 ) )
+                  N = A ( 1 )
+                  END
+
+                  SUBROUTINE TOP ( N )
+                  INTEGER N, W ( 4 )
+                  W ( 1 ) = N
+                  IF ( N .GT. 0 ) CALL MID ( W ( 1 ) )
+                  N = W ( 1 )
+                  END
+
+                  SUBROUTINE MID ( N )
+                  INTEGER N, B ( 4 )
+                  B ( 1 ) = N - 1
+                  CALL LEAF ( B ( 1 ) )
+                  CALL TOP ( B ( 1 ) )
+                  N = B ( 1 ) + 10
+                  END
+
+                  SUBROUTINE LEAF ( N )
+                  INTEGER N, C ( 4 )
+                  C ( 1 ) = N
+                  N = C ( 1 )
+                  END
+            """);
+        const string Driver =
+            """
+            using Dracocephalum.Fortrania.Runtime;
+
+            namespace Translated;
+
+            public static unsafe class Driver
+            {
+                public static int[] RunInArena()
+                {
+                    using var context = new FortranContext(new FortranContextOptions { BufferPlacement = BufferPlacement.Arena });
+                    int n = 3;
+                    context.Get<Example.Toolkit.Core>().OUTER(&n);
+                    return [n, context.Arena.Depth];
+                }
+            }
+            """;
+
+        // Act
+        var result = Translate(Project("Example.Toolkit", Source("Core", "core/*.f")));
+
+        // Assert: the circle and what it calls keep the stack, each saying
+        // why; OUTER, above it, has a place.
+        result.Succeeded.ShouldBeTrue(string.Join('\n', result.Messages));
+        var top = Text("out/Example.Toolkit/Generated/Core/TOP.g.cs");
+        top.ShouldContain("// TOP lies on a chain of calls that comes back to itself, TOP → MID → TOP,");
+        top.ShouldNotContain("CurrentSource");
+        Text("out/Example.Toolkit/Generated/Core/MID.g.cs").ShouldContain("// MID lies on a chain of calls that comes back to itself, MID → TOP → MID,");
+        var leaf = Text("out/Example.Toolkit/Generated/Core/LEAF.g.cs");
+        leaf.ShouldContain("// LEAF is called from a chain of calls that comes back to itself, MID → TOP → MID,");
+        leaf.ShouldNotContain("CurrentSource");
+        var outer = Text("out/Example.Toolkit/Generated/Core/OUTER.g.cs");
+        outer.ShouldContain("_region.CurrentSource == BufferSource.Stack");
+        outer.ShouldNotContain("comes back to itself");
+
+        var compiled = TranslatedProgram.FromSources(
+            Directory.GetFiles(Path.Combine(_root, "out"), "*.cs", SearchOption.AllDirectories).Select(File.ReadAllText).Append(Driver));
+        compiled.Run<int[]>("RunInArena").ShouldBe([3 + (3 * 9), 0]);
+    }
+
+    [Fact]
+    public void Run_WhenAProcedureCalledFromOutsideStops_ShouldCloseTheCopyOfTheArenaItOpened()
+    {
+        // Arrange
+        Put("core/stops.f", "      SUBROUTINE STOPS ( N )\n      INTEGER N, W ( 8 )\n      W ( 1 ) = N\n      IF ( W ( 1 ) .GT. 0 ) STOP 3\n      N = W ( 1 )\n      END\n");
+        const string Driver =
+            """
+            using Dracocephalum.Fortrania.Runtime;
+
+            namespace Translated;
+
+            public static unsafe class Driver
+            {
+                public static int[] RunInArena()
+                {
+                    using var context = new FortranContext(new FortranContextOptions { BufferPlacement = BufferPlacement.Arena });
+                    int n = 1;
+                    try
+                    {
+                        context.Get<Example.Toolkit.Core>().STOPS(&n);
+                        return [-1, context.Arena.Depth];
+                    }
+                    catch (FortranStopException stop)
+                    {
+                        return [stop.ExitCode, context.Arena.Depth];
+                    }
+                }
+            }
+            """;
+
+        // Act
+        var result = Translate(Project("Example.Toolkit", Source("Core", "core/*.f")));
+
+        // Assert
+        result.Succeeded.ShouldBeTrue(string.Join('\n', result.Messages));
+        var compiled = TranslatedProgram.FromSources(
+            Directory.GetFiles(Path.Combine(_root, "out"), "*.cs", SearchOption.AllDirectories).Select(File.ReadAllText).Append(Driver));
+        compiled.Run<int[]>("RunInArena").ShouldBe([3, 0]);
     }
 
     // A command for the system's own shell: the test needs one that is

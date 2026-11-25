@@ -63,15 +63,15 @@ sealed class FortranContextOptions
     /// translated for one place alone refuses a context that asks for the
     /// other.
     /// </summary>
-    public WorkingBuffers WorkingBuffers { get; set; }
+    public BufferPlacement BufferPlacement { get; set; }
 
     /// <summary>
     /// Gets or sets how many calls through a procedure argument may run one
     /// inside another: a search that calls a function it was given, which
-    /// starts a search that calls one it was given. Each takes a block of
-    /// working memory of its own the first time that depth is reached,
-    /// where buffers are kept in a block, so the limit is on memory and on
-    /// a program that never stops calling back. It is the host's to raise.
+    /// starts a search that calls one it was given. Each opens a copy of the
+    /// arena of its own, made the first time that depth is reached where
+    /// buffers are kept in the arena, so the limit is on memory and on a
+    /// program that never stops calling back. It is the host's to raise.
     /// </summary>
     public int CallbackDepth { get; set; } = DefaultCallbackDepth;
 }

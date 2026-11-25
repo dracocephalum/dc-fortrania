@@ -172,14 +172,14 @@ internal sealed partial class UnitEmitter
             [],
             [],
             [
-                // A procedure reached through an argument runs at a level of
-                // its own, since it may call back into a library whose chain
-                // of calls is still running; the level is left however it
-                // ends.
-                new TreeStatement.Evaluate(new TreeExpression.Call("context.Working.Enter", [])),
+                // A procedure reached through an argument runs in a copy of
+                // the arena of its own, since it may call back into a library
+                // whose chain of calls is still running; the copy is closed
+                // however the call ends.
+                new TreeStatement.Evaluate(new TreeExpression.Call("context.Arena.Push", [])),
                 new TreeStatement.TryFinally(
                     [target.ResultType is null ? new TreeStatement.Evaluate(forwarded) : new TreeStatement.Return(forwarded)],
-                    [new TreeStatement.Evaluate(new TreeExpression.Call("context.Working.Leave", []))]),
+                    [new TreeStatement.Evaluate(new TreeExpression.Call("context.Arena.Pop", []))]),
             ])
         {
             IsPublic = false,

@@ -874,7 +874,8 @@ public static partial class Translator
                         emitted,
                         procedure => _places.TryGetValue((source, procedure), out var place) ? place : null,
                         text,
-                        source.Part.Settings.PlainArrayLoops);
+                        source.Part.Settings.PlainArrayLoops,
+                        procedure => _whyOnStack.TryGetValue((source, procedure), out var why) && why.Count > 0 ? why : null);
                 }
 
                 var region = _workingRegions.Single(region => region.Project == source.Project.Name);

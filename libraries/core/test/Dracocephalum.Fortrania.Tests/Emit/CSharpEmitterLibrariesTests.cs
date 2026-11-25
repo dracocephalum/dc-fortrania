@@ -113,13 +113,13 @@ public class CSharpEmitterLibrariesTests
         caller.ShouldContain("_Core.COPEN(name, name_len, Arg(&_i1, 31));");
         caller.ShouldContain("@out[4] = _Core.CBACK(Arg(&_i1, 2));");
         caller.ShouldContain("private static int _ARUN_passes_ATRIPL(FortranContext context, int* a1)");
-        caller.ShouldContain("context.Working.Enter();");
+        caller.ShouldContain("context.Arena.Push();");
         caller.ShouldContain("return context.Get<App>().ATRIPL(a1);");
-        caller.ShouldContain("context.Working.Leave();");
+        caller.ShouldContain("context.Arena.Pop();");
         caller.ShouldContain("private static int _ARUN_passes_CTWICE(FortranContext context, int* a1)");
-        caller.ShouldContain("context.Working.Enter();");
+        caller.ShouldContain("context.Arena.Push();");
         caller.ShouldContain("return context.Get<global::Translated.Core>().CTWICE(a1);");
-        caller.ShouldContain("context.Working.Leave();");
+        caller.ShouldContain("context.Arena.Pop();");
         appClass.ShouldContain("private global::Translated.Core? _library_Core;");
         appClass.ShouldContain("private global::Translated.Core _Core => _library_Core ??= _context.Get<global::Translated.Core>();");
     }
