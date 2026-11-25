@@ -77,8 +77,13 @@ internal static class CSharpFileWriter
         {
             text.Line("[MethodImpl(MethodImplOptions.NoInlining)]");
         }
+        else if (method.IsInlined)
+        {
+            text.Line("[MethodImpl(MethodImplOptions.AggressiveInlining)]");
+        }
 
-        var heading = $"{(method.IsPublic ? "public" : "private")} {(method.IsStatic ? "static " : string.Empty)}"
+        var access = method.IsPublic ? "public" : method.IsInternal ? "internal" : "private";
+        var heading = $"{access} {(method.IsStatic ? "static " : string.Empty)}"
             + $"{method.ReturnType} {method.Name}({string.Join(", ", method.Parameters)})";
         if (method.IsOneExpression)
         {

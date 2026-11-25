@@ -7,22 +7,24 @@ using Dracocephalum.Fortrania.Runtime;
 namespace Dracocephalum.Fortrania.Benchmarks;
 
 /// <summary>
-/// What it costs a method to read, on entry, where its working buffers are
-/// as three ways and not two: from the stack, from its place in the copy
-/// of the arena open, or through a call that opens a copy where none is,
-/// against the one test of the stack translated code made before. Measured
-/// for each place on its own, for a method that is small and called often,
-/// where a test on entry weighs most: one that calls nothing, and one that
-/// calls something, as nearly every translated procedure does.
+/// What a call of a method that has working buffers costs as translated
+/// code is written: a method that tests three ways on entry, the stack, its
+/// place in the open copy of the arena, or a call that opens a copy, against
+/// one written as an entry and a core. The core tests the stack alone and is
+/// what a call from inside a project reaches; the entry, compiled into its
+/// caller, tests whether a copy is open and is what a call from outside
+/// reaches. Measured for each place, for a method that is small and called
+/// often, where a test on entry weighs most: one that calls nothing, and one
+/// that calls something, as nearly every translated procedure does.
 /// <c>DESIGN.md</c>, <em>Where a method keeps its working buffers is the
 /// context's to say</em>, has what was found.
 /// </summary>
 /// <remarks>
 /// The methods are written as the translator writes them: unsafe, never
-/// compiled into their caller, their stack memory left as it is found, the
-/// region read through an object as a library reads its own. Each writes
-/// at both ends of its buffer and reads the two back, so that the buffer is
-/// used and what is measured beside that is the entry.
+/// compiled into their caller but for the entry, their stack memory left as
+/// it is found, the region read through an object as a library reads its
+/// own. Each writes at both ends of its buffer and reads the two back, so
+/// that the buffer is used and what is measured beside that is the entry.
 /// </remarks>
 [GroupBenchmarksBy(BenchmarkLogicalGroupRule.ByCategory)]
 [CategoriesColumn]
@@ -61,20 +63,7 @@ public unsafe class BufferSourceBenchmarks
 
     [Benchmark(Baseline = true, OperationsPerInvoke = BenchmarkConfig.Repeats)]
     [BenchmarkCategory(StackCategory)]
-    public int TestTwoWaysOnStack()
-    {
-        var sum = 0;
-        for (var repeat = 0; repeat < BenchmarkConfig.Repeats; repeat++)
-        {
-            sum += TwoWays(_onStack, repeat);
-        }
-
-        return sum;
-    }
-
-    [Benchmark(OperationsPerInvoke = BenchmarkConfig.Repeats)]
-    [BenchmarkCategory(StackCategory)]
-    public int TestThreeWaysOnStack()
+    public int ThreeWaysOnStack()
     {
         var sum = 0;
         for (var repeat = 0; repeat < BenchmarkConfig.Repeats; repeat++)
@@ -85,22 +74,35 @@ public unsafe class BufferSourceBenchmarks
         return sum;
     }
 
-    [Benchmark(Baseline = true, OperationsPerInvoke = BenchmarkConfig.Repeats)]
-    [BenchmarkCategory(ArenaCategory)]
-    public int TestTwoWaysInArena()
+    [Benchmark(OperationsPerInvoke = BenchmarkConfig.Repeats)]
+    [BenchmarkCategory(StackCategory)]
+    public int CoreOnStack()
     {
         var sum = 0;
         for (var repeat = 0; repeat < BenchmarkConfig.Repeats; repeat++)
         {
-            sum += TwoWays(_inArena, repeat);
+            sum += Core(_onStack, repeat);
         }
 
         return sum;
     }
 
     [Benchmark(OperationsPerInvoke = BenchmarkConfig.Repeats)]
+    [BenchmarkCategory(StackCategory)]
+    public int EntryOnStack()
+    {
+        var sum = 0;
+        for (var repeat = 0; repeat < BenchmarkConfig.Repeats; repeat++)
+        {
+            sum += Entry(_onStack, repeat);
+        }
+
+        return sum;
+    }
+
+    [Benchmark(Baseline = true, OperationsPerInvoke = BenchmarkConfig.Repeats)]
     [BenchmarkCategory(ArenaCategory)]
-    public int TestThreeWaysInArena()
+    public int ThreeWaysInArena()
     {
         var sum = 0;
         for (var repeat = 0; repeat < BenchmarkConfig.Repeats; repeat++)
@@ -111,22 +113,35 @@ public unsafe class BufferSourceBenchmarks
         return sum;
     }
 
-    [Benchmark(Baseline = true, OperationsPerInvoke = BenchmarkConfig.Repeats)]
-    [BenchmarkCategory(CallingStackCategory)]
-    public int TestTwoWaysCallingOnStack()
+    [Benchmark(OperationsPerInvoke = BenchmarkConfig.Repeats)]
+    [BenchmarkCategory(ArenaCategory)]
+    public int CoreInArena()
     {
         var sum = 0;
         for (var repeat = 0; repeat < BenchmarkConfig.Repeats; repeat++)
         {
-            sum += TwoWaysCalling(_onStack, repeat);
+            sum += Core(_inArena, repeat);
         }
 
         return sum;
     }
 
     [Benchmark(OperationsPerInvoke = BenchmarkConfig.Repeats)]
+    [BenchmarkCategory(ArenaCategory)]
+    public int EntryInArena()
+    {
+        var sum = 0;
+        for (var repeat = 0; repeat < BenchmarkConfig.Repeats; repeat++)
+        {
+            sum += Entry(_inArena, repeat);
+        }
+
+        return sum;
+    }
+
+    [Benchmark(Baseline = true, OperationsPerInvoke = BenchmarkConfig.Repeats)]
     [BenchmarkCategory(CallingStackCategory)]
-    public int TestThreeWaysCallingOnStack()
+    public int ThreeWaysCallingOnStack()
     {
         var sum = 0;
         for (var repeat = 0; repeat < BenchmarkConfig.Repeats; repeat++)
@@ -137,22 +152,35 @@ public unsafe class BufferSourceBenchmarks
         return sum;
     }
 
-    [Benchmark(Baseline = true, OperationsPerInvoke = BenchmarkConfig.Repeats)]
-    [BenchmarkCategory(CallingArenaCategory)]
-    public int TestTwoWaysCallingInArena()
+    [Benchmark(OperationsPerInvoke = BenchmarkConfig.Repeats)]
+    [BenchmarkCategory(CallingStackCategory)]
+    public int CoreCallingOnStack()
     {
         var sum = 0;
         for (var repeat = 0; repeat < BenchmarkConfig.Repeats; repeat++)
         {
-            sum += TwoWaysCalling(_inArena, repeat);
+            sum += CoreCalling(_onStack, repeat);
         }
 
         return sum;
     }
 
     [Benchmark(OperationsPerInvoke = BenchmarkConfig.Repeats)]
+    [BenchmarkCategory(CallingStackCategory)]
+    public int EntryCallingOnStack()
+    {
+        var sum = 0;
+        for (var repeat = 0; repeat < BenchmarkConfig.Repeats; repeat++)
+        {
+            sum += EntryCalling(_onStack, repeat);
+        }
+
+        return sum;
+    }
+
+    [Benchmark(Baseline = true, OperationsPerInvoke = BenchmarkConfig.Repeats)]
     [BenchmarkCategory(CallingArenaCategory)]
-    public int TestThreeWaysCallingInArena()
+    public int ThreeWaysCallingInArena()
     {
         var sum = 0;
         for (var repeat = 0; repeat < BenchmarkConfig.Repeats; repeat++)
@@ -163,26 +191,35 @@ public unsafe class BufferSourceBenchmarks
         return sum;
     }
 
-#pragma warning restore CA1822
-
-    // As translated code took its buffers before: the stack where the
-    // region said so, its place otherwise.
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    private static int TwoWays(Region region, int value)
+    [Benchmark(OperationsPerInvoke = BenchmarkConfig.Repeats)]
+    [BenchmarkCategory(CallingArenaCategory)]
+    public int CoreCallingInArena()
     {
-        byte* locals = region.Start + Place;
-        if (region.IsOnStack)
+        var sum = 0;
+        for (var repeat = 0; repeat < BenchmarkConfig.Repeats; repeat++)
         {
-            byte* onStack = stackalloc byte[Size];
-            locals = onStack;
+            sum += CoreCalling(_inArena, repeat);
         }
 
-        return Use(locals, Size, value);
+        return sum;
     }
 
-    // As translated code takes them now: the stack, its place, or a call
-    // that opens a copy of the arena first. The stack is tested first:
-    // testing the arena first costs the stack more than it saves the arena.
+    [Benchmark(OperationsPerInvoke = BenchmarkConfig.Repeats)]
+    [BenchmarkCategory(CallingArenaCategory)]
+    public int EntryCallingInArena()
+    {
+        var sum = 0;
+        for (var repeat = 0; repeat < BenchmarkConfig.Repeats; repeat++)
+        {
+            sum += EntryCalling(_inArena, repeat);
+        }
+
+        return sum;
+    }
+
+#pragma warning restore CA1822
+
+    // One method that tests three ways on entry.
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static int ThreeWays(Region region, int value)
     {
@@ -194,23 +231,10 @@ public unsafe class BufferSourceBenchmarks
         }
         else if (region.CurrentSource == BufferSource.None)
         {
-            return Opened(region, value);
+            return OpenedThreeWays(region, value);
         }
 
         return Use(locals, Size, value);
-    }
-
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    private static int TwoWaysCalling(Region region, int value)
-    {
-        byte* locals = region.Start + Place;
-        if (region.IsOnStack)
-        {
-            byte* onStack = stackalloc byte[Size];
-            locals = onStack;
-        }
-
-        return Callee(locals, value);
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
@@ -224,22 +248,71 @@ public unsafe class BufferSourceBenchmarks
         }
         else if (region.CurrentSource == BufferSource.None)
         {
-            return Opened(region, value);
+            return OpenedThreeWays(region, value);
+        }
+
+        return Callee(locals, value);
+    }
+
+    // The entry, compiled into its caller, and the core it calls.
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static int Entry(Region region, int value) =>
+        region.CurrentSource == BufferSource.None ? OpenedCore(region, value) : Core(region, value);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static int EntryCalling(Region region, int value) =>
+        region.CurrentSource == BufferSource.None ? OpenedCore(region, value) : CoreCalling(region, value);
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static int Core(Region region, int value)
+    {
+        byte* locals = region.Start + Place;
+        if (region.CurrentSource == BufferSource.Stack)
+        {
+            byte* onStack = stackalloc byte[Size];
+            locals = onStack;
+        }
+
+        return Use(locals, Size, value);
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static int CoreCalling(Region region, int value)
+    {
+        byte* locals = region.Start + Place;
+        if (region.CurrentSource == BufferSource.Stack)
+        {
+            byte* onStack = stackalloc byte[Size];
+            locals = onStack;
         }
 
         return Callee(locals, value);
     }
 
     // Never reached here: the regions measured have a copy open or keep the
-    // stack. It is what the branch calls, so that the method is compiled as
-    // translated code is.
+    // stack. They are what the branches call, so that the methods are
+    // compiled as translated code is.
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private static int Opened(Region region, int value)
+    private static int OpenedThreeWays(Region region, int value)
     {
         region.CurrentSource = BufferSource.Arena;
         try
         {
             return ThreeWays(region, value);
+        }
+        finally
+        {
+            region.CurrentSource = BufferSource.None;
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static int OpenedCore(Region region, int value)
+    {
+        region.CurrentSource = BufferSource.Arena;
+        try
+        {
+            return Core(region, value);
         }
         finally
         {
@@ -260,7 +333,7 @@ public unsafe class BufferSourceBenchmarks
     }
 
     // Stands in for a project's region: what it says of where buffers are,
-    // in the form of before and of now, and the memory they lie in.
+    // and the memory they lie in.
     private sealed class Region
     {
         private const int Bytes = 64 * 1024;
@@ -268,13 +341,10 @@ public unsafe class BufferSourceBenchmarks
         public Region(BufferSource source)
         {
             CurrentSource = source;
-            IsOnStack = source == BufferSource.Stack;
             Start = (byte*)NativeMemory.AllocZeroed(Bytes);
         }
 
         public BufferSource CurrentSource { get; set; }
-
-        public bool IsOnStack { get; }
 
         public byte* Start { get; private set; }
 

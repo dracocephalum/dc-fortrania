@@ -17,9 +17,9 @@ public
 enum BufferSource
 {
     /// <summary>
-    /// Nothing translated is running, so no copy of the arena is open: the
-    /// procedure is called again through one that opens a copy and closes
-    /// it however the call ends.
+    /// Nothing translated is running, so no copy of the arena is open: a
+    /// procedure called from outside calls its core through a method that
+    /// opens a copy and closes it however the call ends.
     /// </summary>
     None,
 

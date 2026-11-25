@@ -28,11 +28,17 @@ internal sealed record TreeMethod(
     /// <summary>Gets a value indicating whether the program's own code may call it; one the translator adds is the class's alone.</summary>
     public bool IsPublic { get; init; } = true;
 
+    /// <summary>Gets a value indicating whether, not public, it may be called from the other classes of its assembly.</summary>
+    public bool IsInternal { get; init; }
+
     /// <summary>Gets a value indicating whether it needs nothing of the instance.</summary>
     public bool IsStatic { get; init; }
 
     /// <summary>Gets a value indicating whether it is never to be compiled into a method that calls it.</summary>
     public bool IsKeptOutOfLine { get; init; }
+
+    /// <summary>Gets a value indicating whether it is to be compiled into each method that calls it where the compiler can.</summary>
+    public bool IsInlined { get; init; }
 
     /// <summary>
     /// Gets a value indicating whether it is one expression and nothing

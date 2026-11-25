@@ -167,6 +167,22 @@ public sealed class CSharpEmitter
     }
 
     /// <summary>
+    /// Gives the procedures of a unit that <see cref="WriteWithPlaces"/>
+    /// writes as an entry and a core: each that has working buffers and a
+    /// place. A call from the core of another procedure of the project calls
+    /// the core, and the entry tests only for a call from outside.
+    /// </summary>
+    /// <param name="unit">A unit as <see cref="EmitUnit"/> gave it.</param>
+    /// <param name="placeOf">Where a procedure's buffers start in its project's region, by the procedure's name; nothing for one that is to keep the stack.</param>
+    /// <returns>The name each is called by.</returns>
+    public static IReadOnlyList<string> FindCores(EmittedUnit unit, Func<string, long?> placeOf)
+    {
+        ArgumentNullException.ThrowIfNull(unit);
+        ArgumentNullException.ThrowIfNull(placeOf);
+        return unit.File is { } file ? [.. WorkingBuffersPass.FindSplit(file, placeOf).Select(split => split.Name)] : [];
+    }
+
+    /// <summary>
     /// Writes a unit again so that a context chooses where its procedures
     /// keep their working buffers: on the stack, or each at its place in
     /// the project's region of the context's arena. The class is then to
@@ -183,7 +199,14 @@ public sealed class CSharpEmitter
     /// </param>
     /// <param name="keepsArrayLoops">Whether a loop that only copies or fills an array is left as the loop alone, and not given the runtime's copy or fill beside it for a long run.</param>
     /// <param name="whyOnStack">Why a procedure that has no place keeps the stack, as lines of a comment for its buffers, by the procedure's name; nothing for one that has a place, or where nothing is to be said.</param>
-    public static string WriteWithPlaces(EmittedUnit unit, Func<string, long?> placeOf, TextBlock? text = null, bool keepsArrayLoops = false, Func<string, IReadOnlyList<string>?>? whyOnStack = null)
+    /// <param name="hasCore">Whether a call, by what it calls as written, reaches a procedure of the project that <see cref="FindCores"/> gave; the core of a procedure calls the core of such a one. None does unless given.</param>
+    public static string WriteWithPlaces(
+        EmittedUnit unit,
+        Func<string, long?> placeOf,
+        TextBlock? text = null,
+        bool keepsArrayLoops = false,
+        Func<string, IReadOnlyList<string>?>? whyOnStack = null,
+        Func<string, bool>? hasCore = null)
     {
         ArgumentNullException.ThrowIfNull(unit);
         ArgumentNullException.ThrowIfNull(placeOf);
@@ -195,7 +218,7 @@ public sealed class CSharpEmitter
 
         // Before the constants are moved, while one is still to be seen
         // for what it is.
-        file = ConstantEqualityPass.Apply(WorkingBuffersPass.Apply(file, placeOf, whyOnStack ?? (_ => null)));
+        file = ConstantEqualityPass.Apply(WorkingBuffersPass.Apply(file, placeOf, whyOnStack ?? (_ => null), hasCore ?? (_ => false)));
         if (!keepsArrayLoops)
         {
             file = ArrayLoopPass.Apply(file);
