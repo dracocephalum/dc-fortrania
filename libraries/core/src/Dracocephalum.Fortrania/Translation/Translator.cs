@@ -878,6 +878,7 @@ public static partial class Translator
                 }
 
                 var region = _workingRegions.Single(region => region.Project == source.Project.Name);
+                var (own, reach) = WorkOutExtent(source);
                 var options = new EmitOptions(source.Namespace, source.ClassName)
                 {
                     References = [.. Used(source).Select(other => new LibraryReference(other.Namespace, other.ClassName, other.Catalogue.Find))],
@@ -885,8 +886,8 @@ public static partial class Translator
                 var emitter = new CSharpEmitter(options, source.Catalogue.Find);
                 source.Files[FileName(source.ClassName)] = emitter.EmitClass(new LibraryRegion(
                     region.Project,
-                    region.OwnBytes,
-                    region.ReachBytes,
+                    own,
+                    reach,
                     [.. _references.GetValueOrDefault(source.Project, []).Select(project => project.Name)]));
 
                 // The constants in a file of their own beside the class's,

@@ -72,12 +72,21 @@ sealed unsafe class WorkingMemory : IDisposable
 
     /// <summary>
     /// Gives the region of a project, laying the regions out again when
-    /// the project is new to the context. Every library of a project asks
-    /// when it is made, and all of them are given the same region.
+    /// the project is new to the context or asks for more than it had.
+    /// Every library of a project asks when it is made, and all of them are
+    /// given the same region, as large as the most any of them asked for:
+    /// libraries of a project that never call each other need no more
+    /// together than the larger, and one never made takes nothing.
     /// </summary>
+    /// <remarks>
+    /// A library asks for all that the libraries it calls into within its
+    /// project need, and a project that calls into another for all that
+    /// one can need; so a library made on its first call, while its caller
+    /// runs, finds the block as large as it needs already.
+    /// </remarks>
     /// <param name="project">The project's name, which is what tells projects apart.</param>
-    /// <param name="ownBytes">The size of the project's own region.</param>
-    /// <param name="reachBytes">What a call into the project can need: its own region and the deepest chain of those it refers to.</param>
+    /// <param name="ownBytes">What the library needs of the project's own region: its procedures' and those of the libraries of the project they call.</param>
+    /// <param name="reachBytes">What a call into the library can need: what it needs of its region and the deepest chain of the projects it calls into.</param>
     /// <param name="refersTo">The names of the projects it calls into.</param>
     /// <param name="translatedFor">
     /// What the project was translated for: <see cref="WorkingBuffers.Default"/>
@@ -101,6 +110,7 @@ sealed unsafe class WorkingMemory : IDisposable
         {
             if (known.Project == project)
             {
+                Widen(known, ownBytes, reachBytes);
                 return known;
             }
         }
@@ -129,6 +139,32 @@ sealed unsafe class WorkingMemory : IDisposable
         }
 
         return region;
+    }
+
+    // A library of a project already known that needs more of its region
+    // than those made before it: the region grows to what it needs, and
+    // the regions after it move. Where the block cannot grow, it is left as
+    // it was.
+    private void Widen(BufferRegion region, long ownBytes, long reachBytes)
+    {
+        if (ownBytes <= region.OwnBytes && reachBytes <= region.ReachBytes)
+        {
+            return;
+        }
+
+        var (own, reach) = (region.OwnBytes, region.ReachBytes);
+        region.OwnBytes = Math.Max(own, ownBytes);
+        region.ReachBytes = Math.Max(reach, reachBytes);
+        try
+        {
+            LayOut();
+        }
+        catch (InvalidOperationException)
+        {
+            (region.OwnBytes, region.ReachBytes) = (own, reach);
+            LayOut();
+            throw;
+        }
     }
 
     /// <summary>

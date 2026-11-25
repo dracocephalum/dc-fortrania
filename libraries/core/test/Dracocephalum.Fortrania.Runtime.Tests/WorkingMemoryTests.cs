@@ -95,6 +95,50 @@ public unsafe class WorkingMemoryTests
     }
 
     [Fact]
+    public void Register_WhenAnotherLibraryOfAProjectAsksForMore_ShouldGrowTheRegionAndMoveWhatLiesAfterIt()
+    {
+        // Arrange: one library of the program made, which needs little of
+        // its region, and the library the program calls into after it.
+        using var context = new FortranContext(new FortranContextOptions { WorkingBuffers = WorkingBuffers.Block });
+        var sut = context.Working;
+        var program = sut.Register("Program", 50, 350, ["Library"], WorkingBuffers.Default);
+        var library = sut.Register("Library", 300, 300, [], WorkingBuffers.Default);
+        sut.BlockBytes.ShouldBe(350);
+
+        // Act: another library of the program, which needs more.
+        var again = sut.Register("Program", 120, 420, ["Library"], WorkingBuffers.Default);
+        var grown = sut.BlockBytes;
+        var smaller = sut.Register("Program", 10, 310, ["Library"], WorkingBuffers.Default);
+
+        // Assert: one region, as large as the most asked for.
+        again.ShouldBeSameAs(program);
+        smaller.ShouldBeSameAs(program);
+        grown.ShouldBe(420);
+        sut.BlockBytes.ShouldBe(420);
+        (library.Start - program.Start).ShouldBe(120);
+    }
+
+    [Fact]
+    public void Register_WhenALibraryOfAProjectAsksForMoreWhileACallThroughAnArgumentRuns_ShouldRefuseAndLeaveTheRegionAsItWas()
+    {
+        // Arrange
+        using var context = new FortranContext(new FortranContextOptions { WorkingBuffers = WorkingBuffers.Block });
+        var sut = context.Working;
+        var region = sut.Register("Library", 100, 100, [], WorkingBuffers.Default);
+        sut.Enter();
+
+        // Act
+        var thrown = Should.Throw<InvalidOperationException>(() => sut.Register("Library", 300, 300, [], WorkingBuffers.Default));
+        sut.Leave();
+
+        // Assert
+        thrown.Message.ShouldContain("Make it before the call.");
+        sut.BlockBytes.ShouldBe(100);
+        sut.Register("Library", 100, 100, [], WorkingBuffers.Default).ShouldBeSameAs(region);
+        sut.BlockBytes.ShouldBe(100);
+    }
+
+    [Fact]
     public void Register_WhenTheProgramIsMadeFirst_ShouldHaveRoomForWhatItReachesBeforeThatIsMade()
     {
         // Arrange

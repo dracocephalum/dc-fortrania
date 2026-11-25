@@ -374,6 +374,19 @@ block cannot.
   project's after those of every project that can call into it, and has
   room for all a call can reach before anything runs, since each project
   says what it reaches.
+- **A region is as large as the libraries made so far need.** Each library
+  of a project asks, when it is made, for what its own procedures and
+  those of the project's libraries it calls into need, however far down,
+  and the region grows to the most any has asked for. Libraries that
+  never call each other overlap, so a program that makes only one has the
+  block that one needs, and one that makes both has the larger, not the
+  two together. A library is made on its first call, maybe while its
+  caller runs, when the block may not grow under the caller's buffers;
+  its caller asked for all of it already, and another project that calls
+  in asked for the whole of the project, so it never asks for more than
+  is there. Finer than a library it cannot be: a procedure's first call
+  comes while others run, and to ask on every call would cost every call
+  a test.
 - **A procedure called through an argument runs at a level of its own**:
   the forwarder that reaches it moves the context to another block and
   back. Such a procedure may call back into a library whose chain is

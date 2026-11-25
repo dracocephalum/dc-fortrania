@@ -1873,6 +1873,64 @@ public sealed class TranslatorTests : IDisposable
         Text("out/Example.Tool/Example.Tool.csproj").ShouldContain("<ProjectReference Include=\"../Example.Toolkit/Example.Toolkit.csproj\" />");
     }
 
+    [Fact]
+    public void Run_WhenLibrariesOfAProjectDoNotCallEachOther_ShouldHaveEachAskForItsOwnBuffersAndACallerForWhatItReaches()
+    {
+        // Arrange: two libraries with buffers of different sizes that never
+        // call each other, and a third that calls the larger.
+        Put("big/big.f", "      SUBROUTINE BIG ( X )\n      DOUBLE PRECISION X, W ( 200 )\n      INTEGER I\n      DO I = 1, 200\n         W ( I ) = X + I\n      END DO\n      X = W ( 200 )\n      END\n");
+        Put("small/small.f", "      SUBROUTINE SMALL ( X )\n      DOUBLE PRECISION X, W ( 20 )\n      INTEGER I\n      DO I = 1, 20\n         W ( I ) = X + I\n      END DO\n      X = W ( 20 )\n      END\n");
+        Put("caller/caller.f", "      SUBROUTINE CALLER ( X )\n      DOUBLE PRECISION X\n      CALL BIG ( X )\n      END\n");
+        const string Driver =
+            """
+            using Dracocephalum.Fortrania.Runtime;
+
+            namespace Translated;
+
+            public static unsafe class Driver
+            {
+                // The block when the smaller library alone is made, and when
+                // the caller is too, which makes the larger on its first call.
+                public static long[] Sizes()
+                {
+                    using var context = new FortranContext(new FortranContextOptions { WorkingBuffers = WorkingBuffers.Block });
+                    double x = 1;
+                    context.Get<Example.Kit.SmallLib>().SMALL(&x);
+                    var small = context.Working.BlockBytes;
+                    context.Get<Example.Kit.CallerLib>().CALLER(&x);
+                    return [small, context.Working.BlockBytes, (long)x];
+                }
+            }
+            """;
+
+        // Act
+        var result = Translate(Project("Example.Kit", Source("BigLib", "big/*.f"), Source("SmallLib", "small/*.f"), Source("CallerLib", "caller/*.f")));
+
+        // Assert: the region is as large as the larger library needs, the
+        // smaller asks for less, and the caller for what the larger needs.
+        result.Succeeded.ShouldBeTrue(string.Join('\n', result.Messages));
+        var region = result.WorkingRegions.ShouldHaveSingleItem();
+        long Asked(string source)
+        {
+            var match = System.Text.RegularExpressions.Regex.Match(
+                Text($"out/Example.Kit/Generated/{source}/{source}.g.cs"), @"Working\.Register\(""Example\.Kit"", (\d+), (\d+),");
+            match.Success.ShouldBeTrue();
+            return long.Parse(match.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        Asked("BigLib").ShouldBe(region.OwnBytes);
+        Asked("SmallLib").ShouldBeLessThan(Asked("BigLib"));
+        Asked("SmallLib").ShouldBeGreaterThan(0);
+        Asked("CallerLib").ShouldBe(Asked("BigLib"));
+
+        var compiled = TranslatedProgram.FromSources(
+            Directory.GetFiles(Path.Combine(_root, "out"), "*.cs", SearchOption.AllDirectories).Select(File.ReadAllText).Append(Driver));
+        var sizes = compiled.Run<long[]>("Sizes");
+        sizes[0].ShouldBe(Asked("SmallLib"));
+        sizes[1].ShouldBe(region.OwnBytes);
+        sizes[2].ShouldBe(1 + 20 + 200);
+    }
+
     // A command for the system's own shell: the test needs one that is
     // on every machine the tests run on.
     private static CommandSettings Shell(string windows, string other) => new()

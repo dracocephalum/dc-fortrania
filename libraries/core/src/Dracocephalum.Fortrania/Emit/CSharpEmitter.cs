@@ -114,8 +114,9 @@ public sealed class CSharpEmitter
         file.Line("_io = context.IO;");
         if (region is not null)
         {
-            // Every library of a project asks for the same region, and the
-            // context lays it out after those of the projects that call in.
+            // Every library of a project is given the same region, as large
+            // as the most any of them made so far asked for, and the context
+            // lays it out after those of the projects that call in.
             var refersTo = string.Join(", ", region.RefersTo.Select(name => $"\"{name}\""));
             file.Line(string.Create(
                 System.Globalization.CultureInfo.InvariantCulture,

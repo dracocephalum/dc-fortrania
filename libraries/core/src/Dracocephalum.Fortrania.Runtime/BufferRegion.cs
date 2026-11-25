@@ -41,9 +41,11 @@ sealed unsafe class BufferRegion
 
     internal string Project { get; }
 
-    internal long OwnBytes { get; }
+    // The most the libraries of the project made so far have asked for:
+    // each asks for what its own procedures and those it calls into need.
+    internal long OwnBytes { get; set; }
 
-    internal long ReachBytes { get; }
+    internal long ReachBytes { get; set; }
 
     internal string[] RefersTo { get; }
 

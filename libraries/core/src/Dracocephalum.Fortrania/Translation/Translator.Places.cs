@@ -28,6 +28,50 @@ public static partial class Translator
         // its own, since the runtime gives every such call the next level's,
         // so neither it nor what it calls can meet a buffer of the chain
         // that led to it.
+        // What one library of a project asks of the project's region when it
+        // is made: the furthest the buffers of any procedure of it reach, or
+        // of a library of the project it calls into, however far down; and
+        // after that the deepest chain of the projects those call into. A
+        // library is made on its first call, maybe while its caller runs,
+        // when the block cannot grow; the caller asked for all of it
+        // already, so it never asks for more. Libraries that never call each
+        // other ask for their own, which overlap, and a program that makes
+        // only one has the block that one needs.
+        private (long Own, long Reach) WorkOutExtent(Source source)
+        {
+            var project = source.Project;
+            var reached = new HashSet<Source> { source };
+            var pending = new Stack<Source>();
+            pending.Push(source);
+            while (pending.TryPop(out var next))
+            {
+                foreach (var other in Used(next).Where(other => other.Project == project && reached.Add(other)))
+                {
+                    pending.Push(other);
+                }
+            }
+
+            long own = 0;
+            foreach (var member in reached)
+            {
+                foreach (var (name, (_, method)) in member.Methods)
+                {
+                    if (_places.TryGetValue((member, name), out var place))
+                    {
+                        own = Math.Max(own, place + WorkingBuffersPass.PieceBytes(method.StackBytes));
+                    }
+                }
+            }
+
+            var chain = reached
+                .SelectMany(Used)
+                .Where(other => other.Project != project)
+                .Select(other => _workingRegions.Single(region => region.Project == other.Project.Name).ReachBytes)
+                .DefaultIfEmpty(0)
+                .Max();
+            return (own, own + chain);
+        }
+
         private void WorkOutPlaces()
         {
             // A project read from its summary brings its sizes with it.
