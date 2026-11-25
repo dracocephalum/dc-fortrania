@@ -77,8 +77,8 @@ undecided adds it here rather than mentioning it once in a conversation.
       compiling varied, and the range of their ratios reported in place
       of one.
 
-- [ ] **The block of working memory has nothing around it.** The runtime
-      has the block, `WorkingMemory`, with its regions and its levels, and
+- [ ] **The arena of working buffers has nothing around it.** The runtime
+      has the arena, `BufferArena`, with its regions and its copies, and
       translated code keeps its buffers there where a context says. A page that cannot be touched at each
       end of a block is decided and not built: it needs the operating
       system's own calls to protect memory, one way on Windows and

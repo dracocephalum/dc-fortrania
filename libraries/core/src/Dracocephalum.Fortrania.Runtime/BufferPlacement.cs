@@ -15,7 +15,7 @@ internal
 #else
 public
 #endif
-enum WorkingBuffers
+enum BufferPlacement
 {
     /// <summary>
     /// Whatever a library was translated for, and the stack for one that
@@ -26,6 +26,6 @@ enum WorkingBuffers
     /// <summary>On the stack of the thread that calls, which is fastest and needs the stack to be deep enough.</summary>
     Stack,
 
-    /// <summary>In a block of memory the context holds, which leaves the thread's stack the scalars alone.</summary>
-    Block,
+    /// <summary>In the context's arena, native memory it holds, which leaves the thread's stack the scalars alone.</summary>
+    Arena,
 }

@@ -119,14 +119,14 @@ public class CSharpEmitterProcedureArgumentTests
             """
                 private static double _DRIVER_passes_SQUARE(FortranContext context, double* a1)
                 {
-                    context.Working.Enter();
+                    context.Arena.Push();
                     try
                     {
                         return context.Get<Library>().SQUARE(a1);
                     }
                     finally
                     {
-                        context.Working.Leave();
+                        context.Arena.Pop();
                     }
                 }
 
@@ -169,8 +169,8 @@ public class CSharpEmitterProcedureArgumentTests
         // Assert
         files[1].ShouldContain("(delegate*<FortranContext, byte*, int*, int, void> s, int* n)");
         files[2].ShouldContain("private static void _BOTH_passes_SHOW(FortranContext context, byte* a1, int* a2, int a1_len)");
-        files[2].ShouldContain("context.Working.Enter();");
+        files[2].ShouldContain("context.Arena.Push();");
         files[2].ShouldContain("context.Get<C>().show_(a1, a2, a1_len);");
-        files[2].ShouldContain("context.Working.Leave();");
+        files[2].ShouldContain("context.Arena.Pop();");
     }
 }

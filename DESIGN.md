@@ -358,11 +358,11 @@ stack is the fastest place and needs a thread whose stack is deep enough,
 some 90 KB for the reference sources beside what the just-in-time
 compiler takes; a thread that was given a small one cannot run them. So a
 context has a setting, and a method with arrays or character variables
-takes them as one piece: from the stack, or from a place in a block the
-context holds, by one test on entry. A method with scalars alone has
-nothing to choose, and scalars are ordinary locals whichever is chosen:
-they are few bytes, and a local can live in a register where a place in a
-block cannot.
+takes them as one piece: from the stack, or from a place in an arena of
+native memory the context holds, by a test on entry. A method with scalars
+alone has nothing to choose, and scalars are ordinary locals whichever is
+chosen: they are few bytes, and a local can live in a register where a
+place in the arena cannot.
 
 - **A place is fixed when a program is translated.** FORTRAN 77 has no
   recursion, so a procedure can start where the buffers of its deepest
@@ -370,27 +370,61 @@ block cannot.
   be undone after an exception.
 - **Each project has a region of its own**, laid out from that project's
   calls by name alone, so that a library is translated once and serves
-  any program. The context puts the regions one after another, a
-  project's after those of every project that can call into it, and has
-  room for all a call can reach before anything runs, since each project
-  says what it reaches.
-- **A procedure called through an argument runs at a level of its own**:
-  the forwarder that reaches it moves the context to another block and
-  back. Such a procedure may call back into a library whose chain is
-  still running, which no layout of one project can foresee. How deep
-  the levels go is the host's to limit, 16 unless it says otherwise.
-- **The setting has three values**: the stack, the block, and a default,
+  any program. The arena puts the regions one after another, a project's
+  after those of every project that can call into it, and has room for
+  all a call can reach before anything runs, since each project says what
+  it reaches.
+- **A region is as large as the libraries made so far need.** Each library
+  of a project asks, when it is made, for what its own procedures and
+  those of the project's libraries it calls into need, however far down,
+  and the region grows to the most any has asked for. Libraries that
+  never call each other overlap, so a program that makes only one has the
+  arena that one needs, and one that makes both has the larger, not the
+  two together. A library is made on its first call, maybe while its
+  caller runs; its caller asked for all of it already, and another
+  project that calls in asked for the whole of the project, so it asks for
+  nothing that is not there. Finer than a library it cannot be: a
+  procedure's first call comes while others run, and to ask on every call
+  would cost every call a test.
+- **The arena is used in copies, opened one on top of another.** A call
+  from outside, while nothing translated runs, opens the first: the
+  region says so on entry, `BufferSource.None`, and the method calls
+  itself again through one written beside it, which pushes a copy, calls,
+  and pops it in a `finally`. A procedure called through an argument may
+  call back into a library whose chain is still running, which no layout
+  of one project can foresee, so its forwarder opens one more copy for the
+  call. Every copy is laid out alike, and a procedure takes its buffers
+  from the one open when it is entered. How deep the copies go is the
+  host's to limit, sixteen callbacks unless it says otherwise.
+- **Memory is never taken from under a procedure that runs.** A library
+  that asks for more than the arena has, or that moves a region, changes
+  the layout while procedures may be running in it, and some code that
+  does so the translation cannot see: a host's writer or stream called
+  during a `WRITE`, a routine written by hand. So each copy of a depth that
+  is open is replaced by one laid out anew, the current one at once and
+  one deeper down when its depth is open again, and the old one is kept,
+  for the procedures that hold addresses into it, until its depth is
+  closed: by the forwarder's `finally` for a callback, by the outer
+  method's for a call from outside. A pointer into the arena is never
+  moved and never copied, since nothing knows where all of them are; a
+  procedure entered after the change takes its buffers from the new copy,
+  and those running finish in the old. It is all done when a library is
+  made and when a copy opens or closes, and nothing of it on a call.
+- **The setting has three values**: the stack, the arena, and a default,
   which is what the library was translated for and the stack for one
   that serves both. A context that asks for a mode a library was not
   translated for is refused when the library is made over it, and not at
   a call, so that the setting never means something else than it says.
-- **A procedure on a chain of calls that comes back to itself** has no
-  place, and keeps its buffers on the stack in both modes.
-- **The block is data and lies nowhere near a return address**, so an
+- **A procedure on a chain of calls that comes back to itself**, or called
+  from one, has no place, and keeps its buffers on the stack in both
+  modes, with a comment above them that names the chain the translator
+  found. Each of its calls then has buffers of its own, which is what
+  compilers that allow recursion give it.
+- **The arena is data and lies nowhere near a return address**, so an
   overrun there cannot turn a return aside as one on the stack can; what
   is lost is that the stack's own check stops the program, where an
-  overrun in the block spoils the next routine's buffer and shows as a
-  wrong answer. A procedure's address is never kept in the block.
+  overrun in the arena spoils the next routine's buffer and shows as a
+  wrong answer. A procedure's address is never kept in the arena.
 
 It was measured before it was built, with the shapes written by hand in
 `tools/benchmarks`, against a method that takes its buffers from the stack
@@ -399,19 +433,50 @@ and asks nothing:
 | Shape | A method that does nothing | One that does some fifty nanoseconds of work |
 |---|---|---|
 | tests the setting, then takes from the stack | 11% to 35% slower | the same |
-| tests the setting, then takes from the block | 12% to 22% slower | the same, within 6% either way |
-| asks nothing, takes from the block | 11% to 21% faster | 4% to 5% faster |
+| tests the setting, then takes from the arena | 12% to 22% slower | the same, within 6% either way |
+| asks nothing, takes from the arena | 11% to 21% faster | 4% to 5% faster |
 | ten arrays as one piece and not ten | | the same |
-| a scalar passed by its address, in the block and not a local | | 8% slower |
+| a scalar passed by its address, in the arena and not a local | | 8% slower |
 
 - **The test on entry is lost in a method that works**, so one library
   that chooses when it runs costs nothing that was measured, provided
   only a method with arrays or character variables tests.
-- **A scalar stays an ordinary local in either mode**: the block was the
+- **A scalar stays an ordinary local in either mode**: the arena was the
   slower place for it in every run.
-- **A `stackalloc` inside a branch is dearer than one at the top of a
-  method**, more than the test itself, which is why a method that tests
-  and then takes from the stack was the slowest shape on an empty method.
+- **A `stackalloc` costs by being in the method, not by where it stands.**
+  The machine code for one at the top of a method and one inside a branch
+  is the same but for the test: either way the method sets up a frame
+  pointer and checks the stack's cookie on every return, which a method
+  with no `stackalloc` does neither of, and a constant one larger than a
+  few dozen bytes is taken by moving the stack pointer and not folded into
+  the frame. That, with the test, is what the slowest shape on an empty
+  method paid.
+
+Telling the copies apart added a third way to the test: the stack, the
+arena, or a call that opens a copy. Measured against the test of two ways
+it replaced, `BufferSourceBenchmarks`, the stack is tested first, since
+testing the arena first cost the stack a quarter of an empty method and
+saved the arena less:
+
+| Shape | On the stack | In the arena |
+|---|---|---|
+| a method that calls nothing | the same | 30% slower, some 1.4 ns |
+| a method that calls something, as translated ones do | 3% to 8% slower | 8% to 26% slower, some 0.5 to 1.4 ns |
+
+The stack, which is the default, costs nothing that counts; the arena costs
+a second test and the call behind it, about a nanosecond on each call of a
+procedure that has buffers, a few hundredths of one that works. The ratios
+moved with what else the benchmark held, as the tool's `README.md` warns.
+
+Taking the `stackalloc` out of the method was measured against it as well:
+a body given its buffers' address, by an entry that tests and calls it with
+its place in the arena, or calls a method of its own that takes the
+buffers from the stack and calls the body from there. In the arena it was
+the same, 0.95 to 1.06, whether the entry was compiled into its caller or
+called; on the stack it was a fifth slower with the entry compiled into its
+caller and three fifths slower with it called. A call costs more than the
+frame pointer and the cookie it saves the body, so the `stackalloc` stays
+in the method, in its branch.
 
 Two designs were set aside. Limits that split a method's buffers between
 the stack and the heap as it runs cost a cut to compute and a choice per
@@ -421,7 +486,7 @@ return, as f2rust does for its large arrays, costs an allocation per call
 and a release on every way out.
 
 The test program of the reference sources, run with buffers on the stack
-and in the block, takes a thread's stack of 96 KB and not of 64 KB in
+and in the arena, takes a thread's stack of 96 KB and not of 64 KB in
 either; the deepest family touches 72 KB of stack with buffers on it and
 44 KB without. `PENDING.md`, *Working buffers: what is not built*, has
 what is left.
@@ -501,7 +566,7 @@ function names, keeps one for itself.
 holds it: where files come from, whether the console is the program's, its
 command line, whether it may run commands, its clock, what `RECL` counts,
 how a line ends, where working buffers are kept and how deep calls
-through an argument may go, `WorkingBuffers` and `CallbackDepth`. Left as made it gives nothing but files on disk, and
+through an argument may go, `BufferPlacement` and `CallbackDepth`. Left as made it gives nothing but files on disk, and
 `Standalone` is what a FORTRAN program run on its own has. A context is
 made from one. A call inside a library is unchanged,
 and one across libraries costs a load of that member more.
