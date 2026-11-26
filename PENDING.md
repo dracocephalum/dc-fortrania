@@ -783,12 +783,20 @@ one or the other by a test on entry, each project has a region laid out
 from its own calls, and a call through a procedure argument runs in a
 copy of the arena of its own. Left to do:
 
-- **A translation fixed to one mode**, a setting of the translator's that
-  writes each method in one shape with no test on entry. The context
-  already refuses a library translated for the other mode than it asks
-  for; nothing yet makes such a library. Fixed to the arena, a method
-  would also adjust no stack pointer, which measured fastest of all on a
-  method that does nothing.
+- **A translation fixed to one mode**, stack only or arena only, a setting
+  of the translator's that writes each procedure as one method with no
+  test, no entry and no opener, and registers its project for that mode.
+  The context already refuses a library translated for the other mode
+  than it asks for; nothing yet makes such a library, the translator
+  writing `BufferPlacement.Default` always. Since cores, a call inside a
+  project makes one test, so what fixing saves is that test, under a
+  nanosecond on a method that does nothing and nothing measured on one that
+  works. Fixed to the stack, the gain is mostly code that is simpler to
+  read and to set beside the FORTRAN: no region, the buffers taken one by
+  one as before the pass. Fixed to the arena, a method would also have no
+  `stackalloc`, and so no frame pointer or stack cookie, which measured
+  fastest of all on a method that does nothing. The core against a method
+  with no test is to be measured again before either is built.
 - **Arrays kept in a unit's block only for being too large for the
   stack**, over 4,096 bytes, are still there and not on the working side,
   so a unit's block holds more than its saved state; and a place for
