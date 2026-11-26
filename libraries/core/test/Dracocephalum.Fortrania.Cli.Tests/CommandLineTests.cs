@@ -201,7 +201,7 @@ public sealed class CommandLineTests : IDisposable
 
     [Theory]
     [InlineData("t", "cs", "--name", "Example.Toolkit")]
-    [InlineData("tr", "c", "--name", "Example.Toolkit", "--of")]
+    [InlineData("tr", "c", "--name", "Example.Toolkit", "--fe", "once")]
     [InlineData("translate", "csh", "--name", "Example.Toolkit", "--fo")]
     public void Run_WhenWordsAndOptionsAreShortenedToAStartNoOtherShares_ShouldTakeThemForTheWholeWords(params string[] arguments)
     {
@@ -302,7 +302,7 @@ public sealed class CommandLineTests : IDisposable
     }
 
     [Fact]
-    public void Run_WhenOfflineAndTheSourcesAreGone_ShouldCompileWhatWasTranslatedAndWriteNothing()
+    public void Run_WhenNeverToFetchAndTheSourcesAreGone_ShouldCompileWhatWasTranslatedAndWriteNothing()
     {
         // Arrange
         Put("src/twice.f", Source);
@@ -312,46 +312,46 @@ public sealed class CommandLineTests : IDisposable
         var before = _output.ToString().Length;
 
         // Act
-        var offline = Run("translate", "csharp", "--name", "Example.Toolkit", "--offline");
-        var online = Run("translate", "csharp", "--name", "Example.Toolkit");
+        var never = Run("translate", "csharp", "--name", "Example.Toolkit", "--fetch", "never");
+        var once = Run("translate", "csharp", "--name", "Example.Toolkit");
 
         // Assert
-        offline.ShouldBe(CommandLine.Done, _error.ToString());
+        never.ShouldBe(CommandLine.Done, _error.ToString());
         _output.ToString()[before..].ShouldStartWith("Translated: 0 program units, 0 files written");
-        online.ShouldBe(CommandLine.Failed);
+        once.ShouldBe(CommandLine.Failed);
         _error.ToString().ShouldContain("there is no such file");
     }
 
     [Fact]
-    public void Run_WhenOfflineAndNeitherSourcesNorATranslationAreThere_ShouldSayToRestoreAndFail()
+    public void Run_WhenNeverToFetchAndNeitherSourcesNorATranslationAreThere_ShouldSayToFetchAndFail()
     {
         // Arrange
         Put("fortrania.json", Settings);
 
         // Act
-        var code = Run("translate", "csharp", "--name", "Example.Toolkit", "--offline");
+        var code = Run("translate", "csharp", "--name", "Example.Toolkit", "--fe", "never");
 
         // Assert
         code.ShouldBe(CommandLine.Failed);
-        _error.ToString().ShouldContain("restore them first");
+        _error.ToString().ShouldContain("fetch them first");
     }
 
     [Theory]
-    [InlineData("restore", "--name", "Example.Toolkit")]
-    [InlineData("restore", "--name", "Example.Toolkit", "--if-needed")]
-    [InlineData("res", "--name", "Example.Toolkit", "fortrania.json", "--if")]
-    public void Run_WhenToldToRestoreWhatNeedsNoDownload_ShouldFetchNothingAndSucceed(params string[] arguments)
+    [InlineData("sometimes")]
+    [InlineData("Once")]
+    [InlineData("on")]
+    public void Run_WhenFetchIsGivenAnythingButNeverOnceOrAlways_ShouldSaySoAndTranslateNothing(string fetch)
     {
         // Arrange
         Put("src/twice.f", Source);
         Put("fortrania.json", Settings);
 
         // Act
-        var code = Run(arguments);
+        var code = Run("translate", "csharp", "--name", "Example.Toolkit", "--fetch", fetch);
 
         // Assert
-        code.ShouldBe(CommandLine.Done, _error.ToString());
-        _output.ToString().ShouldStartWith("Restored: 0 folders of sources fetched.");
+        code.ShouldBe(CommandLine.Misused);
+        _error.ToString().ShouldContain($"--fetch is {fetch}; it is never, once or always.");
         Directory.Exists(Path.Combine(_root, "out")).ShouldBeFalse();
     }
 
@@ -467,7 +467,6 @@ public sealed class CommandLineTests : IDisposable
 
     [Theory]
     [InlineData("translate", "csharp")]
-    [InlineData("restore")]
     public void Run_WhenNoNameIsGiven_ShouldSayItIsToBeAndTranslateNothing(params string[] arguments)
     {
         // Arrange
@@ -547,14 +546,14 @@ public sealed class CommandLineTests : IDisposable
     }
 
     [Fact]
-    public void Run_WhenRestoreIsGivenAnOptionOfTranslate_ShouldSaySo()
+    public void Run_WhenToldToRestore_ShouldSayItIsNotACommand()
     {
         // Act
-        var code = Run("restore", "--force");
+        var code = Run("restore", "--name", "Example.Toolkit");
 
         // Assert
         code.ShouldBe(CommandLine.Misused);
-        _error.ToString().ShouldContain("--force is not an option of restore.");
+        _error.ToString().ShouldContain("restore is not a command.");
     }
 
     [Fact]

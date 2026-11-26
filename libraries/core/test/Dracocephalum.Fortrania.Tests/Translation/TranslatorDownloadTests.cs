@@ -205,26 +205,7 @@ public sealed class TranslatorDownloadTests : IDisposable
     }
 
     [Fact]
-    public void Restore_WhenTheSourcesAreNotThere_ShouldFetchThemAndTranslateNothing()
-    {
-        // Arrange
-        var archive = MakeArchive("toolkit.tar", ("toolkit/src/core/core.f", Core));
-        var server = new FakeServer(archive);
-        var settings = Settings(Variable("toolkit.tar", archive, strip: 1));
-
-        // Act
-        var result = Translator.Restore([settings], new TranslationOptions { HttpHandler = server }, onlyWhereNotTranslated: false);
-
-        // Assert
-        result.Succeeded.ShouldBeTrue(string.Join('\n', result.Messages));
-        server.Requests.ShouldBe(1);
-        result.Fetched.ShouldBe([Path.Combine(_root, "sources")]);
-        result.Written.ShouldBeEmpty();
-        Directory.Exists(Path.Combine(_root, "out")).ShouldBeFalse();
-    }
-
-    [Fact]
-    public void Restore_WhenOnlyWhereNotTranslatedAndThereIsATranslation_ShouldFetchNothing()
+    public void Run_WhenNeverToFetchAndTheSourcesAreGoneButTheTranslationIsThere_ShouldReachNoServerAndCompileIt()
     {
         // Arrange: translated once from a download, then the sources go.
         var archive = MakeArchive("toolkit.tar", ("toolkit/src/core/core.f", Core));
@@ -234,15 +215,72 @@ public sealed class TranslatorDownloadTests : IDisposable
         Directory.Delete(Path.Combine(_root, "sources"), recursive: true);
 
         // Act
-        var needed = Translator.Restore([settings], new TranslationOptions { HttpHandler = server }, onlyWhereNotTranslated: true);
-        var offline = Translator.Run(settings, new TranslationOptions { HttpHandler = server, Offline = true });
+        var result = Translator.Run(settings, new TranslationOptions { HttpHandler = server, Fetch = FetchPolicy.Never });
 
-        // Assert: neither reaches the server again, and offline the
-        // project is read from what was translated.
-        needed.Succeeded.ShouldBeTrue();
-        offline.Succeeded.ShouldBeTrue(string.Join('\n', offline.Messages));
+        // Assert: the project is read from what was translated.
+        result.Succeeded.ShouldBeTrue(string.Join('\n', result.Messages));
         server.Requests.ShouldBe(1);
-        offline.Units.ShouldBe(0);
+        result.Units.ShouldBe(0);
+    }
+
+    [Fact]
+    public void Run_WhenAlwaysToFetchAndAFetchMadeTheFolder_ShouldReplaceIt()
+    {
+        // Arrange: fetched once, and a file put in the folder since.
+        var archive = MakeArchive("toolkit.tar", ("toolkit/src/core/core.f", Core));
+        var server = new FakeServer(archive);
+        var settings = Settings(Variable("toolkit.tar", archive, strip: 1));
+        Translator.Run(settings, new TranslationOptions { HttpHandler = server }).Succeeded.ShouldBeTrue();
+        Put("sources/stray.txt", "not in the archive");
+
+        // Act
+        var result = Translator.Run(settings, new TranslationOptions { HttpHandler = server, Fetch = FetchPolicy.Always });
+
+        // Assert
+        result.Succeeded.ShouldBeTrue(string.Join('\n', result.Messages));
+        server.Requests.ShouldBe(2);
+        result.Fetched.ShouldBe([Path.Combine(_root, "sources")]);
+        File.Exists(Path.Combine(_root, "sources/stray.txt")).ShouldBeFalse();
+        File.Exists(Path.Combine(_root, "sources/src/core/core.f")).ShouldBeTrue();
+        Directory.GetFileSystemEntries(_root).Select(Path.GetFileName).Order(StringComparer.Ordinal).ShouldBe(["out", "sources"]);
+    }
+
+    [Fact]
+    public void Run_WhenAlwaysToFetchAndNoFetchMadeTheFolder_ShouldRefuseItAndLeaveItAsItIs()
+    {
+        // Arrange: the folder put there by hand.
+        Put("sources/src/core/core.f", Core);
+        var archive = MakeArchive("toolkit.tar", ("toolkit/src/core/core.f", Core));
+        var server = new FakeServer(archive);
+        var settings = Settings(Variable("toolkit.tar", archive, strip: 1));
+
+        // Act
+        var result = Translator.Run(settings, new TranslationOptions { HttpHandler = server, Fetch = FetchPolicy.Always });
+
+        // Assert
+        result.Succeeded.ShouldBeFalse();
+        result.Messages.ShouldHaveSingleItem().Text.ShouldContain("was not fetched, so it is not replaced");
+        server.Requests.ShouldBe(0);
+        File.ReadAllText(Path.Combine(_root, "sources/src/core/core.f")).ShouldBe(Core);
+    }
+
+    [Fact]
+    public void Run_WhenAlwaysToFetchAndTheNewArchiveIsRefused_ShouldLeaveTheFolderAsItWas()
+    {
+        // Arrange: fetched once; the server then has an archive whose hash
+        // is not the one the settings give.
+        var archive = MakeArchive("toolkit.tar", ("toolkit/src/core/core.f", Core));
+        var settings = Settings(Variable("toolkit.tar", archive, strip: 1));
+        Translator.Run(settings, new TranslationOptions { HttpHandler = new FakeServer(archive) }).Succeeded.ShouldBeTrue();
+        var other = new FakeServer(MakeArchive("toolkit.tar", ("toolkit/src/core/core.f", "      END\n")));
+
+        // Act
+        var result = Translator.Run(settings, new TranslationOptions { HttpHandler = other, Fetch = FetchPolicy.Always });
+
+        // Assert
+        result.Succeeded.ShouldBeFalse();
+        File.ReadAllText(Path.Combine(_root, "sources/src/core/core.f")).ShouldBe(Core);
+        Directory.GetFileSystemEntries(_root).Select(Path.GetFileName).Order(StringComparer.Ordinal).ShouldBe(["out", "sources"]);
     }
 
     [Fact]
@@ -267,28 +305,6 @@ public sealed class TranslatorDownloadTests : IDisposable
         // Assert
         result.Succeeded.ShouldBeTrue(string.Join('\n', result.Messages));
         Directory.GetFileSystemEntries(_root).Select(Path.GetFileName).Order(StringComparer.Ordinal).ShouldBe(["out", "sources"]);
-    }
-
-    [Fact]
-    public void Restore_WhenOnlyWhereNotTranslatedAndOnlyTheSummaryIsThere_ShouldFetch()
-    {
-        // Arrange: translated once from a download, then the sources and the
-        // translation go, and the summary stays, as a checkout has it whose
-        // summary is committed and whose translation is not.
-        var archive = MakeArchive("toolkit.tar", ("toolkit/src/core/core.f", Core));
-        var server = new FakeServer(archive);
-        var settings = Settings(Variable("toolkit.tar", archive, strip: 1));
-        Translator.Run(settings, new TranslationOptions { HttpHandler = server }).Succeeded.ShouldBeTrue();
-        Directory.Delete(Path.Combine(_root, "sources"), recursive: true);
-        Directory.Delete(Path.Combine(_root, "out/Example.Toolkit/Generated"), recursive: true);
-
-        // Act
-        var result = Translator.Restore([settings], new TranslationOptions { HttpHandler = server }, onlyWhereNotTranslated: true);
-
-        // Assert
-        result.Succeeded.ShouldBeTrue(string.Join('\n', result.Messages));
-        server.Requests.ShouldBe(2);
-        result.Fetched.ShouldBe([Path.Combine(_root, "sources")]);
     }
 
     private static VariableSettings Variable(string name, byte[] archive, int strip) => new()

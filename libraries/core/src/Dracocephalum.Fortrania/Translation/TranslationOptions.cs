@@ -21,13 +21,11 @@ public sealed class TranslationOptions
     public bool Force { get; set; }
 
     /// <summary>
-    /// Gets or sets a value indicating whether the run reaches no server:
-    /// nothing is downloaded, and a project whose sources are not on the
-    /// machine is read from the summary it wrote last, where what it wrote
-    /// is all there, and is compiled as it is. One that was never made then
-    /// fails. A build runs so, and fetches in its restore.
+    /// Gets or sets when the sources the settings say where to download
+    /// from are downloaded: where they are not there, the default, never, or
+    /// on every run.
     /// </summary>
-    public bool Offline { get; set; }
+    public FetchPolicy Fetch { get; set; }
 
     /// <summary>
     /// Gets or sets what a translation may call into, by paths: an

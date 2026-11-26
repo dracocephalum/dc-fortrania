@@ -16,11 +16,13 @@
                           summary beside the project file embedded as it is;
                           always writes every file again; empty or
                           ifChanged, when something it was made from changed
-      FortraniaFetch      never, ifNeeded or always: where the sources are
-                          not on the machine, whether they are downloaded
-                          before translating. ifNeeded, the default, does so
-                          only where the translation is not all there to be
-                          compiled instead; never reaches no server
+      FortraniaFetch      never, once or always: when the sources the settings
+                          say where to download from are downloaded, as the
+                          translation runs. once, the default, where they are
+                          not on the machine; never reaches no server, and
+                          compiles a project whose sources are not there as
+                          it was translated last; always replaces what an
+                          earlier fetch made, on each run of the translation
 
     The translation is the command's, run as a program of its own with what
     the build resolved: the assemblies of the project's project and package
@@ -46,7 +48,7 @@
   -->
 
   <PropertyGroup>
-    <FortraniaFetch Condition="'$(FortraniaFetch)' == ''">ifNeeded</FortraniaFetch>
+    <FortraniaFetch Condition="'$(FortraniaFetch)' == ''">once</FortraniaFetch>
   </PropertyGroup>
 
   <!-- A settings file is the translation's, and not a file to copy anywhere. -->
@@ -71,8 +73,8 @@
            Text="The project has no settings to translate: no fortrania.json or *.fortrania.json in its folder, and no Fortrania item." />
     <Error Condition="'$(FortraniaTranslate)' != '' and '$(FortraniaTranslate)' != 'never' and '$(FortraniaTranslate)' != 'ifChanged' and '$(FortraniaTranslate)' != 'always'"
            Text="FortraniaTranslate is '$(FortraniaTranslate)'; it is never, ifChanged or always, or empty." />
-    <Error Condition="'$(FortraniaFetch)' != 'never' and '$(FortraniaFetch)' != 'ifNeeded' and '$(FortraniaFetch)' != 'always'"
-           Text="FortraniaFetch is '$(FortraniaFetch)'; it is never, ifNeeded or always." />
+    <Error Condition="'$(FortraniaFetch)' != 'never' and '$(FortraniaFetch)' != 'once' and '$(FortraniaFetch)' != 'always'"
+           Text="FortraniaFetch is '$(FortraniaFetch)'; it is never, once or always." />
 
     <PropertyGroup>
       <_FortraniaSummaryFile>$(MSBuildProjectDirectory)/$(AssemblyName).fortrania-summary.json</_FortraniaSummaryFile>
@@ -107,10 +109,8 @@
 
     <PropertyGroup>
       <_FortraniaArguments>--name "$(AssemblyName)" @(Fortrania->'"%(FullPath)"', ' ') --summary "$(_FortraniaSummaryFile)"</_FortraniaArguments>
-      <_FortraniaTranslateArguments>translate csharp $(_FortraniaArguments) --offline --inventory "$(_FortraniaInventory)"</_FortraniaTranslateArguments>
+      <_FortraniaTranslateArguments>translate csharp $(_FortraniaArguments) --inventory "$(_FortraniaInventory)"</_FortraniaTranslateArguments>
       <_FortraniaTranslateArguments Condition="'@(_FortraniaReference)' != ''">$(_FortraniaTranslateArguments) @(_FortraniaReference->'--reference "%(FullPath)"', ' ')</_FortraniaTranslateArguments>
-      <_FortraniaRestoreArguments>restore $(_FortraniaArguments)</_FortraniaRestoreArguments>
-      <_FortraniaRestoreArguments Condition="'$(FortraniaFetch)' == 'ifNeeded'">$(_FortraniaRestoreArguments) --if-needed</_FortraniaRestoreArguments>
     </PropertyGroup>
 
     <!-- Its time changes when the command line does: a new version of the command, other settings or other references. -->
@@ -120,9 +120,15 @@
                       WriteOnlyWhenDifferent="true"
                       Condition="'$(FortraniaTranslate)' != 'never'" />
 
-    <!-- After the command line is written, so that a build told always is not followed by one that translates again. -->
+    <!--
+      After the command line is written, so that a build told always is not
+      followed by one that translates again, and a build fetching otherwise
+      translates nothing again for that: how the sources come is not what
+      they are translated to.
+    -->
     <PropertyGroup>
       <_FortraniaTranslateArguments Condition="'$(FortraniaTranslate)' == 'always'">$(_FortraniaTranslateArguments) --force</_FortraniaTranslateArguments>
+      <_FortraniaTranslateArguments>$(_FortraniaTranslateArguments) --fetch $(FortraniaFetch)</_FortraniaTranslateArguments>
     </PropertyGroup>
 
     <ItemGroup>
@@ -167,11 +173,6 @@
           Condition="'$(DesignTimeBuild)' != 'true' and '$(FortraniaTranslate)' != 'never'"
           Inputs="@(Fortrania);$(_FortraniaCommandLineFile);@(_FortraniaRead);@(_FortraniaReferenceInput)"
           Outputs="$(_FortraniaInventory)">
-    <Exec Condition="'$(FortraniaFetch)' != 'never'"
-          Command="&quot;$(_FortraniaDotnet)&quot; &quot;$(_FortraniaCommand)&quot; $(_FortraniaRestoreArguments)"
-          WorkingDirectory="$(MSBuildProjectDirectory)"
-          EnvironmentVariables="IntermediateOutput=$(_FortraniaIntermediate)"
-          StandardOutputImportance="low" />
     <Exec Command="&quot;$(_FortraniaDotnet)&quot; &quot;$(_FortraniaCommand)&quot; $(_FortraniaTranslateArguments)"
           WorkingDirectory="$(MSBuildProjectDirectory)"
           EnvironmentVariables="IntermediateOutput=$(_FortraniaIntermediate)"

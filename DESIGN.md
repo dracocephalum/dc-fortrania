@@ -889,8 +889,8 @@ against it, reading none of its sources.
   resource is passed over. Two references defining one procedure are
   refused, since a call could not tell which it reaches, and so is one
   holding a project of the run.
-- **Offline, a project whose sources are not here is compiled as it was
-  translated last**, read from its summary, where what it wrote is all
+- **Told never to fetch, a project whose sources are not here is compiled
+  as it was translated last**, read from its summary, where what it wrote is all
   there: the summary, and each manifest with every file it lists. The
   summary alone is not that, since it is committed where the translation
   may not be.
@@ -1099,10 +1099,10 @@ translator's, a command line; *tool* is a word of this repository's
 layout already, for what is never published.
 
     fortrania translate csharp --name <project> [settings]... [--summary <file>]
-                               [--reference <assembly or summary>]... [--force] [--offline]
-                               [--inventory <file>] [--namespace <namespace>]
+                               [--reference <assembly or summary>]... [--force]
+                               [--fetch never|once|always] [--inventory <file>]
+                               [--namespace <namespace>]
                                [--scaffold [--entry <program>] [--framework <framework>]]
-    fortrania restore --name <project> [settings]... [--summary <file>] [--if-needed]
     fortrania --version
 
 - **A run is one project, and its name is always given.** `--name` is the
@@ -1124,18 +1124,23 @@ layout already, for what is never published.
   elsewhere than beside the first settings file. `--entry` and
   `--framework` without `--scaffold` are refused, since they would do
   nothing.
-- **`restore` fetches and translates nothing**, for a pipeline that wants
-  fetching as a step of its own and for a build's restore: the sources of
-  the project that say where to download them and are not on the machine.
-  `--if-needed` passes over a project whose translation is all there, so a
-  build fetches only what it could not compile otherwise. Two fetches of
-  the same sources at once, as two projects of one build may make, each
-  download to a folder of their own, and the one that finishes second
-  takes the first's folder.
-- **`--offline` reaches no server**: nothing is fetched, and a project
-  whose sources are not on the machine is compiled as it was translated
-  last, read from its summary, where that is all there. One with neither
-  fails and says to restore. A build translates so.
+- **`--fetch` says when the sources are downloaded, as the translation
+  runs**, those the settings say where to download from. `once`, the
+  default, downloads a folder that is not there and never again once it
+  is. `never` reaches no server: a project whose sources are not on the
+  machine is compiled as it was translated last, read from its summary,
+  where that is all there, and one with neither fails and says to fetch.
+  `always` downloads on every run and replaces the folder, but only one a
+  fetch made, which holds the file `.fortrania-fetched` saying what from: a
+  folder without it is somebody's own, and is refused and left as it is.
+  The new folder is checked and expanded beside the old, which is moved
+  aside and back again where the new cannot take its place, so a download
+  that fails leaves the sources as they were. Two fetches of the same
+  sources at once, as two projects of one build may make, each download
+  to a folder of their own, and the one that finishes second takes the
+  first's folder. Fetching is not a command of its own: a translation
+  fetches what it reads, and no pipeline has yet wanted the one without
+  the other.
 - **`--inventory` is for a build**: a list of what the run read and what
   its translation is made of, by which the build tells when to translate
   again and what to compile; *A project translates its FORTRAN as it
@@ -1143,7 +1148,7 @@ layout already, for what is never published.
   and lies in its intermediate folder, where the summary, which is
   embedded and committed, holds none.
 - **The first word is what to do, and the second what to translate to.**
-  Another thing to do, `restore`, and later `build` or `run`, is a word
+  Another thing to do, `build` or `run` say, is a word
   beside `translate`, and another target a word beside `csharp`, each
   with options of its own. `translate` is the repository's own word for
   the job, its translator and its translations; `transpile` would say it
@@ -1242,18 +1247,16 @@ compiled again for any other reason translates nothing that calls into
 it. A variable's value taken from the environment is not watched; a build
 told `always` translates whatever is there.
 
-**Sources are fetched before translating, and only where needed.** A
+**Sources are fetched as the translation runs, once unless told otherwise.** A
 package's targets are imported once restore has run, so its first
 restore, on a clean machine, cannot fetch anything; the step fetches
-instead, before it translates, and only when it is to translate. The
-build fetches with `fortrania restore --if-needed`, which passes over a
-project whose translation is all there, and then translates with
-`--offline`, which fetches nothing and compiles a project whose sources are
-not there as it was translated last. A pipeline whose translation is
-committed builds told `never`, and never reaches the toolkit's server.
-`FortraniaFetch`, `never`, `ifNeeded` or `always`, overrides that for a
-machine that is never to reach a server, or one that is to fetch whatever
-is not there.
+instead, as it translates, and only when it is to translate. It passes
+`FortraniaFetch` to the command as `--fetch`: `once` unless set, `never`
+for a machine that is never to reach a server, where a project whose
+sources are not there is compiled as it was translated last, and `always`
+to download again on every translation. The policy is left out of the
+command line the build compares, since how the sources come is not what
+they are translated to.
 
 **The targets run the command as a program of its own**, carried in the
 package under `tools/`, with the `dotnet` the build runs on, and load

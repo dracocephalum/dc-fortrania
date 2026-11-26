@@ -61,10 +61,10 @@ and, installed from its package, as
 
     dotnet tool install --global Dracocephalum.Fortrania.Cli
     fortrania translate csharp --name <project> [settings]... [--summary <file>]
-                               [--reference <assembly or summary>]... [--force] [--offline]
-                               [--inventory <file>] [--namespace <namespace>]
+                               [--reference <assembly or summary>]... [--force]
+                               [--fetch never|once|always] [--inventory <file>]
+                               [--namespace <namespace>]
                                [--scaffold [--entry <program>] [--framework <framework>]]
-    fortrania restore --name <project> [settings]... [--summary <file>] [--if-needed]
 
 The settings files named, or every `fortrania.json` and
 `*.fortrania.json` in the folder it is run in, are one project, named by
