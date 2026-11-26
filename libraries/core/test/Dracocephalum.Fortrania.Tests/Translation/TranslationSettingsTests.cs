@@ -88,7 +88,7 @@ public class TranslationSettingsTests
             // Assert
             settings.Variables["SOURCES"].Path.ShouldBe("shared");
             settings.LocalVariables["Sources"].ShouldBe("mine");
-            TranslationSettings.LocalFileOf(path).ShouldBe(Path.Combine(folder, "example.fortrania.local.json"));
+            TranslationSettings.GetLocalFile(path).ShouldBe(Path.Combine(folder, "example.fortrania.local.json"));
         }
         finally
         {

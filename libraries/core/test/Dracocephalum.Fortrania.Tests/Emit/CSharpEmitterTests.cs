@@ -206,7 +206,7 @@ public class CSharpEmitterTests
             public unsafe partial class C : IFortranLibrary<C>
             {
                 private readonly FortranContext _context;
-                private readonly StateMemory _memory;
+                private readonly StateMemory _stateMemory;
                 private readonly FortranIO _io;
 
             """.ReplaceLineEndings("\n"),
@@ -217,7 +217,7 @@ public class CSharpEmitterTests
                 {
                     ArgumentNullException.ThrowIfNull(context);
                     _context = context;
-                    _memory = context.Memory;
+                    _stateMemory = context.StateMemory;
                     _io = context.IO;
                     context.Add(this);
                 }

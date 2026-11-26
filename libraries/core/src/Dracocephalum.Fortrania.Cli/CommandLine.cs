@@ -346,7 +346,7 @@ internal static class CommandLine
                 return true;
             }
 
-            var read = settingsPaths.SelectMany(path => new[] { path, TranslationSettings.LocalFileOf(path) }.Where(File.Exists));
+            var read = settingsPaths.SelectMany(path => new[] { path, TranslationSettings.GetLocalFile(path) }.Where(File.Exists));
             var lines = read.Concat(result.Read).Select(file => "read " + file)
                 .Concat(result.Patterns.Select(pattern => "pattern " + pattern))
                 .Concat(result.Files.Select(file => "file " + file));

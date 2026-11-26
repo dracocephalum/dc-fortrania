@@ -95,7 +95,7 @@ public sealed class TranslationSettings
         var settings = Parse(File.ReadAllText(path));
         settings.Folder = Path.GetDirectoryName(Path.GetFullPath(path));
 
-        var local = LocalFileOf(path);
+        var local = GetLocalFile(path);
         if (File.Exists(local))
         {
             var values = JsonSerializer.Deserialize<LocalSettings>(File.ReadAllText(local), TranslationJson.Default)
@@ -109,7 +109,7 @@ public sealed class TranslationSettings
     /// <summary>Gives the local settings file that belongs to a settings file: the same name with <c>.local</c> before its extension.</summary>
     /// <param name="path">The settings file.</param>
     /// <returns>The local settings file, which need not exist.</returns>
-    public static string LocalFileOf(string path)
+    public static string GetLocalFile(string path)
     {
         ArgumentException.ThrowIfNullOrEmpty(path);
         return Path.Combine(Path.GetDirectoryName(path) ?? string.Empty, Path.GetFileNameWithoutExtension(path) + ".local" + Path.GetExtension(path));

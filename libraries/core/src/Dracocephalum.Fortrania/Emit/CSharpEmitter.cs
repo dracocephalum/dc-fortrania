@@ -82,7 +82,7 @@ public sealed class CSharpEmitter
         file.Line("[SkipLocalsInit]");
         file.Open($"public unsafe partial class {name} : IFortranLibrary<{name}>");
         file.Line("private readonly FortranContext _context;");
-        file.Line("private readonly StateMemory _memory;");
+        file.Line("private readonly StateMemory _stateMemory;");
         file.Line("private readonly FortranIO _io;");
         if (region is not null)
         {
@@ -110,7 +110,7 @@ public sealed class CSharpEmitter
         file.Open($"public {name}(FortranContext context)");
         file.Line("ArgumentNullException.ThrowIfNull(context);");
         file.Line("_context = context;");
-        file.Line("_memory = context.Memory;");
+        file.Line("_stateMemory = context.StateMemory;");
         file.Line("_io = context.IO;");
         if (region is not null)
         {

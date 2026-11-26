@@ -84,7 +84,7 @@ public class CSharpEmitterEquivalenceTests
         var file = TranslatedProgram.Translate(EquivalenceSample.Source)[2];
 
         // Assert
-        file.ShouldContain("byte* _state = _memory.Allocate(16);");
+        file.ShouldContain("byte* _state = _stateMemory.Allocate(16);");
         file.ShouldContain(
             """
                     int* a = (int*)(_state + 0);
