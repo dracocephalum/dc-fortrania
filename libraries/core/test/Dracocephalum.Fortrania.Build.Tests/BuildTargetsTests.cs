@@ -201,6 +201,41 @@ public sealed class BuildTargetsTests : IDisposable
     }
 
     [Fact]
+    public async Task Build_WhenALibraryReferencesAProjectOfPlugins_ShouldBuildItFirstAndTranslateAgainWhenItChanges()
+    {
+        // Arrange: a project of one plugin, which marks every file, and the
+        // library referring to it as plugins are referred to.
+        Put("Plugin/Example.Plugin.csproj", """
+            <Project Sdk="Microsoft.NET.Sdk">
+              <PropertyGroup>
+                <TargetFramework>net10.0</TargetFramework>
+                <Nullable>enable</Nullable>
+                <EnableDynamicLoading>true</EnableDynamicLoading>
+              </PropertyGroup>
+              <ItemGroup>
+                <Reference Include="../package/tools/net10.0/Dracocephalum.Fortrania.dll" Private="false" />
+              </ItemGroup>
+            </Project>
+            """);
+        Put("Plugin/Marker.cs", Marker("first"));
+        Put("Lib/Example.Lib.csproj", ProjectFile("""<ItemGroup><ProjectReference Include="../Plugin/Example.Plugin.csproj" ReferenceOutputAssembly="false" OutputItemType="FortraniaPlugin" /></ItemGroup>"""));
+
+        // Act
+        var (code, output) = await BuildAsync();
+        Put("Plugin/Marker.cs", Marker("second"));
+        var changed = await BuildAsync();
+
+        // Assert: the plugin took part, and the library does not refer to
+        // its assembly.
+        code.ShouldBe(0, output);
+        output.ShouldNotContain(": warning", Case.Sensitive);
+        changed.Code.ShouldBe(0, changed.Output);
+        File.ReadAllText(Path.Combine(_root, "Lib/Generated/Core/TWICE.g.cs")).ShouldEndWith("// Marked second.\n");
+        File.Exists(Path.Combine(_root, "Lib/bin/Debug/net10.0/Example.Plugin.dll")).ShouldBeFalse();
+        (await RunAsync("dotnet", Path.Combine(_root, "App/bin/Debug/net10.0/Example.App.dll"))).Code.ShouldBe(9 + 2 + 2);
+    }
+
+    [Fact]
     public async Task Build_WhenTheProjectsFolderHasNoSettings_ShouldSaySoAndFail()
     {
         // Arrange
@@ -214,6 +249,23 @@ public sealed class BuildTargetsTests : IDisposable
         code.ShouldNotBe(0);
         output.ShouldContain("The project has no settings to translate");
     }
+
+    // A plugin that ends every file with a line of the word given.
+    private static string Marker(string word) =>
+        $$"""
+        namespace Example.Plugin;
+
+        public sealed class Marker : Dracocephalum.Fortrania.Plugins.ITranslationPlugin
+        {
+            public void BeforeWrite(Dracocephalum.Fortrania.Plugins.TranslationContext context)
+            {
+                foreach (var file in context.GeneratedFiles)
+                {
+                    file.Text += "// Marked {{word}}.\n";
+                }
+            }
+        }
+        """;
 
     private static string ProjectFile(string body) =>
         $"""
