@@ -797,6 +797,15 @@ copy of the arena of its own. Left to do:
   `stackalloc`, and so no frame pointer or stack cookie, which measured
   fastest of all on a method that does nothing. The core against a method
   with no test is to be measured again before either is built.
+- **A library's own default mode**, a setting of the translator's that
+  makes a library prefer the arena where its context asks for neither,
+  instead of the stack that is everyone's default now. To be settled
+  first: which preference wins when a context holds libraries that
+  prefer different modes. Not needed for speed so far: SPICE's quick test
+  families, run three times in each mode turn about, summed to 520–541 s
+  on the stack and 488–570 s in the arena, the same within their spread.
+  The stack stays the default for the check .NET makes on it, which an
+  overrun of a buffer in the arena does not have.
 - **Arrays kept in a unit's block only for being too large for the
   stack**, over 4,096 bytes, are still there and not on the working side,
   so a unit's block holds more than its saved state; and a place for
