@@ -23,6 +23,14 @@
                           compiles a project whose sources are not there as
                           it was translated last; always replaces what an
                           earlier fetch made, on each run of the translation
+      FortraniaPlugin     items, assemblies whose plugins take part in the
+                          translation, in order. A project of plugins is
+                          referenced so that it is built first and its
+                          assembly becomes one, and is not referenced by
+                          the compilation:
+                            ProjectReference with ReferenceOutputAssembly
+                            false and OutputItemType FortraniaPlugin
+                          A plugin built again translates again
 
     The translation is the command's, run as a program of its own with what
     the build resolved: the assemblies of the project's project and package
@@ -111,6 +119,7 @@
       <_FortraniaArguments>--name "$(AssemblyName)" @(Fortrania->'"%(FullPath)"', ' ') --summary "$(_FortraniaSummaryFile)"</_FortraniaArguments>
       <_FortraniaTranslateArguments>translate csharp $(_FortraniaArguments) --inventory "$(_FortraniaInventory)"</_FortraniaTranslateArguments>
       <_FortraniaTranslateArguments Condition="'@(_FortraniaReference)' != ''">$(_FortraniaTranslateArguments) @(_FortraniaReference->'--reference "%(FullPath)"', ' ')</_FortraniaTranslateArguments>
+      <_FortraniaTranslateArguments Condition="'@(FortraniaPlugin)' != ''">$(_FortraniaTranslateArguments) @(FortraniaPlugin->'--plugin "%(FullPath)"', ' ')</_FortraniaTranslateArguments>
     </PropertyGroup>
 
     <!-- Its time changes when the command line does: a new version of the command, other settings or other references. -->

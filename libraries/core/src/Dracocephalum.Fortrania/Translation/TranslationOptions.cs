@@ -1,3 +1,5 @@
+using Dracocephalum.Fortrania.Plugins;
+
 namespace Dracocephalum.Fortrania.Translation;
 
 /// <summary>
@@ -36,6 +38,22 @@ public sealed class TranslationOptions
     /// from the current directory.
     /// </summary>
     public IReadOnlyCollection<string>? References { get; set; }
+
+    /// <summary>
+    /// Gets or sets plugins that take part in the run beside those of the
+    /// assemblies the options and the settings name; none unless set. The
+    /// plugins of a run are called in the order each gives, and where two
+    /// give the same, these first and then those of each assembly in the
+    /// order named.
+    /// </summary>
+    public IReadOnlyList<ITranslationPlugin> Plugins { get; set; } = [];
+
+    /// <summary>
+    /// Gets or sets the assemblies whose plugins take part in the run, by
+    /// paths, before those the settings name. A path that is not full is
+    /// taken from the current directory.
+    /// </summary>
+    public IReadOnlyCollection<string>? PluginAssemblies { get; set; }
 
     /// <summary>
     /// Gets or sets the namespace of the classes of every project of the

@@ -379,6 +379,58 @@ public sealed class CommandLineTests : IDisposable
     }
 
     [Fact]
+    public void Run_WhenGivenAnAssemblyOfPlugins_ShouldHaveThemTakePartAndListTheAssemblyAsRead()
+    {
+        // Arrange: this assembly, whose one plugin marks every file.
+        Put("src/twice.f", Source);
+        Put("fortrania.json", Settings);
+        var assembly = typeof(MarkingPlugin).Assembly.Location;
+
+        // Act
+        var code = Run("translate", "csharp", "--name", "Example.Toolkit", "--plugin", assembly, "--inventory", "fortrania.inventory");
+
+        // Assert
+        code.ShouldBe(CommandLine.Done, _error.ToString());
+        File.ReadAllText(Path.Combine(_root, "out/Example.Toolkit/Generated/Core/TWICE.g.cs")).ShouldEndWith(MarkingPlugin.Mark + "\n");
+        var read = File.ReadAllLines(Path.Combine(_root, "fortrania.inventory"));
+        read.ShouldContain("read " + assembly);
+        read.ShouldContain("read " + Path.ChangeExtension(assembly, ".deps.json"));
+    }
+
+    [Fact]
+    public void Run_WhenAPluginAssemblyIsNotThere_ShouldSaySoAndTranslateNothing()
+    {
+        // Arrange
+        Put("src/twice.f", Source);
+        Put("fortrania.json", Settings);
+
+        // Act
+        var code = Run("translate", "csharp", "--name", "Example.Toolkit", "--plugin", "missing.dll");
+
+        // Assert
+        code.ShouldBe(CommandLine.Failed);
+        _error.ToString().ShouldContain($"There is no plugin assembly {Path.Combine(_root, "missing.dll")}.");
+        Directory.Exists(Path.Combine(_root, "out")).ShouldBeFalse();
+    }
+
+    [Fact]
+    public void Run_WhenAPluginAssemblyHoldsNoPlugin_ShouldSaySoAndTranslateNothing()
+    {
+        // Arrange: an assembly that knows nothing of plugins.
+        Put("src/twice.f", Source);
+        Put("fortrania.json", Settings);
+        var assembly = typeof(ShouldBeTestExtensions).Assembly.Location;
+
+        // Act
+        var code = Run("translate", "csharp", "--name", "Example.Toolkit", "--plugin", assembly);
+
+        // Assert
+        code.ShouldBe(CommandLine.Failed);
+        _error.ToString().ShouldContain($"{assembly} holds no public type that implements ITranslationPlugin");
+        Directory.Exists(Path.Combine(_root, "out")).ShouldBeFalse();
+    }
+
+    [Fact]
     public void Run_WhenATranslationWithAnInventoryFails_ShouldRemoveTheLastInventory()
     {
         // Arrange: an inventory of a translation that was made, then its

@@ -1012,6 +1012,51 @@ among them, and the translator depends on none of it. One that fails fails
 the translation, with what it said; the files are written by then, so the
 translation's own all or nothing does not reach the commands after it.
 
+**Plugins take part in the run itself.** A plugin is a class of its own
+assembly that implements `ITranslationPlugin`, and is called before and
+after each stage, reading, analysis and writing, with one
+`TranslationContext` that holds more as the run goes. What a command
+does to the files once they are written, a plugin does in `BeforeWrite`
+to the text before it is: what it makes is what is written and what the
+manifest's hash is taken of, so a changed plugin rewrites the files it
+changes and no others, with no `--force`; and what it reports is one of
+the translation's messages, with a file and a line, so an error stops the
+run before anything is written.
+
+- **Named in three places, and loaded once.** The settings' `plugins`,
+  paths from their folder that may name variables; `--plugin` on the
+  command line; and in a build, a project reference with
+  `ReferenceOutputAssembly="false"` and `OutputItemType="FortraniaPlugin"`,
+  the SDK's own way to have a project built first and its assembly handed
+  over and not compiled against, as an analyzer is. A program that
+  translates through `Translator` may also pass plugins it made. An
+  assembly named twice is loaded once, and it and its `.deps.json` are
+  among what the run read, so a build translates again when a plugin is
+  built again. In a build, the reference is the way: a path in the settings
+  to a build's output depends on the configuration it was built in.
+- **Each assembly is loaded apart, and shares one assembly with the
+  translator**, the one that defines the interface, so that both mean the
+  same type by it; anything else is the plugin's, found as its
+  `.deps.json` says, so two plugins may bring two versions of one library.
+  A plugin with packages of its own sets `EnableDynamicLoading`, which
+  copies them beside its assembly. It runs in the translator's process
+  with the translator's runtime, `net10.0`, and is trusted as a command
+  is: settings that can run any program can name any assembly.
+- **Called in the order each gives**, `Order`, zero unless it says, and
+  in the order given where two give the same. A plugin may change only what
+  its method says, today the files' text before they are written, whose
+  first line stays the one that says a file was generated, since that is
+  what lets a later run remove it. An exception a plugin throws is an error
+  naming it and the point.
+- **The contract lives in the translator's assembly for now**, in a
+  namespace of its own, `Dracocephalum.Fortrania.Plugins`, so that moving
+  it to a package of its own when it is settled changes no plugin's
+  source. The stages before writing give the projects and messages and
+  nothing of the analysis yet: what they hand a plugin is to be shaped by
+  a plugin that needs it, and the tree the writers work on waits for *A
+  tree between the analysis and the writers*, in `PENDING.md`, before any
+  plugin sees it.
+
 **A path may name a variable, so that a shared settings file names no
 machine.** Wherever the settings give a path, `$(Name)` stands for a value
 looked for first in a local settings file beside them, of the same name
@@ -1099,8 +1144,8 @@ translator's, a command line; *tool* is a word of this repository's
 layout already, for what is never published.
 
     fortrania translate csharp --name <project> [settings]... [--summary <file>]
-                               [--reference <assembly or summary>]... [--force]
-                               [--fetch never|once|always] [--inventory <file>]
+                               [--reference <assembly or summary>]... [--plugin <assembly>]...
+                               [--force] [--fetch never|once|always] [--inventory <file>]
                                [--namespace <namespace>]
                                [--scaffold [--entry <program>] [--framework <framework>]]
     fortrania --version

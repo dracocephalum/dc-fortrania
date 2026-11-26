@@ -37,14 +37,14 @@ internal static class CommandLine
     private const string Usage =
         """
         Usage: fortrania translate csharp --name <project> [settings]... [--summary <file>]
-                                          [--reference <assembly or summary>]... [--force]
-                                          [--fetch never|once|always] [--inventory <file>]
+                                          [--reference <assembly or summary>]... [--plugin <assembly>]...
+                                          [--force] [--fetch never|once|always] [--inventory <file>]
                                           [--namespace <namespace>]
                                           [--scaffold [--entry <program>] [--framework <framework>]]
                fortrania --version
 
           translate csharp   translates to C# the project the settings files make
-          --name            the project's name, which is its assembly's: what
+          --name             the project's name, which is its assembly's: what
                              other projects know it by and its summary is named
                              for; always given
           settings           a settings file, or a folder whose fortrania.json
@@ -56,6 +56,10 @@ internal static class CommandLine
           --reference        what the project may call into: an assembly that
                              carries a summary, or a summary file; may be given
                              more than once
+          --plugin           an assembly whose plugins take part in the
+                             translation, every public type in it that
+                             implements ITranslationPlugin; may be given more
+                             than once, the plugins called in that order
           --force            writes every translated file again
           --fetch            when the sources the settings say where to download
                              from are downloaded: once, the default, where they
@@ -76,7 +80,7 @@ internal static class CommandLine
           --framework        the target framework of a project file written;
                              net10.0 unless given
 
-          --version         says which version this is
+          --version          says which version this is
 
         At a prompt, a word or an option may be shortened to any start of it
         that no other shares: fortrania t cs --name Example --fo. A script or a
@@ -88,11 +92,11 @@ internal static class CommandLine
     private static readonly string[] Options = ["--help", "--version"];
     private static readonly string[] Targets = ["csharp"];
     private static readonly string[] TranslateOptions =
-        ["--entry", "--fetch", "--force", "--framework", "--inventory", "--name", "--namespace", "--reference", "--scaffold", "--summary"];
+        ["--entry", "--fetch", "--force", "--framework", "--inventory", "--name", "--namespace", "--plugin", "--reference", "--scaffold", "--summary"];
 
-    // The options followed by a value; --reference may be given more than
-    // once, and the others once.
-    private static readonly string[] ValuedOptions = ["--entry", "--fetch", "--framework", "--inventory", "--name", "--namespace", "--reference", "--summary"];
+    // The options followed by a value; --reference and --plugin may be
+    // given more than once, and the others once.
+    private static readonly string[] ValuedOptions = ["--entry", "--fetch", "--framework", "--inventory", "--name", "--namespace", "--plugin", "--reference", "--summary"];
 
     // What --fetch takes, each spelled in full.
     private static readonly Dictionary<string, FetchPolicy> FetchPolicies = new(StringComparer.Ordinal)
@@ -179,6 +183,7 @@ internal static class CommandLine
     {
         var settings = new List<string>();
         List<string>? references = null;
+        List<string>? plugins = null;
         var values = new Dictionary<string, string>(StringComparer.Ordinal);
 
         var flags = new HashSet<string>(StringComparer.Ordinal);
@@ -217,6 +222,10 @@ internal static class CommandLine
                 {
                     (references ??= []).Add(value);
                 }
+                else if (option == "--plugin")
+                {
+                    (plugins ??= []).Add(value);
+                }
                 else if (!values.TryAdd(option, value))
                 {
                     Refuse(error, $"{option} is given twice; it takes one.");
@@ -229,7 +238,7 @@ internal static class CommandLine
             }
         }
 
-        return new Arguments(settings, references, values, flags);
+        return new Arguments(settings, references, plugins, values, flags);
     }
 
     private static string DescribeValue(string option) => option switch
@@ -240,6 +249,7 @@ internal static class CommandLine
         "--inventory" => "the path of the file to write",
         "--name" => "the project's name",
         "--namespace" => "a namespace",
+        "--plugin" => "the path of an assembly of plugins",
         "--summary" => "the path of the summary file",
         _ => "the path of an assembly or of a summary file",
     };
@@ -278,6 +288,7 @@ internal static class CommandLine
             // A path named on the command line is taken from where the
             // command runs, as a person typing it means.
             References = arguments.References?.Select(reference => Path.GetFullPath(reference, workingDirectory)).ToList(),
+            PluginAssemblies = arguments.Plugins?.Select(plugin => Path.GetFullPath(plugin, workingDirectory)).ToList(),
             Namespace = arguments.Values.GetValueOrDefault("--namespace"),
             Scaffold = scaffold,
             Entry = arguments.Values.GetValueOrDefault("--entry"),
@@ -320,11 +331,11 @@ internal static class CommandLine
     };
 
     // What a build reads to tell when to translate again, a line a file:
-    // "read" for what the translation was made from, the settings files among it,
-    // "pattern" for a file pattern its sources name, and "file" for what the
-    // translation is made of. It is written only for a translation that was
-    // done, and one that was not removes the last, so that a build that
-    // failed is not taken for one that needs nothing.
+    // "read" for what the translation was made from, the settings files and
+    // the plugins among it, "pattern" for a file pattern its sources name,
+    // and "file" for what the translation is made of. It is written only for
+    // a translation that was done, and one that was not removes the last, so
+    // that a build that failed is not taken for one that needs nothing.
     private static bool WriteInventory(string inventory, IEnumerable<string> settingsPaths, TranslationResult result, TextWriter error)
     {
         try
@@ -435,6 +446,7 @@ internal static class CommandLine
     private sealed record Arguments(
         IReadOnlyList<string> Settings,
         IReadOnlyCollection<string>? References,
+        IReadOnlyCollection<string>? Plugins,
         IReadOnlyDictionary<string, string> Values,
         IReadOnlySet<string> Flags);
 }

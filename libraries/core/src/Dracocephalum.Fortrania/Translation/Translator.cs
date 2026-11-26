@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using Dracocephalum.Fortrania.Analysis;
 using Dracocephalum.Fortrania.Emit;
+using Dracocephalum.Fortrania.Plugins;
 using Dracocephalum.Fortrania.Syntax;
 
 namespace Dracocephalum.Fortrania.Translation;
@@ -166,6 +167,10 @@ public static partial class Translator
 
         // Each method written, by the name it is called by, with its unit.
         public Dictionary<string, (Unit Unit, EmittedMethod Method)> Methods { get; } = new(StringComparer.Ordinal);
+
+        // The unit each file translates, by the file's name; a file of the
+        // library's own translates none.
+        public Dictionary<string, Unit> UnitOfFile { get; } = new(StringComparer.OrdinalIgnoreCase);
     }
 
     private sealed partial class Translation(IReadOnlyList<TranslationProject> given, TranslationOptions options)
@@ -192,10 +197,14 @@ public static partial class Translator
         private readonly List<UnalignedPlace> _unaligned = [];
         private readonly List<WidenedPlace> _widened = [];
 
+        private readonly List<ITranslationPlugin> _plugins = [];
+        private TranslationContext? _context;
+
         private bool HasErrors => _messages.Any(message => message.IsError);
 
         public TranslationResult Run()
         {
+            _context = new TranslationContext(given, _messages);
             TakeProjects();
             CheckSettings();
             CheckVariables();
@@ -207,10 +216,18 @@ public static partial class Translator
 
             if (!HasErrors)
             {
+                LoadPlugins();
+            }
+
+            Call(plugin => plugin.BeforeRead, nameof(ITranslationPlugin.BeforeRead));
+            if (!HasErrors)
+            {
                 Read();
                 ReadReferences();
             }
 
+            Call(plugin => plugin.AfterRead, nameof(ITranslationPlugin.AfterRead));
+            Call(plugin => plugin.BeforeAnalysis, nameof(ITranslationPlugin.BeforeAnalysis));
             if (!HasErrors)
             {
                 CheckCalls();
@@ -219,6 +236,7 @@ public static partial class Translator
                 WorkOutEntries();
             }
 
+            Call(plugin => plugin.AfterAnalysis, nameof(ITranslationPlugin.AfterAnalysis));
             if (!HasErrors)
             {
                 Emit();
@@ -230,9 +248,22 @@ public static partial class Translator
                 WriteWithPlaces();
             }
 
+            if (!HasErrors && _plugins.Count > 0)
+            {
+                _context.GeneratedFiles = [.. GatherGeneratedFiles()];
+                Call(plugin => plugin.BeforeWrite, nameof(ITranslationPlugin.BeforeWrite));
+                TakeGeneratedFiles();
+            }
+
             if (!HasErrors)
             {
                 Write();
+            }
+
+            if (!HasErrors && _plugins.Count > 0)
+            {
+                _context.Result = Result();
+                Call(plugin => plugin.AfterWrite, nameof(ITranslationPlugin.AfterWrite));
             }
 
             if (!HasErrors)
@@ -240,20 +271,132 @@ public static partial class Translator
                 RunCommands();
             }
 
-            return HasErrors
-                ? new TranslationResult(_messages, _written, _removed, 0)
-                : new TranslationResult(_messages, _written, _removed, _sources.Where(source => !source.IsSummarized).Sum(source => source.Units.Count))
-                {
-                    StackUse = _stackUse,
-                    WorkingRegions = _workingRegions,
-                    UnalignedPlaces = _unaligned,
-                    WidenedPlaces = _widened,
-                    Fetched = _fetched,
-                    Read = _read,
-                    Patterns = _patterns,
-                    Files = _files,
-                };
+            return Result();
         }
+
+        private TranslationResult Result() => HasErrors
+            ? new TranslationResult([.. _messages], _written, _removed, 0)
+            : new TranslationResult([.. _messages], _written, _removed, _sources.Where(source => !source.IsSummarized).Sum(source => source.Units.Count))
+            {
+                StackUse = _stackUse,
+                WorkingRegions = _workingRegions,
+                UnalignedPlaces = _unaligned,
+                WidenedPlaces = _widened,
+                Fetched = _fetched,
+                Read = _read,
+                Patterns = _patterns,
+                Files = _files,
+            };
+
+        // The plugins of the run: those the options give, then those of the
+        // assemblies the options name and then the settings, each assembly
+        // once, in the order each plugin gives. What a plugin is made from
+        // is among what the run read, so that a build tells when one changed:
+        // its assembly, and what says where its dependencies are.
+        private void LoadPlugins()
+        {
+            var paths = (options.PluginAssemblies ?? []).Select(path => Path.GetFullPath(path))
+                .Concat(_given.SelectMany(project => project.Parts).SelectMany(part => part.Settings.Plugins.Select(path => Path.GetFullPath(Path.Combine(part.Folder, Expand(part, path) ?? path)))))
+                .Distinct(StringComparer.OrdinalIgnoreCase);
+
+            var found = new List<ITranslationPlugin>(options.Plugins);
+            foreach (var path in paths)
+            {
+                foreach (var read in new[] { path, Path.ChangeExtension(path, ".deps.json") }.Where(File.Exists))
+                {
+                    NoteRead(read);
+                }
+
+                if (PluginLoader.Load(path, found) is { } problem)
+                {
+                    Error(problem);
+                }
+            }
+
+            // A plugin is code the run knows nothing of, its order too.
+            try
+            {
+                _plugins.AddRange(found.OrderBy(plugin => plugin.Order));
+            }
+            catch (Exception exception)
+            {
+                Error($"The order of a plugin cannot be read: {exception.Message}");
+            }
+        }
+
+        // Calls each plugin at one point of the run, one after another, and
+        // none at a point the run does not reach. A plugin is code the run
+        // knows nothing of, so whatever it throws is caught here and becomes
+        // an error naming it, which stops the run as one it reported would.
+        private void Call(Func<ITranslationPlugin, Action<TranslationContext>> point, string name)
+        {
+            if (_context is null)
+            {
+                return;
+            }
+
+            foreach (var plugin in _plugins)
+            {
+                if (HasErrors)
+                {
+                    return;
+                }
+
+                try
+                {
+                    point(plugin)(_context);
+                }
+                catch (Exception exception)
+                {
+                    Error($"The plugin {plugin.GetType().FullName} failed in {name}: {exception.Message}");
+                }
+            }
+        }
+
+        // Every file of the translation as a plugin sees it, in the order
+        // they are written.
+        private IEnumerable<GeneratedFile> GatherGeneratedFiles() =>
+            from project in _projects.Where(IsTranslated)
+            from part in project.Parts
+            from source in _sources.Where(source => source.Part == part)
+            from file in source.Files
+            let unit = source.UnitOfFile.GetValueOrDefault(file.Key)
+            select new GeneratedFile(
+                project.Name,
+                source.Settings.Name,
+                GetGeneratedPath(part, source, file.Key),
+                unit?.Name,
+                unit?.File,
+                file.Value);
+
+        // What the plugins made of each file is what is written, and what
+        // its hash is taken of.
+        private void TakeGeneratedFiles()
+        {
+            if (HasErrors || _context is null)
+            {
+                return;
+            }
+
+            var byPath = _context.GeneratedFiles.ToDictionary(file => file.Path, StringComparer.OrdinalIgnoreCase);
+            foreach (var project in _projects.Where(IsTranslated))
+            {
+                foreach (var part in project.Parts)
+                {
+                    foreach (var source in _sources.Where(source => source.Part == part))
+                    {
+                        foreach (var name in source.Files.Keys.ToList())
+                        {
+                            source.Files[name] = byPath[GetGeneratedPath(part, source, name)].Text;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Where a file of a source's translation is written.
+        private static string GetGeneratedPath(Part part, Source source, string name) =>
+            Path.Combine(GeneratedFolderOf(part), source.Settings.Name, name);
 
         // Notes a file read, once and in the order first read.
         private void NoteRead(string path)
@@ -435,6 +578,7 @@ public static partial class Translator
         private HashSet<string> VariablesNamed(Project project, Part part)
         {
             var paths = new[] { part.Settings.Output }
+                .Concat(part.Settings.Plugins)
                 .Concat(IsTranslated(project) ? part.Settings.Sources.SelectMany(source => source.Files.Concat(source.Includes)) : [])
                 .OfType<string>();
             return new HashSet<string>(
@@ -794,6 +938,7 @@ public static partial class Translator
                         var emitted = emitter.EmitUnit(unit.Table, unit.File);
                         source.Files[name] = emitted.Text;
                         source.Emitted[name] = emitted;
+                        source.UnitOfFile[name] = unit;
                         foreach (var method in emitted.Methods)
                         {
                             source.Methods[method.Name] = (unit, method);

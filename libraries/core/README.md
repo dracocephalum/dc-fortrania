@@ -61,8 +61,8 @@ and, installed from its package, as
 
     dotnet tool install --global Dracocephalum.Fortrania.Cli
     fortrania translate csharp --name <project> [settings]... [--summary <file>]
-                               [--reference <assembly or summary>]... [--force]
-                               [--fetch never|once|always] [--inventory <file>]
+                               [--reference <assembly or summary>]... [--plugin <assembly>]...
+                               [--force] [--fetch never|once|always] [--inventory <file>]
                                [--namespace <namespace>]
                                [--scaffold [--entry <program>] [--framework <framework>]]
 

@@ -78,6 +78,14 @@ public sealed class TranslationSettings
     public IList<SourceSettings> Sources { get; set; } = [];
 
     /// <summary>
+    /// Gets or sets the assemblies whose plugins take part in the
+    /// translation, by paths taken from this file's folder, which may name
+    /// variables. A plugin named by any settings file of a run takes part in
+    /// the whole of it, once however often its assembly is named.
+    /// </summary>
+    public IList<string> Plugins { get; set; } = [];
+
+    /// <summary>
     /// Gets or sets the commands run once the whole run has been written,
     /// in order, each when the one before has ended well. A command runs
     /// in the folder of the settings file, and finds in its environment
