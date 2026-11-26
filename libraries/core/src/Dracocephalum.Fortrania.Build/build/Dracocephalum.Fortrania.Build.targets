@@ -199,6 +199,13 @@
     left, and the summary beside the project file. Told never, on a fresh
     checkout there is no inventory, and what is compiled is what the
     project's folder holds, which the SDK finds by itself.
+
+    The translation's sources are compiled in the inventory's order, those
+    the SDK found taken out first: a file the run wrote for the first time
+    was not there when the SDK listed the folder, and the next build finds
+    it there, in another place of the list. The SDK compiles again whenever
+    the list changes, order and all, so a build after a translation would
+    compile once more for nothing.
   -->
   <Target Name="_FortraniaAddTranslation">
     <ReadLinesFromFile File="$(_FortraniaInventory)" Condition="Exists('$(_FortraniaInventory)')">
@@ -207,7 +214,8 @@
     <ItemGroup>
       <_FortraniaFile Include="$([System.String]::Copy('%(_FortraniaInventoryAfter.Identity)').Substring(5))"
                       Condition="$([System.String]::Copy('%(_FortraniaInventoryAfter.Identity)').StartsWith('file '))" />
-      <_FortraniaCompile Include="@(_FortraniaFile)" Condition="'%(Extension)' == '.cs'" Exclude="@(Compile->'%(FullPath)')" />
+      <_FortraniaCompile Include="@(_FortraniaFile)" Condition="'%(Extension)' == '.cs'" />
+      <Compile Remove="@(_FortraniaCompile)" MatchOnMetadata="FullPath" />
       <Compile Include="@(_FortraniaCompile)" />
       <FileWrites Include="@(_FortraniaFile)"
                   Condition="$([System.String]::Copy('%(FullPath)').StartsWith('$(_FortraniaIntermediate)'))" />

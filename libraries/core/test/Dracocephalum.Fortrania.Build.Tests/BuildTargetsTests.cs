@@ -23,6 +23,10 @@ public sealed class BuildTargetsTests : IDisposable
     // A build that has not ended by then is not going to.
     private static readonly TimeSpan BuildTimeout = TimeSpan.FromMinutes(5);
 
+    // What a build's output says, at normal verbosity, where it runs the
+    // compiler: the compiler's command line.
+    private const string CompilerRuns = "/noconfig";
+
     // What a translation and its build leave in the intermediate folder.
     private static readonly string[] OursInObj = ["*.g.cs", "fortrania.inventory", "fortrania.command", ".fortrania-manifest.json"];
 
@@ -189,10 +193,15 @@ public sealed class BuildTargetsTests : IDisposable
         var touched = await BuildAsync();
         Put("App/fortran/extra.f", "      SUBROUTINE EXTRA\n      END\n");
         var added = await BuildAsync();
+        var afterAdded = await BuildAsync();
 
-        // Assert
+        // Assert: neither translated nor compiled again, the sources being
+        // compiled in the same order as by the build that translated them,
+        // which wrote some for the first time.
         unchanged.Code.ShouldBe(0, unchanged.Output);
         unchanged.Output.ShouldNotContain("Translated:");
+        unchanged.Output.ShouldNotContain(CompilerRuns);
+        afterAdded.Output.ShouldNotContain(CompilerRuns);
 
         // The library only, both of its settings files in one run: its
         // summary is the same, so the program that calls into it is not
