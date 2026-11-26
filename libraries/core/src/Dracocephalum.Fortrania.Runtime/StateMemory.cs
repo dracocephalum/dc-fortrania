@@ -10,15 +10,16 @@ using System.Runtime.InteropServices;
 namespace Dracocephalum.Fortrania.Runtime;
 
 /// <summary>
-/// The memory one instance of a translated library keeps between calls:
-/// what the FORTRAN declares <c>SAVE</c> or initializes with <c>DATA</c>,
-/// and local arrays too large for the stack. It never moves, so an address
-/// into it stays good until the instance is disposed, and it is zero when
-/// handed out.
+/// The memory a context's translated libraries keep between calls: what
+/// the FORTRAN declares <c>SAVE</c> or initializes with <c>DATA</c>, and
+/// local arrays too large for the stack. A context has one, and each
+/// program unit's instance in the context takes a block of it when it is
+/// made. A block never moves, so an address into it stays good until the
+/// context is disposed, and it is zero when handed out.
 /// </summary>
 /// <remarks>
-/// It is not freed by the garbage collector. An instance that is dropped
-/// without being disposed keeps its memory until the process ends.
+/// It is not freed by the garbage collector. One that is dropped without
+/// being disposed keeps its memory until the process ends.
 /// </remarks>
 #if FORTRANIA_RUNTIME_INTERNAL
 internal

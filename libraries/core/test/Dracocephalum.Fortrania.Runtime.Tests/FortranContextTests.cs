@@ -69,7 +69,7 @@ public class FortranContextTests
         // Assert
         first.ShouldNotBeSameAs(second);
         one.IO.ShouldNotBeSameAs(other.IO);
-        one.Memory.ShouldNotBeSameAs(other.Memory);
+        one.StateMemory.ShouldNotBeSameAs(other.StateMemory);
     }
 
     [Fact]
@@ -208,14 +208,14 @@ public class FortranContextTests
         // Arrange
         var context = new FortranContext();
         context.Get<FirstLibrary>();
-        context.Memory.Allocate(16);
+        context.StateMemory.Allocate(16);
 
         // Act
         context.Dispose();
         context.Dispose();
 
         // Assert
-        Should.Throw<ObjectDisposedException>(() => context.Memory.Allocate(16));
+        Should.Throw<ObjectDisposedException>(() => context.StateMemory.Allocate(16));
         Should.Throw<ObjectDisposedException>(() => context.IO.Open(11));
         Should.Throw<ObjectDisposedException>(() => context.Get<SecondLibrary>());
         Should.Throw<ObjectDisposedException>(() => context.Handle);

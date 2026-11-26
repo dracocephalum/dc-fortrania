@@ -160,7 +160,7 @@ internal sealed partial class UnitEmitter
 
         List<TreeStatement> body =
         [
-            new TreeStatement.Declare("byte*", state.Name, new TreeExpression.Call("_memory.Allocate", [new TreeExpression.Integer(_stateSize)])),
+            new TreeStatement.Declare("byte*", state.Name, new TreeExpression.Call("_stateMemory.Allocate", [new TreeExpression.Integer(_stateSize)])),
             .. named.Select(KeptDeclaration),
             .. data,
             new TreeStatement.Assign(new TreeExpression.Local(StateField), state),

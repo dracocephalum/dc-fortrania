@@ -59,7 +59,7 @@ sealed partial class FortranContext : IDisposable
     public FortranContext(IFileProvider provider)
     {
         IO = new FortranIO(provider);
-        Memory = new StateMemory();
+        StateMemory = new StateMemory();
         Arena = new BufferArena(BufferPlacement.Default, FortranContextOptions.DefaultCallbackDepth);
     }
 
@@ -90,7 +90,7 @@ sealed partial class FortranContext : IDisposable
     public FortranIO IO { get; }
 
     /// <summary>Gets the memory the program's libraries keep their variables in between calls.</summary>
-    public StateMemory Memory { get; }
+    public StateMemory StateMemory { get; }
 
     /// <summary>Gets the arena the program's procedures keep their working buffers in when those are not on the stack.</summary>
     public BufferArena Arena { get; }
@@ -236,7 +236,7 @@ sealed partial class FortranContext : IDisposable
         }
 
         IO.Dispose();
-        Memory.Dispose();
+        StateMemory.Dispose();
         Arena.Dispose();
         Array.Clear(_libraries);
     }
