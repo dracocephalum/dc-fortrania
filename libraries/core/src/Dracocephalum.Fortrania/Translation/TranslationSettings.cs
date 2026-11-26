@@ -85,19 +85,6 @@ public sealed class TranslationSettings
     /// </summary>
     public IList<string> Plugins { get; set; } = [];
 
-    /// <summary>
-    /// Gets or sets the commands run once the whole run has been written,
-    /// in order, each when the one before has ended well. A command runs
-    /// in the folder of the settings file, and finds in its environment
-    /// <c>FORTRANIA_SETTINGS</c>, that file's folder,
-    /// <c>FORTRANIA_OUTPUT</c>, the folder these sources are written to,
-    /// and <c>FORTRANIA_WRITTEN</c>, a file that lists every file of them
-    /// that was written, a full path a line. A command that
-    /// changes a translated file keeps its first line, which says it was
-    /// generated.
-    /// </summary>
-    public IList<CommandSettings> OnSuccess { get; set; } = [];
-
     /// <summary>Reads settings from a file, and the local settings file beside it where there is one.</summary>
     /// <param name="path">The settings file.</param>
     /// <returns>The settings, with <see cref="Folder"/> the file's folder.</returns>

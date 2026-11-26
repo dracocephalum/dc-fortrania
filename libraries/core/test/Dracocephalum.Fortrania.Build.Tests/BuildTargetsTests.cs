@@ -23,6 +23,9 @@ public sealed class BuildTargetsTests : IDisposable
     // A build that has not ended by then is not going to.
     private static readonly TimeSpan BuildTimeout = TimeSpan.FromMinutes(5);
 
+    // What a translation and its build leave in the intermediate folder.
+    private static readonly string[] OursInObj = ["*.g.cs", "fortrania.inventory", "fortrania.command", ".fortrania-manifest.json"];
+
     private const string Library =
         """
               SUBROUTINE APPLY ( F, X, Y )
@@ -198,6 +201,25 @@ public sealed class BuildTargetsTests : IDisposable
         touched.Output.ShouldContain("Translated: 3 program units, 0 files written");
         added.Code.ShouldBe(0, added.Output);
         added.Output.ShouldContain("Translated: 3 program units, 2 files written");
+    }
+
+    [Fact]
+    public async Task Clean_WhenATranslationLiesInTheIntermediateFolder_ShouldLeaveNothingOfItAndTheNextBuildTranslateAgain()
+    {
+        // Arrange: the program's translation is in its intermediate folder.
+        (await BuildAsync()).Code.ShouldBe(0);
+
+        // Act
+        var cleaned = await RunAsync("dotnet", "clean", Path.Combine(_root, "App/Example.App.csproj"), "-nodeReuse:false");
+        var left = OursInObj.SelectMany(pattern => Directory.GetFiles(Path.Combine(_root, "App/obj"), pattern, SearchOption.AllDirectories)).ToList();
+        var (code, output) = await BuildAsync();
+
+        // Assert
+        cleaned.Code.ShouldBe(0, cleaned.Output);
+        left.ShouldBeEmpty();
+        code.ShouldBe(0, output);
+        output.ShouldContain("Translated: 2 program units, 3 files written");
+        (await RunAsync("dotnet", Path.Combine(_root, "App/bin/Debug/net10.0/Example.App.dll"))).Code.ShouldBe(9 + 2 + 2);
     }
 
     [Fact]

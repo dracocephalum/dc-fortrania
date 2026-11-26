@@ -999,29 +999,29 @@ once it is written:
 - **Each project it calls into that has a project file** is referred to
   by it.
 
-**Commands run after a translation, and change what they like.** What a
-translation should do beyond translating, mending one routine for the
-platform it runs on above all, is not the translator's to know. So the
-settings list commands, `onSuccess`, that are run once the whole run is
-written: each a program and its arguments, no shell between, in the
-settings file's folder, and told in its environment where the settings
-and their translation are and which of their files were written. The
-settings files of a run run theirs in the order they were given. Such a
-command can bring whatever it needs, a C# syntax tree and its rewriters
-among them, and the translator depends on none of it. One that fails fails
-the translation, with what it said; the files are written by then, so the
-translation's own all or nothing does not reach the commands after it.
+**What a translation does beyond translating is a plugin's.** Mending one
+routine for the platform it runs on, adding a licence notice to every file,
+writing a report: none of it is the translator's to know. A plugin is a
+class of its own assembly that implements `ITranslationPlugin`, and is
+called before and after each stage, reading, analysis and writing, with
+one `TranslationContext` that holds more as the run goes. It can bring
+whatever it needs, a C# syntax tree and its rewriters among them, and the
+translator depends on none of it. It changes the files in `BeforeWrite`,
+before they are written: what it makes is what is written, so a changed
+plugin rewrites the files it changes and no others, with no `--force`;
+and what it reports is one of the translation's messages, with a file and
+a line, so an error stops the run before anything is written. A step of a
+build that is no change to the translation, packing or checking say, is
+MSBuild's own: a target with `AfterTargets="TranslateFortran"` runs after
+the translation and before the compiler, translated or up to date.
 
-**Plugins take part in the run itself.** A plugin is a class of its own
-assembly that implements `ITranslationPlugin`, and is called before and
-after each stage, reading, analysis and writing, with one
-`TranslationContext` that holds more as the run goes. What a command
-does to the files once they are written, a plugin does in `BeforeWrite`
-to the text before it is: what it makes is what is written and what the
-manifest's hash is taken of, so a changed plugin rewrites the files it
-changes and no others, with no `--force`; and what it reports is one of
-the translation's messages, with a file and a line, so an error stops the
-run before anything is written.
+Settings once listed commands to run after a translation, `onSuccess`,
+told in their environment which files were written. A command could change
+a file only once it was written, so the translator had to keep what a
+command changed until the FORTRAN behind it did, and a changed command
+needed every file written again to reach them; it reported nothing a build
+could point to; and it ran a program a build step already could. Plugins
+and the build's own targets took its place.
 
 - **Named in three places, and loaded once.** The settings' `plugins`,
   paths from their folder that may name variables; `--plugin` on the
@@ -1040,8 +1040,9 @@ run before anything is written.
   `.deps.json` says, so two plugins may bring two versions of one library.
   A plugin with packages of its own sets `EnableDynamicLoading`, which
   copies them beside its assembly. It runs in the translator's process
-  with the translator's runtime, `net10.0`, and is trusted as a command
-  is: settings that can run any program can name any assembly.
+  with the translator's runtime, `net10.0`, and is trusted as the
+  settings that name it are, as a project file is trusted with the
+  targets it imports: whoever can change either can run code in the build.
 - **Called in the order each gives**, `Order`, zero unless it says, and
   in the order given where two give the same. A plugin may change only what
   its method says, today the files' text before they are written, whose
@@ -1081,17 +1082,16 @@ folder and is used as it is. The formats are those .NET reads by itself:
 zip, tar, and tar compressed with gzip.
 
 A run can be forced, and then writes every translated file again and lists
-it as written, whatever the manifest says, for a rebuild that is to start
-from nothing.
+it as written, whatever is on disk, for a rebuild that is to start from
+nothing.
 
 **A translated file says what it was translated from, and no more.** Its
 header names the program unit and the file it came from, without a folder,
 so that nothing of the machine it was translated on is in it, and no date,
-so that the same sources give the same bytes. The translator's version is
-kept in the manifest and not in every file, so that a new translator
-changes only the files whose translation it changes. What a particular
-library has to say in its files, a licence notice say, is added by a
-command after the translation.
+so that the same sources give the same bytes, and no version of the
+translator, so that a new translator changes only the files whose
+translation it changes. What a particular library has to say in its
+files, a licence notice say, is added by a plugin.
 
 **The source's comments are carried, where they stand.** A comment says
 what the code beside it is for, and a routine of the reference sources
@@ -1118,17 +1118,19 @@ into each unit that includes it. Of the reference sources and their tests, 811,3
 comment lines, each is carried once; the main and support libraries'
 translation grows from 12 to 37 MB.
 
-**What the translator wrote is recorded, so that what a command changed is
-kept.** Each settings file's folder of translated sources has a manifest,
-`Generated/.fortrania-manifest.json`, with, for each of its sources, a hash
-of the text the translator gave each file. A file is written again when
-that text changes or the file is gone, and not because it differs from
-what is on disk; a file a command changed stays changed until the FORTRAN
-behind it does, and is then listed among the files written for the command
-to change again. A command that changes a file keeps its first line, which
+**A file is written where it is not already what the translation makes of
+it.** Its text is compared with the file on disk, line endings aside, since
+a checkout may change them: a file the translation does not change keeps
+its time and is not compiled again, one changed by hand is put right, and
+one that is gone is written. Each settings file's folder of translated
+sources lists its files in a manifest, `Generated/.fortrania-manifest.json`,
+by source and by name with no folder, so that it may be committed with
+them. It is what says a translation is all there, to be compiled in place
+of sources that are not; a manifest that cannot be read says nothing is.
+Its name is one no settings file has, so a folder of translated sources is
+never taken for settings. A file's first line says it was generated, which
 is how a file the translator no longer makes is told from one somebody
-wrote. Its name is one no settings file has, so a folder of translated
-sources is never taken for settings.
+wrote.
 
 The settings files, the command line and the build step all read into the
 same description, kept in the translator's library and not in any of them.
