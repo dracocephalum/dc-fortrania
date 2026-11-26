@@ -398,12 +398,13 @@ public static partial class Translator
         private void Warning(string text, string? file = null, int line = 0) => _messages.Add(new TranslationMessage(false, file, line, text));
 
         // Whether what a project's translation wrote is all there: its
-        // summary, and in each of its settings' folders the manifest and
-        // every file it lists. Its summary alone, which is committed with
-        // the project, is not a translation to compile.
+        // summary, and in each of its settings' folders a manifest that can
+        // be read and every file it lists, which for settings with no
+        // sources is none. Its summary alone, which is committed with the
+        // project, is not a translation to compile.
         private static bool IsAllThere(Project project) =>
             File.Exists(project.SummaryPath)
-            && project.Parts.All(part => ReadManifest(ManifestPathOf(part)) is { Count: > 0 } sources
+            && project.Parts.All(part => ReadManifest(ManifestPathOf(part)) is { } sources
                 && sources.All(source => source.Value.All(name => File.Exists(Path.Combine(GeneratedFolderOf(part), source.Key, name)))));
 
         // The folder a settings file's sources are translated to.
@@ -1100,7 +1101,7 @@ public static partial class Translator
                 foreach (var part in project.Parts.Where(part => File.Exists(ManifestPathOf(part))))
                 {
                     _files.Add(ManifestPathOf(part));
-                    foreach (var (source, names) in ReadManifest(ManifestPathOf(part)))
+                    foreach (var (source, names) in ReadManifest(ManifestPathOf(part)) ?? [])
                     {
                         _files.AddRange(names
                             .Select(name => Path.Combine(GeneratedFolderOf(part), source, name))
@@ -1110,20 +1111,21 @@ public static partial class Translator
             }
         }
 
-        private static Dictionary<string, IReadOnlyList<string>> ReadManifest(string path)
+        // The files a manifest lists, by source; nothing where there is no
+        // manifest or it cannot be read, which says nothing of what was
+        // written, as against one of settings with no sources, which lists
+        // none.
+        private static Dictionary<string, IReadOnlyList<string>>? ReadManifest(string path)
         {
             try
             {
                 return File.Exists(path) && JsonSerializer.Deserialize<Manifest>(File.ReadAllText(path), TranslationJson.Default)?.Sources is { } sources
                     ? new Dictionary<string, IReadOnlyList<string>>(sources, StringComparer.Ordinal)
-                    : [];
+                    : null;
             }
             catch (JsonException)
             {
-                // A manifest that cannot be read says nothing was written:
-                // the translation is then not all there to compile in place
-                // of its sources.
-                return [];
+                return null;
             }
         }
 

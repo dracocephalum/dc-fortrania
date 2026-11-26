@@ -1779,6 +1779,45 @@ public sealed class TranslatorTests : IDisposable
     }
 
     [Fact]
+    public void Run_WhenNeverToFetchAndAManifestCannotBeRead_ShouldTakeTheTranslationForNotAllThere()
+    {
+        // Arrange: translated once, then the sources go and the manifest is
+        // spoiled, as one of an older translator's would be.
+        Put("core/core.f", Core);
+        var project = Project("Example.Toolkit", Source("Core", "core/*.f"));
+        Translate(project).Succeeded.ShouldBeTrue();
+        File.Delete(Path.Combine(_root, "core/core.f"));
+        Put("out/Example.Toolkit/Generated/.fortrania-manifest.json", "not a manifest");
+
+        // Act
+        var result = Translate(project, new TranslationOptions { Fetch = FetchPolicy.Never });
+
+        // Assert
+        result.Succeeded.ShouldBeFalse();
+        result.Messages.ShouldHaveSingleItem().Text.ShouldContain("fetch them first");
+    }
+
+    [Fact]
+    public void Run_WhenNeverToFetchAndASettingsFileOfTheProjectHasNoSources_ShouldStillTakeTheTranslationForAllThere()
+    {
+        // Arrange: a second settings file of the project with no sources of
+        // its own, whose manifest lists none.
+        Put("core/core.f", Core);
+        var project = Project("Example.Toolkit", Source("Core", "core/*.f"));
+        project.Settings = [project.Part, new TranslationSettings { Folder = _root, Output = "out/Example.Toolkit/more" }];
+        Translate(project).Succeeded.ShouldBeTrue();
+        Text("out/Example.Toolkit/more/Generated/.fortrania-manifest.json").ShouldBe("{\n  \"sources\": {}\n}\n");
+        File.Delete(Path.Combine(_root, "core/core.f"));
+
+        // Act
+        var result = Translate(project, new TranslationOptions { Fetch = FetchPolicy.Never });
+
+        // Assert
+        result.Succeeded.ShouldBeTrue(string.Join('\n', result.Messages));
+        result.Units.ShouldBe(0);
+    }
+
+    [Fact]
     public void Run_WhenAProjectIsTranslatedAgainstASummaryFileBesideAProjectFile_ShouldScaffoldAReferenceToThatProject()
     {
         // Arrange: the library scaffolded on its own, then the tool against
