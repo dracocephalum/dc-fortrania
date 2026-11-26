@@ -6,13 +6,12 @@ namespace Dracocephalum.Fortrania.Cli;
 
 /// <summary>
 /// The <c>fortrania</c> command: reads its command line, and hands a
-/// translation or a restore to <see cref="Translator"/>. It holds no rule of
-/// a translation's own; what to translate, and to what, is the settings
-/// file's to say.
+/// translation to <see cref="Translator"/>. It holds no rule of a
+/// translation's own; what to translate, and to what, is the settings file's
+/// to say.
 /// </summary>
 /// <remarks>
-/// The first word is what to do, <c>translate</c> or <c>restore</c>, and
-/// after <c>translate</c> the word for what to translate to, <c>csharp</c>
+/// The first word is what to do, <c>translate</c>, and after it the word for what to translate to, <c>csharp</c>
 /// for C#, so that another thing to do or another target is a word beside
 /// its kind. Each word and option may be shortened as
 /// <see cref="UniquePrefix"/> allows. What is written to the error stream is
@@ -38,16 +37,14 @@ internal static class CommandLine
     private const string Usage =
         """
         Usage: fortrania translate csharp --name <project> [settings]... [--summary <file>]
-                                          [--reference <assembly or summary>]... [--force] [--offline]
-                                          [--inventory <file>] [--namespace <namespace>]
+                                          [--reference <assembly or summary>]... [--force]
+                                          [--fetch never|once|always] [--inventory <file>]
+                                          [--namespace <namespace>]
                                           [--scaffold [--entry <program>] [--framework <framework>]]
-               fortrania restore --name <project> [settings]... [--summary <file>] [--if-needed]
                fortrania --version
 
           translate csharp   translates to C# the project the settings files make
-          restore            fetches the sources a translation would read, where
-                             the settings say where from, and translates nothing
-          --name             the project's name, which is its assembly's: what
+          --name            the project's name, which is its assembly's: what
                              other projects know it by and its summary is named
                              for; always given
           settings           a settings file, or a folder whose fortrania.json
@@ -60,8 +57,11 @@ internal static class CommandLine
                              carries a summary, or a summary file; may be given
                              more than once
           --force            writes every translated file again
-          --offline          fetches nothing, and compiles a project whose
-                             sources are not here as it was translated last
+          --fetch            when the sources the settings say where to download
+                             from are downloaded: once, the default, where they
+                             are not here; never, compiling a project whose
+                             sources are not here as it was translated last; or
+                             always, replacing what an earlier fetch made
           --inventory        writes to the file what was read and what the
                              translation is made of, for a build to tell when
                              to translate again; removes it if it fails
@@ -76,8 +76,7 @@ internal static class CommandLine
           --framework        the target framework of a project file written;
                              net10.0 unless given
 
-          --if-needed        fetches only where the translation is not all there
-          --version          says which version this is
+          --version         says which version this is
 
         At a prompt, a word or an option may be shortened to any start of it
         that no other shares: fortrania t cs --name Example --fo. A script or a
@@ -85,17 +84,23 @@ internal static class CommandLine
         start.
         """;
 
-    private static readonly string[] Commands = ["help", "restore", "translate"];
+    private static readonly string[] Commands = ["help", "translate"];
     private static readonly string[] Options = ["--help", "--version"];
     private static readonly string[] Targets = ["csharp"];
     private static readonly string[] TranslateOptions =
-        ["--entry", "--force", "--framework", "--inventory", "--name", "--namespace", "--offline", "--reference", "--scaffold", "--summary"];
-
-    private static readonly string[] RestoreOptions = ["--if-needed", "--name", "--summary"];
+        ["--entry", "--fetch", "--force", "--framework", "--inventory", "--name", "--namespace", "--reference", "--scaffold", "--summary"];
 
     // The options followed by a value; --reference may be given more than
     // once, and the others once.
-    private static readonly string[] ValuedOptions = ["--entry", "--framework", "--inventory", "--name", "--namespace", "--reference", "--summary"];
+    private static readonly string[] ValuedOptions = ["--entry", "--fetch", "--framework", "--inventory", "--name", "--namespace", "--reference", "--summary"];
+
+    // What --fetch takes, each spelled in full.
+    private static readonly Dictionary<string, FetchPolicy> FetchPolicies = new(StringComparer.Ordinal)
+    {
+        ["never"] = FetchPolicy.Never,
+        ["once"] = FetchPolicy.Once,
+        ["always"] = FetchPolicy.Always,
+    };
 
     // The options only a scaffold reads.
     private static readonly string[] ScaffoldOptions = ["--entry", "--framework"];
@@ -140,10 +145,6 @@ internal static class CommandLine
                 };
             case "translate":
                 return Refuse(error, "translate is to be followed by what to translate to: csharp.");
-            case "restore":
-                return Parse(arguments[1..], RestoreOptions, "restore", error) is { } restore
-                    ? RestoreSources(restore, output, error, workingDirectory)
-                    : Misused;
             default:
                 return Refuse(error, $"{first} takes nothing after it.");
         }
@@ -234,6 +235,7 @@ internal static class CommandLine
     private static string DescribeValue(string option) => option switch
     {
         "--entry" => "the name of a main program",
+        "--fetch" => "never, once or always",
         "--framework" => "a target framework, net10.0 say",
         "--inventory" => "the path of the file to write",
         "--name" => "the project's name",
@@ -255,6 +257,12 @@ internal static class CommandLine
             return Misused;
         }
 
+        var fetch = FetchPolicy.Once;
+        if (arguments.Values.GetValueOrDefault("--fetch") is { } fetchGiven && !FetchPolicies.TryGetValue(fetchGiven, out fetch))
+        {
+            return Refuse(error, $"--fetch is {fetchGiven}; it is never, once or always.");
+        }
+
         if (Load(arguments.Settings, workingDirectory, error) is not { } loaded)
         {
             return Failed;
@@ -265,7 +273,7 @@ internal static class CommandLine
         var result = Translator.Run(ToProject(name, arguments, loaded, workingDirectory), new TranslationOptions
         {
             Force = arguments.Flags.Contains("--force"),
-            Offline = arguments.Flags.Contains("--offline"),
+            Fetch = fetch,
 
             // A path named on the command line is taken from where the
             // command runs, as a person typing it means.
@@ -340,31 +348,6 @@ internal static class CommandLine
             error.WriteLine($"{inventory}: error: {exception.Message}");
             return false;
         }
-    }
-
-    private static int RestoreSources(Arguments arguments, TextWriter output, TextWriter error, string workingDirectory)
-    {
-        if (RequireName(arguments, error) is not { } name)
-        {
-            return Misused;
-        }
-
-        if (Load(arguments.Settings, workingDirectory, error) is not { } loaded)
-        {
-            return Failed;
-        }
-
-        var result = Translator.Restore(
-            [ToProject(name, arguments, loaded, workingDirectory)],
-            new TranslationOptions(),
-            onlyWhereNotTranslated: arguments.Flags.Contains("--if-needed"));
-        foreach (var message in result.Messages)
-        {
-            error.WriteLine(message);
-        }
-
-        output.WriteLine($"{(result.Succeeded ? "Restored" : "Not restored")}: {result.Fetched.Count} folders of sources fetched.");
-        return result.Succeeded ? Done : Failed;
     }
 
     // Each settings file named, and those of each folder named, or of the

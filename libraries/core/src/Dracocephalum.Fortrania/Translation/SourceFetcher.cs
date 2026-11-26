@@ -9,15 +9,23 @@ namespace Dracocephalum.Fortrania.Translation;
 /// hash, and expands it. Nothing in the archive is run, and nothing is
 /// written outside the folder: an entry whose path would leave it is
 /// refused, and links are passed over. The folder appears whole or not at
-/// all, since everything is done beside it and moved into place at the end.
+/// all, since everything is done beside it and moved into place at the end;
+/// one an earlier fetch filled is replaced so, and stays as it was where the
+/// new one cannot be made.
 /// </summary>
 internal sealed class SourceFetcher(TranslationOptions options)
 {
+    /// <summary>
+    /// The file a fetch leaves in each folder it fills, saying what from: a
+    /// folder without it is somebody's own, and is never replaced.
+    /// </summary>
+    public const string MarkerName = ".fortrania-fetched";
+
     private const string ProductName = "Fortrania";
 
-    /// <summary>Fills a folder that is not there.</summary>
+    /// <summary>Fills a folder that is not there, or replaces one an earlier fetch filled.</summary>
     /// <param name="variable">What to fill it from.</param>
-    /// <param name="folder">The folder, which does not exist.</param>
+    /// <param name="folder">The folder.</param>
     /// <returns>Nothing when the folder was filled, and what went wrong otherwise.</returns>
     public string? Fill(VariableSettings variable, string folder)
     {
@@ -32,6 +40,11 @@ internal sealed class SourceFetcher(TranslationOptions options)
             return $"The archive {url} is of a kind that cannot be expanded: a .zip, .tar, .tar.gz or .tgz can.";
         }
 
+        if (Directory.Exists(folder) && !File.Exists(Path.Combine(folder, MarkerName)))
+        {
+            return $"The folder {folder} is there and was not fetched, so it is not replaced; remove it to have it fetched.";
+        }
+
         var parent = Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(folder)) ?? folder;
         Directory.CreateDirectory(parent);
 
@@ -40,6 +53,7 @@ internal sealed class SourceFetcher(TranslationOptions options)
         var attempt = Guid.NewGuid().ToString("N");
         var archive = Path.Combine(parent, "." + Path.GetFileName(folder) + ".download-" + attempt);
         var partial = Path.Combine(parent, "." + Path.GetFileName(folder) + ".partial-" + attempt);
+        var replaced = Path.Combine(parent, "." + Path.GetFileName(folder) + ".replaced-" + attempt);
 
         try
         {
@@ -58,6 +72,15 @@ internal sealed class SourceFetcher(TranslationOptions options)
                 }
             }
 
+            File.WriteAllLines(Path.Combine(partial, MarkerName), [url.ToString(), expected.Trim()]);
+
+            // The folder there is moved aside first, and back where the new
+            // one cannot take its place.
+            if (Directory.Exists(folder))
+            {
+                Directory.Move(folder, replaced);
+            }
+
             try
             {
                 Directory.Move(partial, folder);
@@ -67,6 +90,11 @@ internal sealed class SourceFetcher(TranslationOptions options)
                 // Another fetch of the same sources finished first; its
                 // folder holds the same archive, checked against the same
                 // hash, and this one goes.
+            }
+            catch (Exception) when (Directory.Exists(replaced))
+            {
+                Directory.Move(replaced, folder);
+                throw;
             }
 
             return null;
@@ -78,9 +106,12 @@ internal sealed class SourceFetcher(TranslationOptions options)
         finally
         {
             File.Delete(archive);
-            if (Directory.Exists(partial))
+            foreach (var left in new[] { partial, replaced })
             {
-                Directory.Delete(partial, recursive: true);
+                if (Directory.Exists(left))
+                {
+                    Directory.Delete(left, recursive: true);
+                }
             }
         }
     }

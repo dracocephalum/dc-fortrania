@@ -1412,7 +1412,7 @@ public sealed class TranslatorTests : IDisposable
         File.Delete(Path.Combine(_root, "core/lib.f"));
 
         // Act: offline, the library is read from its summary.
-        var result = Translate(settings, new TranslationOptions { Offline = true });
+        var result = Translate(settings, new TranslationOptions { Fetch = FetchPolicy.Never });
 
         // Assert
         result.Succeeded.ShouldBeFalse();
@@ -1462,7 +1462,7 @@ public sealed class TranslatorTests : IDisposable
     }
 
     [Fact]
-    public void Run_WhenOfflineAndAProjectsSourcesAreGone_ShouldReadItFromItsSummaryAndTranslateTheRest()
+    public void Run_WhenNeverToFetchAndAProjectsSourcesAreGone_ShouldReadItFromItsSummaryAndTranslateTheRest()
     {
         // Arrange: both translated once; then the library's sources go.
         Put("core/lib.f", Library);
@@ -1473,7 +1473,7 @@ public sealed class TranslatorTests : IDisposable
         File.Delete(Path.Combine(_root, "core/lib.f"));
 
         // Act
-        var offline = Translate(settings, new TranslationOptions { Offline = true });
+        var offline = Translate(settings, new TranslationOptions { Fetch = FetchPolicy.Never });
         var online = Translate(settings);
 
         // Assert: offline, the library is read from its summary; online, it
@@ -1516,7 +1516,7 @@ public sealed class TranslatorTests : IDisposable
         File.Delete(Path.Combine(_root, "core/lib.f"));
 
         // Act
-        var result = Translate(Settings(toolkit, tool), new TranslationOptions { Offline = true });
+        var result = Translate(Settings(toolkit, tool), new TranslationOptions { Fetch = FetchPolicy.Never });
 
         // Assert
         result.Succeeded.ShouldBeTrue(string.Join('\n', result.Messages));
@@ -1844,7 +1844,7 @@ public sealed class TranslatorTests : IDisposable
     }
 
     [Fact]
-    public void Run_WhenOfflineAndOnlyTheSummaryIsThere_ShouldSayToRestore()
+    public void Run_WhenNeverToFetchAndOnlyTheSummaryIsThere_ShouldSayToFetch()
     {
         // Arrange: translated once, then the sources and the translation go
         // and the summary stays, as a checkout has it that commits only it.
@@ -1855,11 +1855,11 @@ public sealed class TranslatorTests : IDisposable
         Directory.Delete(Path.Combine(_root, "out/Example.Toolkit/Generated"), recursive: true);
 
         // Act
-        var result = Translate(project, new TranslationOptions { Offline = true });
+        var result = Translate(project, new TranslationOptions { Fetch = FetchPolicy.Never });
 
         // Assert
         result.Succeeded.ShouldBeFalse();
-        result.Messages.ShouldHaveSingleItem().Text.ShouldContain("restore them first");
+        result.Messages.ShouldHaveSingleItem().Text.ShouldContain("fetch them first");
     }
 
     [Fact]

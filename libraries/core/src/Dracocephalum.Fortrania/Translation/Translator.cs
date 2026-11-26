@@ -63,26 +63,6 @@ public static partial class Translator
         return new Translation(CheckFolders(projects), options).Run();
     }
 
-    /// <summary>
-    /// Fetches the sources a run would read and translates nothing: those of
-    /// every project that say where to download them and are not on the
-    /// machine.
-    /// </summary>
-    /// <param name="projects">Each project that would be translated, and the settings of what it is made of with the folder each lies in.</param>
-    /// <param name="options">How the run is to go.</param>
-    /// <param name="onlyWhereNotTranslated">
-    /// Whether a project whose translation is all there already, its
-    /// summary and what it wrote, is passed over: a build then fetches only
-    /// for one it could not compile otherwise.
-    /// </param>
-    /// <returns>What was fetched, and what there is to say about it; nothing is written but the sources.</returns>
-    /// <exception cref="ArgumentException">Settings do not say what folder they lie in.</exception>
-    public static TranslationResult Restore(IReadOnlyList<TranslationProject> projects, TranslationOptions options, bool onlyWhereNotTranslated)
-    {
-        ArgumentNullException.ThrowIfNull(options);
-        return new Translation(CheckFolders(projects), options).Restore(onlyWhereNotTranslated);
-    }
-
     private static IReadOnlyList<TranslationProject> CheckFolders(IReadOnlyList<TranslationProject> projects)
     {
         ArgumentNullException.ThrowIfNull(projects);
@@ -212,10 +192,6 @@ public static partial class Translator
         private readonly List<UnalignedPlace> _unaligned = [];
         private readonly List<WidenedPlace> _widened = [];
 
-        // Whether a restore passes over a project whose translation is all
-        // there, which a run that translates never does.
-        private bool _onlyWhereNotTranslated;
-
         private bool HasErrors => _messages.Any(message => message.IsError);
 
         public TranslationResult Run()
@@ -224,7 +200,7 @@ public static partial class Translator
             CheckSettings();
             CheckVariables();
             CheckCommands();
-            if (!HasErrors && !options.Offline)
+            if (!HasErrors && options.Fetch != FetchPolicy.Never)
             {
                 FetchSources();
             }
@@ -288,32 +264,9 @@ public static partial class Translator
             }
         }
 
-        public TranslationResult Restore(bool onlyWhereNotTranslated)
-        {
-            _onlyWhereNotTranslated = onlyWhereNotTranslated;
-            TakeProjects();
-            CheckSettings();
-            if (!HasErrors)
-            {
-                CheckVariables();
-            }
-
-            if (!HasErrors)
-            {
-                FetchSources();
-            }
-
-            return new TranslationResult(_messages, [], [], 0) { Fetched = _fetched };
-        }
-
         private void Error(string text, string? file = null, int line = 0) => _messages.Add(new TranslationMessage(true, file, line, text));
 
         private void Warning(string text, string? file = null, int line = 0) => _messages.Add(new TranslationMessage(false, file, line, text));
-
-        // Whether this run reads a project's sources: those of one it
-        // translates, unless a restore passes over it for being all there.
-        private bool ReadsSources(Project project) =>
-            IsTranslated(project) && !(_onlyWhereNotTranslated && IsAllThere(project));
 
         // Whether what a project's translation wrote is all there: its
         // summary, and in each of its settings' folders the manifest and
@@ -482,7 +435,7 @@ public static partial class Translator
         private HashSet<string> VariablesNamed(Project project, Part part)
         {
             var paths = new[] { part.Settings.Output }
-                .Concat(ReadsSources(project) ? part.Settings.Sources.SelectMany(source => source.Files.Concat(source.Includes)) : [])
+                .Concat(IsTranslated(project) ? part.Settings.Sources.SelectMany(source => source.Files.Concat(source.Includes)) : [])
                 .OfType<string>();
             return new HashSet<string>(
                 paths.SelectMany(path => VariableReference().Matches(path).Select(match => match.Groups[1].Value)),
@@ -504,11 +457,12 @@ public static partial class Translator
         }
 
         // A variable that names a folder to download is fetched when the
-        // folder is not there, and only for the path the settings give: a
-        // value from the local settings file or the environment is somebody's
-        // own folder, used as it is. Only what this run reads is fetched: the
-        // sources of a project read from its summary are not. Two settings
-        // files that name one folder fetch it once.
+        // folder is not there, or on every run where the options say always,
+        // and only for the path the settings give: a value from the local
+        // settings file or the environment is somebody's own folder, used as
+        // it is. Only what this run reads is fetched: the sources of a
+        // project read from its summary are not. Two settings files that
+        // name one folder fetch it once.
         private void FetchSources()
         {
             var fetcher = new SourceFetcher(options);
@@ -531,7 +485,8 @@ public static partial class Translator
                         }
 
                         var folder = Path.GetFullPath(Path.Combine(part.Folder, variable.Path));
-                        if (Directory.Exists(folder))
+                        if (_fetched.Contains(folder, StringComparer.OrdinalIgnoreCase)
+                            || (Directory.Exists(folder) && options.Fetch != FetchPolicy.Always))
                         {
                             continue;
                         }
@@ -568,13 +523,14 @@ public static partial class Translator
         {
             foreach (var project in _given)
             {
-                // Offline, a project whose sources are not here is compiled
-                // as it was translated last, where that is all there.
-                if (options.Offline && !HasSources(project))
+                // Told never to fetch, a project whose sources are not here
+                // is compiled as it was translated last, where that is all
+                // there.
+                if (options.Fetch == FetchPolicy.Never && !HasSources(project))
                 {
                     if (!IsAllThere(project) || !ReadSummary(project))
                     {
-                        Error($"The sources of the project {project.Name} are not on this machine, and its translation is not all there to be compiled instead; restore them first.");
+                        Error($"The sources of the project {project.Name} are not on this machine, and its translation is not all there to be compiled instead; fetch them first, translating with --fetch once.");
                     }
 
                     continue;
