@@ -6,19 +6,40 @@
 
 Fortrania: a FORTRAN 77 to C# translator, and the small managed runtime
 library the translated code runs on, with no native binaries. It was
-written to translate NASA's SPICE Toolkit, and holds nothing of it.
+written to translate NASA's SPICE Toolkit, which
+[dc-spice](https://github.com/dracocephalum/dc-spice) does with it, and it
+holds nothing of the toolkit: whatever is particular to one body of source
+is given to it as settings or as a plugin.
+
+## What it gives
+
+| Piece | Package | What it is for |
+|---|---|---|
+| The command | `Dracocephalum.Fortrania.Cli`, a .NET tool | `fortrania translate csharp --name Example example.fortrania.json`, a translation run by hand or by a script |
+| The build package | `Dracocephalum.Fortrania.Build` | a project that references it translates its FORTRAN as it builds, again only when something it was made from changed |
+| The runtime | `Dracocephalum.Fortrania.Runtime` | what translated code calls: the FORTRAN intrinsics, character values, input and output, and a context that holds a program's state |
+| The translator | `Dracocephalum.Fortrania` | the library the command and the build package run, and the contract of a plugin, which takes part in a translation before and after each stage |
+
+A project's settings file names its sources, which may download
+themselves from an address and a hash the first time they are needed, and
+what to call the output. [`libraries/core/README.md`](libraries/core/README.md)
+has how the command and the build package are used, and
+[`DESIGN.md`](DESIGN.md), *What is translated is set out in settings
+files*, how a plugin takes part.
 
 ## Where it stands
 
-**Not released, and not settled.** It translates the whole of the library
-it was written for, and that translation agrees with a native build of the
-same sources, test for test and to the last digit where that was compared.
-What it does not have yet is a release: nothing is on nuget.org, what is
-public of its types is still to be decided, and it cannot yet translate
-as a step of a build. [`DESIGN.md`](DESIGN.md) says how it works and
-why, [`PENDING.md`](PENDING.md) what is planned, and
-[`TODO.md`](TODO.md) what is open; the order of what comes before a first
-release is in `PENDING.md`, *Before Fortrania is published*.
+**Not released, and not settled.** It translates the whole of the SPICE
+Toolkit's main library, its support library and its test program, as
+their projects build, and that translation agrees with a native build of
+the same sources, test for test and to the last digit where that was
+compared; dc-spice is where that is checked. What it does not have yet is
+a release: nothing is on nuget.org, the builds of its default branch are
+not on a public registry, and what is public of its types is still to be
+decided. [`DESIGN.md`](DESIGN.md) says how it works and why,
+[`PENDING.md`](PENDING.md) what is planned, and [`TODO.md`](TODO.md) what
+is open; the order of what comes before a first release is in
+`PENDING.md`, *Before Fortrania is published*.
 
 ## What is in here
 
