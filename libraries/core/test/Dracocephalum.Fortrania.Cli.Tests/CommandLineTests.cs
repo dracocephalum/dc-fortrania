@@ -374,6 +374,7 @@ public sealed class CommandLineTests : IDisposable
                 "pattern " + Path.GetFullPath(Path.Combine(_root, "src/*.f")),
                 "file " + Path.GetFullPath(Path.Combine(_root, "out/Example.Toolkit/Generated/Core/TWICE.g.cs")),
                 "file " + Path.GetFullPath(Path.Combine(_root, "out/Example.Toolkit/Generated/Core/Core.g.cs")),
+                "file " + Path.GetFullPath(Path.Combine(_root, "out/Example.Toolkit/Generated/.fortrania-manifest.json")),
                 "file " + Path.Combine(_root, "Example.Toolkit.fortrania-summary.json"),
             ]);
     }

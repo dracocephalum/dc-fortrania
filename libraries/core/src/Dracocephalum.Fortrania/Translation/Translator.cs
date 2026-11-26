@@ -1,7 +1,4 @@
-using System.Diagnostics;
 using System.Reflection;
-using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Dracocephalum.Fortrania.Analysis;
@@ -86,11 +83,9 @@ public static partial class Translator
     private static partial Regex VariableReference();
 
     // What the translator wrote to one settings file's folder of translated
-    // sources: which translator it was, and for each source the hash of each
-    // file's text, by the file's name. The version is here and not in every
-    // file, so that a new translator changes no file whose translation it
-    // does not change.
-    private sealed record Manifest(string Translator, IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> Sources);
+    // sources: for each source the names of its files. It is what says a
+    // translation is all there, to be compiled where its sources are not.
+    private sealed record Manifest(IReadOnlyDictionary<string, IReadOnlyList<string>> Sources);
 
     // One program unit as it was read.
     private sealed record Unit(string File, SymbolTable Table, UnitSummary Summary)
@@ -184,9 +179,6 @@ public static partial class Translator
         private readonly Dictionary<Project, string> _entries = [];
         private readonly Dictionary<string, IncludeFile?> _includes = new(StringComparer.Ordinal);
         private readonly List<string> _written = [];
-
-        // What was written of each settings file, for the commands it runs.
-        private readonly Dictionary<Part, List<string>> _writtenOf = [];
         private readonly List<string> _fetched = [];
         private readonly List<string> _read = [];
         private readonly HashSet<string> _readOnce = new(StringComparer.OrdinalIgnoreCase);
@@ -208,7 +200,6 @@ public static partial class Translator
             TakeProjects();
             CheckSettings();
             CheckVariables();
-            CheckCommands();
             if (!HasErrors && options.Fetch != FetchPolicy.Never)
             {
                 FetchSources();
@@ -264,11 +255,6 @@ public static partial class Translator
             {
                 _context.Result = Result();
                 Call(plugin => plugin.AfterWrite, nameof(ITranslationPlugin.AfterWrite));
-            }
-
-            if (!HasErrors)
-            {
-                RunCommands();
             }
 
             return Result();
@@ -412,13 +398,14 @@ public static partial class Translator
         private void Warning(string text, string? file = null, int line = 0) => _messages.Add(new TranslationMessage(false, file, line, text));
 
         // Whether what a project's translation wrote is all there: its
-        // summary, and in each of its settings' folders the manifest and
-        // every file it lists. Its summary alone, which is committed with
-        // the project, is not a translation to compile.
+        // summary, and in each of its settings' folders a manifest that can
+        // be read and every file it lists, which for settings with no
+        // sources is none. Its summary alone, which is committed with the
+        // project, is not a translation to compile.
         private static bool IsAllThere(Project project) =>
             File.Exists(project.SummaryPath)
-            && project.Parts.All(part => File.Exists(ManifestPathOf(part))
-                && ReadManifest(ManifestPathOf(part)).All(source => source.Value.Keys.All(name => File.Exists(Path.Combine(GeneratedFolderOf(part), source.Key, name)))));
+            && project.Parts.All(part => ReadManifest(ManifestPathOf(part)) is { } sources
+                && sources.All(source => source.Value.All(name => File.Exists(Path.Combine(GeneratedFolderOf(part), source.Key, name)))));
 
         // The folder a settings file's sources are translated to.
         private static string OutputOf(Part part) =>
@@ -643,21 +630,6 @@ public static partial class Translator
                         {
                             _fetched.Add(folder);
                         }
-                    }
-                }
-            }
-        }
-
-        private void CheckCommands()
-        {
-            foreach (var part in _given.SelectMany(project => project.Parts))
-            {
-                var commands = part.Settings.OnSuccess;
-                for (var index = 0; index < commands.Count; index++)
-                {
-                    if (commands[index].Run.Count == 0 || string.IsNullOrWhiteSpace(commands[index].Run[0]))
-                    {
-                        Error(string.Create(System.Globalization.CultureInfo.InvariantCulture, $"Command {index + 1} of onSuccess names no program to run."), part.Folder);
                     }
                 }
             }
@@ -1051,37 +1023,33 @@ public static partial class Translator
             {
                 foreach (var part in project.Parts)
                 {
-                    var first = _written.Count;
                     var generatedFolder = GeneratedFolderOf(part);
                     Directory.CreateDirectory(generatedFolder);
 
-                    // A file is written when what the translator makes of it
-                    // differs from what it made last time, or the file is
-                    // gone; a file a later step changed is otherwise kept.
                     var manifestPath = ManifestPathOf(part);
-                    var before = options.Force ? [] : ReadManifest(manifestPath);
-                    var after = new SortedDictionary<string, IReadOnlyDictionary<string, string>>(StringComparer.Ordinal);
+                    var after = new SortedDictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal);
                     foreach (var source in _sources.Where(source => source.Part == part))
                     {
                         var generated = Path.Combine(generatedFolder, source.Settings.Name);
                         Directory.CreateDirectory(generated);
 
-                        var known = before.GetValueOrDefault(source.Settings.Name);
-                        var hashes = new SortedDictionary<string, string>(StringComparer.Ordinal);
+                        // A file is written where its text is not already
+                        // what is there, so that one the translation does not
+                        // change keeps its time and is not compiled again,
+                        // and one changed by hand is put right. Line endings
+                        // are not compared: a checkout may have changed them.
                         foreach (var (name, text) in source.Files)
                         {
                             var path = Path.Combine(generated, name);
                             _files.Add(path);
-                            var hash = Hash(text);
-                            hashes[name] = hash;
-                            if (!File.Exists(path) || known?.GetValueOrDefault(name) != hash)
+                            if (options.Force || !File.Exists(path) || File.ReadAllText(path).ReplaceLineEndings("\n") != text.ReplaceLineEndings("\n"))
                             {
                                 File.WriteAllText(path, text);
                                 _written.Add(path);
                             }
                         }
 
-                        after[source.Settings.Name] = hashes;
+                        after[source.Settings.Name] = [.. source.Files.Keys.Order(StringComparer.Ordinal)];
 
                         // What an earlier translation wrote and this one does
                         // not is removed, and only that: a file that does not
@@ -1096,19 +1064,18 @@ public static partial class Translator
                         }
                     }
 
-                    var manifest = JsonSerializer.Serialize(new Manifest("Fortrania " + OwnVersion(), after), TranslationJson.Default).ReplaceLineEndings("\n") + "\n";
+                    var manifest = JsonSerializer.Serialize(new Manifest(after), TranslationJson.Default).ReplaceLineEndings("\n") + "\n";
                     if (!File.Exists(manifestPath) || File.ReadAllText(manifestPath) != manifest)
                     {
                         File.WriteAllText(manifestPath, manifest);
                     }
 
-                    _writtenOf[part] = _written[first..];
+                    _files.Add(manifestPath);
                 }
 
                 // What the projects that call into this one need of it, for a
                 // run that leaves this one out: beside its project file, and
                 // committed with it.
-                var aroundFrom = _written.Count;
                 var summaryFolder = project.Folder ?? Path.GetDirectoryName(project.SummaryPath) ?? project.SummaryPath;
                 Directory.CreateDirectory(summaryFolder);
                 WriteIfChanged(project.SummaryPath, SummarizeProject(project).ToJson());
@@ -1123,10 +1090,6 @@ public static partial class Translator
                         _files.Add(Path.Combine(summaryFolder, "Program.cs"));
                     }
                 }
-
-                // Written into the summary's folder, they were written of
-                // the first settings file, for its commands.
-                _writtenOf[project.Parts[0]].AddRange(_written[aroundFrom..]);
             }
 
             // A project of the run read from its summary is still what its
@@ -1135,11 +1098,12 @@ public static partial class Translator
             foreach (var project in _given.Where(_summaries.ContainsKey))
             {
                 _files.Add(project.SummaryPath);
-                foreach (var part in project.Parts)
+                foreach (var part in project.Parts.Where(part => File.Exists(ManifestPathOf(part))))
                 {
-                    foreach (var (source, hashes) in ReadManifest(ManifestPathOf(part)))
+                    _files.Add(ManifestPathOf(part));
+                    foreach (var (source, names) in ReadManifest(ManifestPathOf(part)) ?? [])
                     {
-                        _files.AddRange(hashes.Keys
+                        _files.AddRange(names
                             .Select(name => Path.Combine(GeneratedFolderOf(part), source, name))
                             .Where(File.Exists));
                     }
@@ -1147,98 +1111,22 @@ public static partial class Translator
             }
         }
 
-        private static Dictionary<string, IReadOnlyDictionary<string, string>> ReadManifest(string path)
+        // The files a manifest lists, by source; nothing where there is no
+        // manifest or it cannot be read, which says nothing of what was
+        // written, as against one of settings with no sources, which lists
+        // none.
+        private static Dictionary<string, IReadOnlyList<string>>? ReadManifest(string path)
         {
             try
             {
                 return File.Exists(path) && JsonSerializer.Deserialize<Manifest>(File.ReadAllText(path), TranslationJson.Default)?.Sources is { } sources
-                    ? new Dictionary<string, IReadOnlyDictionary<string, string>>(sources, StringComparer.Ordinal)
-                    : [];
+                    ? new Dictionary<string, IReadOnlyList<string>>(sources, StringComparer.Ordinal)
+                    : null;
             }
             catch (JsonException)
             {
-                // A manifest that cannot be read only makes every file be
-                // written again.
-                return [];
+                return null;
             }
-        }
-
-        private static string Hash(string text) => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(text)));
-
-        // The commands of each settings file translated, once all of the run
-        // is written, in the order given; the first that fails ends them all.
-        private void RunCommands()
-        {
-            foreach (var part in _given.SelectMany(project => project.Parts).Where(_writtenOf.ContainsKey))
-            {
-                if (!RunCommands(part, _writtenOf[part]))
-                {
-                    return;
-                }
-            }
-        }
-
-        private bool RunCommands(Part part, List<string> written)
-        {
-            if (part.Settings.OnSuccess.Count == 0)
-            {
-                return true;
-            }
-
-            var list = Path.Combine(Path.GetTempPath(), "fortrania-written-" + Guid.NewGuid().ToString("N") + ".txt");
-            File.WriteAllLines(list, written);
-            try
-            {
-                return part.Settings.OnSuccess.All(command => Run(part, command, list));
-            }
-            finally
-            {
-                File.Delete(list);
-            }
-        }
-
-        private bool Run(Part part, CommandSettings command, string list)
-        {
-            var start = new ProcessStartInfo(command.Run[0])
-            {
-                WorkingDirectory = part.Folder,
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-            };
-
-            foreach (var argument in command.Run.Skip(1))
-            {
-                start.ArgumentList.Add(argument);
-            }
-
-            start.Environment["FORTRANIA_SETTINGS"] = part.Folder;
-            start.Environment["FORTRANIA_OUTPUT"] = OutputOf(part);
-            start.Environment["FORTRANIA_WRITTEN"] = list;
-            var shown = string.Join(' ', command.Run);
-
-            try
-            {
-                using var process = Process.Start(start)!;
-                var output = process.StandardOutput.ReadToEndAsync();
-                var errors = process.StandardError.ReadToEndAsync();
-                process.WaitForExit();
-                if (process.ExitCode == 0)
-                {
-                    return true;
-                }
-
-                var said = (errors.Result + output.Result).Trim();
-                Error(string.Create(
-                    System.Globalization.CultureInfo.InvariantCulture,
-                    $"The command '{shown}' ended with status {process.ExitCode}.{(said.Length == 0 ? string.Empty : " It said: " + said)}"));
-            }
-            catch (Exception exception) when (exception is System.ComponentModel.Win32Exception or InvalidOperationException)
-            {
-                Error($"The command '{shown}' could not be started: {exception.Message}");
-            }
-
-            return false;
         }
 
         private void WriteIfChanged(string path, string text)

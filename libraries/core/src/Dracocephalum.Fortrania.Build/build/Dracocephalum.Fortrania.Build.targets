@@ -52,6 +52,12 @@
     and was written for the first time, which the SDK did not see when it
     listed the folder.
 
+    TranslateFortran is the target to run a step of the project's own
+    after, before the compiler, whether it translated or found nothing to
+    do: a target with AfterTargets="TranslateFortran". The targets whose
+    names start with an underscore are this package's, and may change.
+    What changes the translated files is a plugin's, not such a step's.
+
     (No double hyphen appears in a comment here: XML forbids it.)
   -->
 
