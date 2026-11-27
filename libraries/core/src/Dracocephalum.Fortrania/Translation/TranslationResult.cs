@@ -42,6 +42,15 @@ public sealed record TranslationResult(
     /// </summary>
     public IReadOnlyList<WidenedPlace> WidenedPlaces { get; init; } = [];
 
+    /// <summary>
+    /// Gets the calls that pass one variable, or parts of one array, as two
+    /// arguments of a procedure that gives one of them a value, by file and
+    /// line; empty when there are none or the translation was not done. The
+    /// arguments of the procedures called so are left behind their
+    /// addresses.
+    /// </summary>
+    public IReadOnlyList<AliasedPlace> AliasedPlaces { get; init; } = [];
+
     /// <summary>Gets the folders of sources downloaded by the run, in full.</summary>
     public IReadOnlyList<string> Fetched { get; init; } = [];
 

@@ -57,6 +57,20 @@ public sealed class TranslationSettings
     public bool PlainArrayLoops { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether two arguments of a procedure
+    /// of these sources may be the same storage where one of them is given
+    /// a value, which FORTRAN 77 forbids. Unless set, a method keeps its
+    /// scalar arguments in locals while it runs, as a compiler of the
+    /// language may, which is faster wherever one is used in a loop; a call
+    /// of the translation that is seen to break the rule has the procedure
+    /// keep those arguments behind their addresses, and is listed in the
+    /// run's result. Set, every argument is read and written through its
+    /// address each time, for sources that break the rule where the
+    /// translator cannot see it: in calls from outside the translation.
+    /// </summary>
+    public bool AllowsArgumentAliasing { get; set; }
+
+    /// <summary>
     /// Gets or sets the variables a path may name as <c>$(Name)</c>, names
     /// compared without regard to case. Their values are the last of three
     /// places a value is looked for: the local settings file beside this

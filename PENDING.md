@@ -1014,8 +1014,22 @@ that is not to be made before it does. A question that is answered leaves
 this list, for `DESIGN.md` where the answer shaped the code.
 
 - **Arguments by value.** Analysis says which arguments a procedure never
-  writes; what passing those as values saves, against the pointer every
-  argument is today, is not known.
+  writes. A method now keeps a scalar argument in a local, `DESIGN.md`,
+  *A scalar argument is kept in a local*, so the reading through an
+  address is gone where it cost most; what is left to gain by passing
+  such an argument as a value is the caller's side, a value in a register
+  for a variable given an address, and is not known. It would change
+  every such signature.
+- **Whose arguments a call writes, more closely.** What a procedure does
+  with an argument errs toward more: one passed down to a procedure that
+  calls what it was passed counts as written. Calls are listed as
+  breaking FORTRAN's rule on arguments for that alone, and their
+  procedures left without locals. Counting what the reference sources
+  list so, and what a closer answer would free, comes first.
+- **The scalar locals around calls, by what the call does.** A local is
+  read again after every statement that passes its address on, whatever
+  is called; where the analysis says the procedure only reads the
+  argument, the reading again could go.
 - **Saved state.** The two questions at the end of *Saved state is placed
   at translation and loaded at run time*: what an allocated and untouched
   block costs, and what the test on entry costs.

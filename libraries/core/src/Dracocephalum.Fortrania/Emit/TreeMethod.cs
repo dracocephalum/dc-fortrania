@@ -25,6 +25,17 @@ internal sealed record TreeMethod(
     /// <summary>Gets the FORTRAN procedure the method is, by its name as the program has it; nothing for a method the translator adds.</summary>
     public string? Procedure { get; init; }
 
+    /// <summary>
+    /// Gets the entry point of the FORTRAN the method's statements are, by
+    /// the name the program calls it by, whatever the method is named: a
+    /// variant for one platform has the name of the procedure it is a
+    /// variant of. Nothing for a method the translator adds.
+    /// </summary>
+    public string? EntryPoint { get; init; }
+
+    /// <summary>Gets the arguments that are one number or logical value each, which a pass may keep in locals; none for a method the translator adds.</summary>
+    public IReadOnlyList<ScalarArgument> ScalarArguments { get; init; } = [];
+
     /// <summary>Gets a value indicating whether the program's own code may call it; one the translator adds is the class's alone.</summary>
     public bool IsPublic { get; init; } = true;
 

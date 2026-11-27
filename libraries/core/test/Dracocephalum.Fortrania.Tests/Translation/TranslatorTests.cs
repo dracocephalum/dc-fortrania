@@ -1147,7 +1147,7 @@ public sealed class TranslatorTests : IDisposable
         copy.ShouldContain("b[i - 1] = a[i - 1];");
         var fill = Text("out/Example.Toolkit/Generated/Core/SETALL.g.cs");
         fill.ShouldContain("if (_last1 >= LongRun)");
-        fill.ShouldContain("i = FillElements(b, _last1, *v);");
+        fill.ShouldContain("i = FillElements(b, _last1, v_value);");
         var others = Text("out/Example.Toolkit/Generated/Core/OTHERS.g.cs");
         others.ShouldNotContain("Elements(");
 

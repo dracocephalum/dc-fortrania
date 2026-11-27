@@ -308,6 +308,75 @@ such tests, most of them in chains where all but one fail.
   which the method's other small calls were no longer written in line
   either. One comparison of two bytes uses next to nothing of it.
 
+**A scalar argument is kept in a local.** Every argument is an address,
+and a method that reads and stores a number behind one does so in memory
+each time: the compiler cannot know that no other address of the method
+reaches the same place, so it keeps nothing of it in a register across a
+store. FORTRAN 77 does know: no two arguments of a procedure may be the
+same storage where either is given a value (ANSI X3.9-1978, 15.9.3.6),
+which is what lets its own compilers do the same. So an argument that is
+one number or logical value is read into a local where the method starts,
+used there, and stored back where the method ends, under a remark that
+says so:
+
+    /* Scalar arguments, kept in locals while the method runs: ... */
+    double x_value = *x;
+    double c3_value = *c3;
+    ...
+    c3_value = 1.0 - x_value * pairs[i - 1] * c3_value;
+    ...
+    *c3 = c3_value;
+
+- **A statement that passes the address on is bracketed.** Before a call
+  or a transfer that is given the argument itself, the local is stored
+  where the method has given it a value; after it, the local is read
+  again, since what was called may have stored to it.
+- **Some arguments are left behind their addresses**, where the above
+  cannot be done simply or gains nothing: one whose address is passed on
+  in the condition of a branch or a loop; one a single statement both
+  reads and passes on, since what is called may store before the value
+  is read; one a statement function names; one never read; and one read
+  no more often than it would be read again around the statements that
+  pass it on, unless a loop reads it. Arrays and character values are
+  always behind their addresses.
+- **A call that breaks the rule is looked for, and the procedure it calls
+  written without the locals.** The translator sees every call of a
+  project: where two arguments are one variable, an array and an element
+  of it, one element written twice with the same subscripts, or names an
+  `EQUIVALENCE` lays over each other, and the procedure called gives
+  either a value and could keep either in a local, those two arguments of
+  it stay behind their addresses, and the call is listed in the run's
+  result, `AliasedPlaces`. Two elements of one array written differently
+  are taken for two, as the language asks and its compilers assume.
+  Character arguments are no concern: text changed in place, which
+  libraries allow, is never in a local.
+- **A call through an argument reaches any procedure.** Where one passes
+  one storage twice, every procedure of the project that is passed as an
+  argument keeps all of its arguments behind their addresses.
+- **A project is translated the same whichever others are translated with
+  it.** A call from another project that breaks the rule changes nothing
+  in the project called, which may be compiled already, and is warned
+  of. A caller outside every translation, a host's own code, is not seen
+  at all, and has to keep the rule as a FORTRAN caller would.
+- **A setting leaves every argument behind its address**,
+  `allowsArgumentAliasing`, for sources that break the rule where the
+  translator cannot see it.
+- **A method that ends by an exception stores nothing back.** That is a
+  procedure it called stopping the program, after which FORTRAN has no
+  values either.
+
+Measured in `tools/benchmarks`, `ScalarArgumentBenchmarks`, on the series
+of the reference sources' `STMP03`, two loops of nine turns over one
+argument read and one stored: 0.65 of the time through the addresses,
+half of the pairs between 0.62 and 0.67, the same bits. On the reference
+sources' own tests the gain is small: fifteen of the families that
+compute most, run one after another five times each way, took 0.965 of
+the time, a family's own times varying by more than that from run to run;
+over all the quick families run together, nothing that can be told from
+the noise. The translation of the main library keeps 1,391 arguments in
+locals, in 607 of its 1,420 files, and its tests pass with the same results,
+the 8,604 values compared with the reference compiler's among them.
+
 **A loop that copies or fills an array is done at once where it is
 long.** A `DO` loop from the first element, one at a time, whose one
 statement stores to the element of its turn from the same element of
