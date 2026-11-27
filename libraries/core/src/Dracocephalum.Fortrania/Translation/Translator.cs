@@ -1169,7 +1169,8 @@ public static partial class Translator
                         source.Part.Settings.PlainArrayLoops,
                         procedure => _whyOnStack.TryGetValue((source, procedure), out var why) && why.Count > 0 ? why : null,
                         HasCore,
-                        source.Part.Settings.AllowsArgumentAliasing ? null : (entry, position) => IsAliased(source, entry, position));
+                        source.Part.Settings.AllowsArgumentAliasing ? null : (entry, position) => IsAliased(source, entry, position),
+                        (caller, callee) => MayReenter(source, caller, callee));
                 }
 
                 var region = _workingRegions.Single(region => region.Project == source.Project.Name);

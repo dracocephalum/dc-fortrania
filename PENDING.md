@@ -878,7 +878,11 @@ copy of the arena of its own. Left to do:
   writing `BufferPlacement.Default` always. Since cores, a call inside a
   project makes one test, so what fixing saves is that test, under a
   nanosecond on a method that does nothing and nothing measured on one that
-  works. Fixed to the stack, the gain is mostly code that is simpler to
+  works. Measured again since: a method that takes 64 bytes from the
+  arena with no test takes 0.8 of what one that takes them from the stack
+  with no test does, and the test costs a tenth on top of the stack's; a
+  few nanoseconds a call, on methods that take buffers, and not tried on
+  a whole run. Fixed to the stack, the gain is mostly code that is simpler to
   read and to set beside the FORTRAN: no region, the buffers taken one by
   one as before the pass. Fixed to the arena, a method would also have no
   `stackalloc`, and so no frame pointer or stack cookie, which measured
@@ -1037,8 +1041,23 @@ this list, for `DESIGN.md` where the answer shaped the code.
   is called; where the analysis says the procedure only reads the
   argument, the reading again could go.
 - **Saved state.** The two questions at the end of *Saved state is placed
-  at translation and loaded at run time*: what an allocated and untouched
-  block costs, and what the test on entry costs.
+  at translation and loaded at run time*, answered on Windows and for the
+  reference sources. The six largest blocks of their main library, 89 MB
+  together, zeroed as the runtime asks for them, took 3.6 ms to get and
+  added nothing to the memory the process holds until written to, only to
+  what it has reserved; written to on every page and then freed, 17 ms
+  to free. The test on entry is a load and a branch, and shows in no
+  profile. Left: the same on Linux and macOS, and what many contexts made
+  and disposed one after another pay, which *A context's native memory
+  comes from one heap* is about.
+- **A search of an array done at once.** `ISRCHI`, which looks for a
+  whole number in an array one element at a time, took 1.6% of the
+  reference sources' quick tests and 3.3% of those that compute most,
+  nearly all of it from one routine that looks plates up. The
+  framework's search of a span looks at several elements at a time. To
+  be counted first: how long the arrays are where it is called, since a
+  short one gains nothing. It would be a loop the translator recognizes,
+  as it does one that copies or fills, or a unit written by hand.
 - **Records.** A record read by number is one system call, and one copy
   unless the item is the whole record. Kernel reading is made of these, so
   what a buffer of several records, or a mapped file, would save is the
@@ -1059,7 +1078,14 @@ this list, for `DESIGN.md` where the answer shaped the code.
   Each could be a unit left out and written by hand with `Vector128` and
   `Vector256`, provided its additions keep their order, so that the
   results stay bit for bit; for three elements the gain may be small, and
-  a product of 3-by-3 matrices is the likelier case.
+  a product of 3-by-3 matrices is the likelier case. Looked for in two
+  profiles of the reference sources' tests, the quick families and
+  fifteen that compute most, and not found: none of the four takes a
+  fiftieth of a percent as a method of its own, and of their like only
+  `XPOSEG` and `VPERP` show, at about one percent of the second profile
+  each. A routine this small is written in line where it is called, and
+  its time counted there, so this says that none is a place where time
+  goes and not that they take none. Not worth building on what is seen.
 
 The functions of the mathematical library are not among these. `SIN`,
 `EXP`, `ATAN2` and a real exponent call the platform's C runtime, as the

@@ -417,6 +417,63 @@ the noise. The translation of the main library keeps 1,391 arguments in
 locals, in 607 of its 1,420 files, and its tests pass with the same results,
 the 8,604 values compared with the reference compiler's among them.
 
+**A kept scalar is in a local while its method runs.** A single number
+or logical value that a unit keeps between calls lies in the unit's
+block, and a method reaches it by an address as it reaches an argument,
+with the same cost: read and stored in memory at every use, a loop's
+counter among them where the unit keeps everything, as many of the
+reference sources' do. No other name reaches such a variable, unless an
+`EQUIVALENCE` lays one over it, so the same pass reads it into a local
+where the method starts and stores it back where the method ends, under
+a remark of its own:
+
+    /* Kept scalars, in locals while the method runs: ... */
+    double sum_value = *sum;
+    int i_value = *i;
+    ...
+    for (i_value = 1; i_value <= _last1; i_value += 1)
+
+- **A call that may come back into the unit is bracketed.** FORTRAN 77
+  forbids a procedure to call itself by any way round, another of its
+  entry points included, and programs do it all the same where an error
+  is reported from inside what reports errors. What comes back reads and
+  stores the same variables by addresses of its own. So before such a
+  call every kept scalar the method has stored is stored, and after it
+  every one is read again.
+- **Which calls may come back is worked out from the project's calls.**
+  A call may if what it reaches, followed through the project, includes
+  the calling unit; if anything it reaches calls through a procedure
+  argument, which may be any procedure, one of this project passed by
+  another among them; if it goes to another project and passes a
+  procedure; or if it goes to a procedure the translation does not have.
+  A procedure of another project that is passed none cannot come back:
+  it does not know of this one. A project is translated the same
+  whichever others are translated with it.
+- **A call that is passed the scalar itself** is bracketed for that one,
+  as for an argument, whatever it reaches.
+- **Left behind its address** is one under an `EQUIVALENCE`; and, as with
+  arguments, one whose address is passed on in the condition of a branch
+  or a loop, one a single statement both reads and passes on, one a
+  statement function names, one never read, and one read too seldom to
+  pay. A condition that calls what may come back counts as passing every
+  kept scalar on, and so does a statement function that calls a
+  procedure.
+- **There is no setting.** What the pass relies on is seen when
+  translating, and where it is not seen the scalar is left.
+
+Measured in `tools/benchmarks`, `SavedScalarBenchmarks`: a bisection
+whose every variable is kept and which calls a series on each turn, the
+shape of the reference sources' `PROP2B`, takes 0.92 of the time, and a
+loop whose counter is kept and which shifts twelve elements 0.36, the
+same results from both. In the translation of the reference sources'
+main library and its support library the pass applies in 475 methods of
+289 files, and of 236 loops whose counter lay in a unit's block 36 are
+left. On their tests: fifteen of the families that compute most, run one
+after another four times each way, took 0.977 of the time, two of the
+four pairs showing nothing; all the quick families, run one after another
+twice each way, show nothing. The 8,604 values compared with the
+reference compiler's are the same.
+
 **A loop that copies or fills an array is done at once where it is
 long.** A `DO` loop from the first element, one at a time, whose one
 statement stores to the element of its turn from the same element of
