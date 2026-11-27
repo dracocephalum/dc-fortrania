@@ -1197,9 +1197,12 @@ So that back end has two possible shapes, to be chosen when it is built:
 - Managed arrays with an offset, never a pointer or a span. Its code is
   verifiably safe where the C# back end's is not, and it shares nothing.
 
-The second shape is not tied to expression trees. Written out as source it
-is also how a language without pointers or spans, Visual Basic for one,
-could be a target of the translator: an array argument is an array and a
+Neither shape is tied to expression trees; *The language written and the
+safety of what is written are two choices*, below, has what each means for
+a translation written out as source. The second, written out, is how a
+language without pointers or spans, Visual Basic for one, could be a
+target of the translator with every access checked: an array argument is
+an array and a
 starting index, a single value is passed by reference, and text is bytes
 with an offset and a length. Three things about it are worth knowing ahead:
 
@@ -1214,6 +1217,90 @@ with an offset and a length. Three things about it are worth knowing ahead:
 
 None of these is for the translated SPICE library, which ships as compiled
 C# so that it runs where code cannot be generated at run time.
+
+## The language written and the safety of what is written are two choices
+
+Nothing here is built, and none of it comes before the first release. It
+is written down so that the tree and the runtime are not shaped against
+it. Two things a translation could be asked for are kept apart: which
+language its source is in, and how much of what it does to memory is
+checked. Neither decides the other.
+
+**How memory is reached, from least checked to most.**
+
+- **Addresses, unchecked.** What is built. Every value is behind an
+  address, nothing checks a subscript, and the speed is what that buys.
+  Its memory need not be native for this: with a context's chunks taken
+  from the pinned object heap, under *A context's native memory comes
+  from one heap*, all of it is the collector's, and still reached by
+  address.
+- **Checked, with spans and references.** A convention of its own: a
+  single value is passed by reference, an array or a character value as a
+  span, kept state lies in arrays, and a procedure argument is a
+  delegate. A subscript outside its array is then an exception and no
+  longer a store somewhere else. It is slower by the checks, and by how
+  much is to be measured before it is built. Storage read as another
+  type goes through the framework's reinterpreting of a span.
+- **Checked, with arrays and offsets.** The second shape under *Back ends
+  beyond C# source*, for a language that has neither pointers nor spans.
+
+A translation's settings would name the convention, as they name the
+target framework today. The first is the default and stays the one the
+measurements are made on.
+
+**Which language is written.** A writer decides spelling and nothing
+else, so a language is a writer over a tree that holds only what the
+language has. Two routes follow, and they differ by convention and not
+by language.
+
+- **Another .NET language over the unchecked convention, through the
+  runtime's package.** The nearer route, and the one to try first. An
+  address is a native integer in the language, and the runtime, which
+  such a translation refers to as a package and cannot take as source,
+  has small procedures written in line that read and store through one.
+  The tree and its passes stay as they are; the writer spells a
+  dereference as a call. What each language lacks is made up for in the
+  tree before its writer runs:
+
+  | In the tree today | Visual Basic | F# |
+  |---|---|---|
+  | a read or a store through an address | the runtime's procedure | its own native pointers, or the same |
+  | buffers taken from the stack | not there: the arena only, which a context can already ask for | its own |
+  | the address of a local | not there: such a local lies in the buffers | its own |
+  | a call through the address of a procedure | the runtime's procedure for that many arguments | the same |
+  | a character constant as bytes in the assembly | the library's block, loaded by the runtime | the same |
+
+  Nearly every argument is an address or a whole number, so a procedure
+  of the runtime for each count of arguments covers the calls through
+  addresses. Integer arithmetic that wraps, division of whole numbers,
+  and a real value cut to a whole number are spelled differently in each
+  language, and are the writer's.
+- **Any language over the checked convention with arrays and offsets.**
+  A tree that is legal for the language with the least can be written by
+  every writer, the C# one among them. It is the slowest of the three and
+  shares nothing with compiled translations of the other conventions.
+
+**Languages outside .NET.** The tree is not C#'s: Rust, Go and C each
+have addresses, and a writer for one is the smaller part of the work. The
+larger part is the runtime again in that language: formatted input and
+output, the character procedures, a context and its memory. C would add
+what its compilers differ in, which is settled there by conditional
+compilation and is a reason against it. None is planned.
+
+**What has to hold for any of this,** and is checked when the tree is
+finished, under *A tree between the analysis and the writers*:
+
+- Every statement is a node; none is text a writer passes through.
+- A pass that works on meaning (a scalar argument in a local, a loop
+  done at once, equality tested as equality) runs before a convention is
+  chosen and serves all of them. A pass that works on where memory lies
+  (the working buffers, a library's block of constants) belongs to the
+  convention it is for.
+- The checked conventions need the tree one step higher than it is: an
+  element of an array, a part of a character value and an argument
+  passed by reference are still to be seen as that, where today they
+  are already an address and arithmetic on it. Lowering from that to
+  addresses is then one pass, and to spans another.
 
 ## The runtime can be handed out as source
 
