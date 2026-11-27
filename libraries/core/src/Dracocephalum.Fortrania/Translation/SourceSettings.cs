@@ -13,11 +13,12 @@ public sealed class SourceSettings
     public string? Class { get; set; }
 
     /// <summary>
-    /// Gets or sets the files to translate. Each entry is a path, whose
-    /// last part may have <c>*</c> for any run of characters and <c>?</c>
-    /// for any one.
+    /// Gets or sets the files to translate, each entry their paths and
+    /// the platform they are for: the source's own where an entry gives
+    /// none, and those that stand in for some of them on one platform
+    /// where it gives one.
     /// </summary>
-    public IList<string> Files { get; set; } = [];
+    public IList<FileSettings> Files { get; set; } = [];
 
     /// <summary>
     /// Gets or sets the folders an <c>INCLUDE</c> file is looked for in,

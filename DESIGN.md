@@ -933,8 +933,8 @@ elsewhere refuses such a file.
     {
       "output": "$(IntermediateOutput)/fortrania",
       "sources": [
-        { "name": "TestUtil", "files": [ "testutil/*.f" ] },
-        { "name": "TSpiceMain", "files": [ "tspice/*.f", "tspice/*.pgm" ] }
+        { "name": "TestUtil", "files": [ { "paths": [ "testutil/*.f" ] } ] },
+        { "name": "TSpiceMain", "files": [ { "paths": [ "tspice/*.f", "tspice/*.pgm" ] } ] }
       ]
     }
 
@@ -997,6 +997,96 @@ elsewhere refuses such a file.
   error anywhere leaves what is on disk as it was. A file whose text is
   already what it should be is not written again, and a build that looks
   at dates sees no change.
+
+**A source's files are what its paths find, less what it ignores.** Each
+entry of `files` is an object, its `paths` and `ignores`, and the platform
+it is for where there is one, below:
+
+    { "paths": [ "$(Toolkit)/src/**/*.f" ],
+      "ignores": [ "**/test_*.f", "regex:^spicelib/zz.*\\.f$" ] }
+
+- **One shape.** A list is a JSON array, never a string with a separator in
+  it: a separator such as `;` may be part of a file's name on every
+  system, and an array keeps a comment beside each item. A bare string for
+  an entry would be a second way to say the same thing.
+- **A path is a glob.** Any part may have `*` and `?`, and a part that is
+  `**` stands for any number of folders, none among them; as the last
+  part, for every file beneath. The folder before the first part with a
+  wildcard is the path's root. A name is compared as the file system
+  compares it, and a folder a link leads to is not followed beneath `**`,
+  which could lead in a circle.
+- **An ignore filters what the paths found, and wins.** It is a glob, or
+  a regular expression after `regex:` (`glob:` may say the first). It is
+  matched against a file's path from the root of the path that found it,
+  parts joined by `/`: not the full path, which holds the machine's own
+  folders, nor one from the settings file, from which a variable may lead
+  anywhere. Both kinds ignore case, so that one settings file ignores the
+  same files everywhere. A glob matches the whole of that path, so
+  `**/test_*.f` is a name at any depth; a regular expression matches
+  anywhere in it unless anchored, as `Regex.IsMatch` does, and runs
+  without backtracking, so that none can take time without end. A path
+  whose every file is ignored found what it names; one that finds nothing
+  is an error.
+- **A regular expression only filters.** Finding files needs a folder to
+  list, which a glob says and a regular expression does not, so `paths` are
+  globs alone. The prefix is the one Mercurial's patterns take, `re:`
+  written out: `:` stands in no file's name on Windows but after a drive.
+- **A build watches the paths, and is told what was ignored.** A file that
+  comes to match a path is a change, and the build translates again. One
+  the settings ignore is written to the inventory as ignored, so that its
+  being there is no change; a new one is, once, until the inventory says
+  so.
+
+**A source may take a routine from another platform's copy, and its
+library chooses which runs.** FORTRAN that runs on several platforms often
+comes as a copy for each, alike but for a few routines. An entry of a
+source's `files` that says a platform names files that stand in for the
+source's own on it:
+
+    { "name": "Core", "files": [
+        { "paths": [ "linux/*.f" ] },
+        { "paths": [ "windows/zzplatfm.f" ], "osPlatform": "windows" } ] }
+
+- **Each unit of a platform's files is a variant of the unit of its name**
+  among the source's own, those of the entries that say no platform, the
+  base, which runs wherever no variant does. A source has to have files
+  of its own; a variant with no base is refused, and so is one that is not
+  called as its base is: the same procedures, the same arguments, the same
+  C# signature, since callers are written against the base.
+- **The platform is .NET's: `osPlatform`, `processArchitecture`, or
+  both.** A system is named as `OperatingSystem.IsOSPlatform` names it,
+  `windows`, `linux`, `macos`, and is not checked, since .NET's set is open:
+  a name it does not know runs where a context is told it is on that
+  system and nowhere else. An architecture is a member of .NET's
+  `Architecture`, a closed set, so any other is an error. Of the variants
+  that suit a platform, the one that gives both is chosen first, then one
+  that gives the system, then the architecture; among equals, the first
+  given.
+- **One class still, and the choice is made once.** The unit is written
+  for each platform under names derived from its own, `_ZZPLATFM_windows`
+  and `_ZZPLATFM_base` in `ZZPLATFM.windows.g.cs` and `ZZPLATFM.base.g.cs`,
+  each with its own saved state, and `ZZPLATFM.g.cs` holds a method of
+  the procedure's own name that calls the one chosen. The library's
+  constructor chooses, from its context, into a field that is zero for the
+  base; a call costs that field's test and is compiled into its callers.
+  One package serves every platform, which a choice made when the
+  translation is compiled would not.
+- **The context says which platform it is on.** `FortranContext.IsOSPlatform`
+  answers from the machine, or from `FortranContextOptions.OSPlatform`
+  where a host gives one: a host on Linux can run what was translated for
+  Windows, to test it above all. A given system is matched by its name
+  alone, without regard to case, `macos` and `osx` being one as they are
+  to .NET; no other name is taken for another, so as not to close the set.
+  A record written as text ends as that system's lines do unless
+  `NewLine` says otherwise, so what the program writes and what a variant
+  expects of its files agree. The architecture is the process's and
+  cannot be given: a variant for another would run on this one all the
+  same, and a test of it would test nothing.
+- **To every caller the variants are one procedure.** In the graph of
+  calls the method of the procedure's name calls each variant, so a
+  caller has room beneath it for the deepest; what the procedure does to
+  an argument is what any variant does; and the project's summary holds the
+  procedure once.
 
 **A project file is written only when asked.** A run told to scaffold,
 `TranslationOptions.Scaffold` or the command's `--scaffold`, writes a
@@ -1310,9 +1400,10 @@ changes nothing still reads and analyses every unit, eighteen seconds for
 the toolkit's library, so the build does not ask the translator. The
 command writes an inventory of each run, `--inventory`, as
 `obj/fortrania.inventory`: every file it read, the file patterns its
-sources name, and every file the translation is made of. The build runs
-the step when one of those it read is newer than the inventory, when a
-file comes to match a pattern or one read or made is gone, when the
+sources name, the files those matched that the settings ignore, and every
+file the translation is made of. The build runs the step when one of those
+it read is newer than the inventory, when a file that is not ignored comes
+to match a pattern or one read or made is gone, when the
 command line changes, a new version of the package or other settings or
 references among it, or when the copy of a referenced project's summary
 changes, which it does only when the summary does, so that a library

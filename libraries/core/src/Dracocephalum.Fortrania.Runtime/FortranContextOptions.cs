@@ -5,6 +5,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 
 namespace Dracocephalum.Fortrania.Runtime;
 
@@ -53,8 +54,29 @@ sealed class FortranContextOptions
     /// <summary>Gets or sets the number of bytes the unit of <c>RECL</c> stands for in unformatted direct access; one unless set.</summary>
     public int RecordLengthUnit { get; set; } = 1;
 
-    /// <summary>Gets or sets what ends a record written as text; the running platform's line ending when left <see langword="null"/>.</summary>
+    /// <summary>
+    /// Gets or sets what ends a record written as text. Left
+    /// <see langword="null"/>, it is the line ending of the operating system
+    /// the program takes itself to be on, <see cref="OSPlatform"/>: a
+    /// carriage return and a line feed on Windows, a line feed elsewhere.
+    /// </summary>
     public string? NewLine { get; set; }
+
+    /// <summary>
+    /// Gets or sets the operating system the program takes itself to be on:
+    /// which variant runs of a procedure translated in several, one for
+    /// each platform, and what ends a record unless <see cref="NewLine"/>
+    /// says. Left <see langword="null"/>, it is the machine's.
+    /// </summary>
+    /// <remarks>
+    /// It is matched to the name a variant was translated for by that name
+    /// alone, without regard to case, <c>macos</c> and <c>osx</c> being
+    /// one; it is kept as it is given. Where it is left unset, .NET's own
+    /// <see cref="OperatingSystem.IsOSPlatform(string)"/> answers, which
+    /// knows the families of systems too: on Mac Catalyst, <c>ios</c>
+    /// holds as well.
+    /// </remarks>
+    public OSPlatform? OSPlatform { get; set; }
 
     /// <summary>
     /// Gets or sets where the program's procedures keep their working

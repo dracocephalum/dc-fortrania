@@ -46,4 +46,32 @@ internal sealed record TreeMethod(
     /// that evaluates or returns it.
     /// </summary>
     public bool IsOneExpression { get; init; }
+
+    /// <summary>
+    /// Gives the statements that call a method of the same parameters with
+    /// what this one was given, and return its result where it has one;
+    /// where it gives nothing back, a return follows unless the call is the
+    /// last this method does.
+    /// </summary>
+    /// <param name="name">The method called.</param>
+    /// <param name="isLast">Whether nothing follows the call in this method.</param>
+    public List<TreeStatement> ForwardTo(string name, bool isLast = false)
+    {
+        var call = new TreeExpression.Call(name, [.. Parameters.Select(ArgumentFor)]);
+        if (ReturnType != "void")
+        {
+            return [new TreeStatement.Return(call)];
+        }
+
+        return isLast ? [new TreeStatement.Evaluate(call)] : [new TreeStatement.Evaluate(call), new TreeStatement.Return(null)];
+    }
+
+    // What passes a parameter on: its name, after the word that says how it
+    // is passed where there is one.
+    private static TreeExpression.Local ArgumentFor(string parameter)
+    {
+        var name = parameter[(parameter.LastIndexOf(' ') + 1)..];
+        var passing = parameter.Split(' ')[0];
+        return new TreeExpression.Local(passing is "ref" or "out" or "in" ? $"{passing} {name}" : name);
+    }
 }

@@ -91,6 +91,14 @@ public static partial class Translator
     private sealed record Unit(string File, SymbolTable Table, UnitSummary Summary)
     {
         public string Name => Summary.Name ?? CSharpEmitter.MainProgramName;
+
+        // The platform the unit stands in for its base on, where it was read
+        // from a variant's files; nothing for one of the source's own.
+        public PlatformVariant? Variant { get; init; }
+
+        // The procedures the unit is called by: its entry points, or the
+        // unit itself for a main program, which has none.
+        public IReadOnlyList<string> Procedures => Summary.Kind == UnitKind.MainProgram ? [Name] : [.. Summary.EntryPoints.Select(entry => entry.Name)];
     }
 
     // One settings file of a project: the folder its paths are taken from,
@@ -149,7 +157,17 @@ public static partial class Translator
 
         public string ClassName { get; } = settings.Class ?? settings.Name;
 
+        // Every unit read, the variants among them.
         public List<Unit> Units { get; } = [];
+
+        // The variants of each unit that has them, by the unit's name, in
+        // the order its library tries them, the base not among them.
+        public Dictionary<string, List<Unit>> Variants { get; } = new(StringComparer.Ordinal);
+
+        // The platform a unit is written for: the variant it is, the base
+        // for a unit of the source's own that has variants, and nothing for
+        // one written once.
+        public PlatformVariant? PlatformOf(Unit unit) => unit.Variant ?? (Variants.ContainsKey(unit.Name) ? PlatformVariant.Base : null);
 
         public ProcedureCatalogue Catalogue { get; } = new();
 
@@ -183,6 +201,7 @@ public static partial class Translator
         private readonly List<string> _read = [];
         private readonly HashSet<string> _readOnce = new(StringComparer.OrdinalIgnoreCase);
         private readonly List<string> _patterns = [];
+        private readonly List<string> _ignored = [];
         private readonly List<string> _files = [];
         private readonly List<string> _removed = [];
         private readonly List<StackUse> _stackUse = [];
@@ -271,6 +290,7 @@ public static partial class Translator
                 Fetched = _fetched,
                 Read = _read,
                 Patterns = _patterns,
+                Ignored = _ignored,
                 Files = _files,
             };
 
@@ -535,6 +555,32 @@ public static partial class Translator
                         {
                             Error($"The source {source.Name} of the project {name} names no files.");
                         }
+                        else if (!source.Files.Any(files => files.IsBase))
+                        {
+                            Error($"The source {source.Name} of the project {name} names no files of its own, for no platform in particular.");
+                        }
+
+                        foreach (var files in source.Files)
+                        {
+                            if (files.Paths.Count == 0)
+                            {
+                                Error($"Files of the source {source.Name} of the project {name} give no paths.");
+                            }
+
+                            if (files.OSPlatform is { } system && string.IsNullOrWhiteSpace(system))
+                            {
+                                Error($"Files of the source {source.Name} of the project {name} have an osPlatform with no name.");
+                            }
+
+                            try
+                            {
+                                IgnoreRules.Parse(files.Ignores);
+                            }
+                            catch (ArgumentException exception)
+                            {
+                                Error($"An ignore of the source {source.Name} of the project {name} cannot be read: {exception.Message}");
+                            }
+                        }
                     }
                 }
             }
@@ -566,7 +612,7 @@ public static partial class Translator
         {
             var paths = new[] { part.Settings.Output }
                 .Concat(part.Settings.Plugins)
-                .Concat(IsTranslated(project) ? part.Settings.Sources.SelectMany(source => source.Files.Concat(source.Includes)) : [])
+                .Concat(IsTranslated(project) ? part.Settings.Sources.SelectMany(source => source.Files.SelectMany(files => files.Paths).Concat(source.Includes)) : [])
                 .OfType<string>();
             return new HashSet<string>(
                 paths.SelectMany(path => VariableReference().Matches(path).Select(match => match.Groups[1].Value)),
@@ -658,46 +704,120 @@ public static partial class Translator
                     var source = new Source(project, part, sourceSettings);
                     _sources.Add(source);
 
-                    foreach (var file in FilesOf(project, part, sourceSettings))
+                    // The source's own first, each file once however many of
+                    // its entries find it, so that a unit's variants are read
+                    // after the base they stand in for.
+                    var own = new List<string>();
+                    foreach (var files in sourceSettings.Files.Where(files => files.IsBase))
                     {
-                        Read(source, file);
+                        own.AddRange(FilesOf(project, part, sourceSettings, files).Where(file => !own.Contains(file, StringComparer.OrdinalIgnoreCase)));
+                    }
+
+                    foreach (var file in own)
+                    {
+                        Read(source, file, null);
+                    }
+
+                    foreach (var files in sourceSettings.Files.Where(files => !files.IsBase))
+                    {
+                        var platform = new PlatformVariant(files.OSPlatform, files.ProcessArchitecture);
+                        foreach (var file in FilesOf(project, part, sourceSettings, files))
+                        {
+                            Read(source, file, platform);
+                        }
+                    }
+
+                    GatherVariants(source);
+                }
+            }
+        }
+
+        // Each unit read from a variant's files stands in for the unit of its
+        // name among the source's own on its platform, and has to be callable
+        // as that one is: the same procedures, each with as many arguments.
+        // Its library tries the most specific variant first, and of two
+        // equally specific the one given first.
+        private void GatherVariants(Source source)
+        {
+            var bases = source.Units.Where(unit => unit.Variant is null).ToDictionary(unit => unit.Name, StringComparer.Ordinal);
+            foreach (var group in source.Units.Where(unit => unit.Variant is not null).GroupBy(unit => unit.Name, StringComparer.Ordinal))
+            {
+                if (!bases.TryGetValue(group.Key, out var baseUnit))
+                {
+                    Error($"The source {source.Settings.Name} has a variant of {group.Key} for {group.First().Variant!.Description} and no {group.Key} of its own for every other platform.", group.First().File);
+                    continue;
+                }
+
+                var variants = group.OrderBy(unit => unit.Variant!.Rank).ToList();
+                var keys = new HashSet<string>(StringComparer.Ordinal) { PlatformVariant.BaseKey };
+                foreach (var variant in variants)
+                {
+                    var platform = variant.Variant!;
+                    if (!keys.Add(platform.Key))
+                    {
+                        Error($"The source {source.Settings.Name} has two variants of {group.Key} that are both named for {platform.Key}; give each a platform of its own.", variant.File);
+                    }
+
+                    if (!variant.Procedures.SequenceEqual(baseUnit.Procedures, StringComparer.Ordinal)
+                        || variant.Summary.EntryPoints.Zip(baseUnit.Summary.EntryPoints).Any(pair => pair.First.Arguments.Count != pair.Second.Arguments.Count))
+                    {
+                        Error($"The variant of {group.Key} for {platform.Description} is not called as {group.Key} is: it has to have the same procedures, each with the same arguments.", variant.File);
                     }
                 }
+
+                source.Variants[group.Key] = variants;
             }
         }
 
         // Whether any file a project's sources name is on the machine.
         private static bool HasSources(Project project) => project.Sources
-            .SelectMany(source => source.Settings.Files.Select(entry => Path.GetFullPath(Path.Combine(source.Part.Folder, Expand(source.Part, entry)))))
-            .Any(path => Path.GetDirectoryName(path) is { } folder && Directory.Exists(folder) && Directory.GetFiles(folder, Path.GetFileName(path)).Length > 0);
+            .SelectMany(source => source.Settings.Files.SelectMany(files => files.Paths).Select(entry => Path.GetFullPath(Path.Combine(source.Part.Folder, Expand(source.Part, entry)))))
+            .Any(path => Glob.Find(path).Count > 0);
 
-        private List<string> FilesOf(Project project, Part part, SourceSettings source)
+        // The files one entry of a source's files finds, each path's in
+        // ordinal order, less those it ignores. A path that finds nothing is
+        // an error; one whose files are all ignored found what it names.
+        private List<string> FilesOf(Project project, Part part, SourceSettings source, FileSettings entry)
         {
+            // Read once already, by CheckSettings.
+            var ignores = IgnoreRules.Parse(entry.Ignores);
             var files = new List<string>();
-            foreach (var entry in source.Files)
+            foreach (var given in entry.Paths)
             {
-                var path = Path.GetFullPath(Path.Combine(part.Folder, Expand(part, entry)));
+                var path = Path.GetFullPath(Path.Combine(part.Folder, Expand(part, given)));
                 if (!_patterns.Contains(path, StringComparer.OrdinalIgnoreCase))
                 {
                     _patterns.Add(path);
                 }
 
-                var folder = Path.GetDirectoryName(path) ?? path;
-                var found = Directory.Exists(folder)
-                    ? Directory.GetFiles(folder, Path.GetFileName(path)).Order(StringComparer.Ordinal).ToList()
-                    : [];
+                var found = Glob.Find(path);
                 if (found.Count == 0)
                 {
-                    Error($"The source {source.Name} of the project {project.Name} names '{entry}', and there is no such file.");
+                    Error($"The source {source.Name} of the project {project.Name} names '{given}', and there is no such file.");
                 }
 
-                files.AddRange(found.Where(file => !files.Contains(file, StringComparer.OrdinalIgnoreCase)));
+                foreach (var (file, relative) in found)
+                {
+                    if (ignores.IsIgnored(relative))
+                    {
+                        if (!_ignored.Contains(file, StringComparer.OrdinalIgnoreCase))
+                        {
+                            _ignored.Add(file);
+                        }
+                    }
+                    else if (!files.Contains(file, StringComparer.OrdinalIgnoreCase))
+                    {
+                        files.Add(file);
+                    }
+                }
             }
 
             return files;
         }
 
-        private void Read(Source source, string file)
+        // A unit of a variant is not a procedure of the catalogue: callers
+        // reach the unit it stands in for, whose name it has.
+        private void Read(Source source, string file, PlatformVariant? variant)
         {
             NoteRead(file);
             try
@@ -708,8 +828,12 @@ public static partial class Translator
                     var table = SymbolTableBuilder.Build(unit, name => Include(source, file, name));
                     TypeChecker.Check(table);
                     var summary = UnitSummarizer.Summarize(table);
-                    source.Catalogue.Add(summary);
-                    source.Units.Add(new Unit(file, table, summary));
+                    if (variant is null)
+                    {
+                        source.Catalogue.Add(summary);
+                    }
+
+                    source.Units.Add(new Unit(file, table, summary) { Variant = variant });
                 }
             }
             catch (Exception exception) when (IsOfTheSource(exception))
@@ -850,7 +974,7 @@ public static partial class Translator
             {
                 var mains = _sources
                     .Where(source => source.Project == project)
-                    .SelectMany(source => source.Units.Where(unit => unit.Summary.Kind == UnitKind.MainProgram).Select(unit => (Source: source, Unit: unit)))
+                    .SelectMany(source => source.Units.Where(unit => unit.Summary.Kind == UnitKind.MainProgram && unit.Variant is null).Select(unit => (Source: source, Unit: unit)))
                     .ToList();
                 var names = string.Join(", ", mains.Select(main => main.Unit.Name));
 
@@ -897,17 +1021,22 @@ public static partial class Translator
                 };
 
                 var emitter = new CSharpEmitter(options, source.Catalogue.Find);
+                var emittedUnits = new Dictionary<Unit, EmittedUnit>();
                 foreach (var unit in source.Units)
                 {
                     try
                     {
-                        var name = FileName(unit.Name);
+                        // A unit written for several platforms is a file for
+                        // each, named as no unit can be, a FORTRAN name having
+                        // no dot, and the file of its name calls them.
+                        var platform = source.PlatformOf(unit);
+                        var name = FileName(platform is null ? unit.Name : $"{unit.Name}.{platform.Key}");
                         for (var number = 2; source.Files.ContainsKey(name); number++)
                         {
                             name = FileName(string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{unit.Name}_{number}"));
                         }
 
-                        var emitted = emitter.EmitUnit(unit.Table, unit.File);
+                        var emitted = emitter.EmitUnit(unit.Table, unit.File, platform);
                         source.Files[name] = emitted.Text;
                         source.Emitted[name] = emitted;
                         source.UnitOfFile[name] = unit;
@@ -916,6 +1045,7 @@ public static partial class Translator
                             source.Methods[method.Name] = (unit, method);
                         }
 
+                        emittedUnits[unit] = emitted;
                         _unaligned.AddRange(emitted.UnalignedVariables.Select(variable => new UnalignedPlace(
                             source.Project.Name, source.Settings.Name, unit.Name, unit.File, variable.Name, variable.Offset, variable.Alignment, variable.Line)));
                         _widened.AddRange(emitted.WidenedArguments.Select(argument => new WidenedPlace(
@@ -927,9 +1057,68 @@ public static partial class Translator
                     }
                 }
 
-                source.Files[FileName(source.ClassName)] = emitter.EmitClass();
+                foreach (var (unitName, variants) in source.Variants)
+                {
+                    var baseUnit = source.Units.Single(unit => unit.Variant is null && unit.Name == unitName);
+                    if (emittedUnits.ContainsKey(baseUnit) && variants.All(emittedUnits.ContainsKey))
+                    {
+                        EmitDispatch(source, emitter, emittedUnits, baseUnit, variants);
+                    }
+                }
+
+                source.Files[FileName(source.ClassName)] = emitter.EmitClass(null, ChoicesOf(source));
             }
         }
+
+        // The file of a unit written for several platforms that has its
+        // procedures' names, each calling the variant its library chose. The
+        // variants are called the same way as the base, so each of their
+        // methods has to have the base's parameters and result.
+        private void EmitDispatch(Source source, CSharpEmitter emitter, Dictionary<Unit, EmittedUnit> emittedUnits, Unit baseUnit, List<Unit> variants)
+        {
+            var emittedBase = emittedUnits[baseUnit];
+            foreach (var variant in variants)
+            {
+                foreach (var procedure in baseUnit.Procedures)
+                {
+                    var heading = HeadingOf(emittedBase, PlatformVariant.Base.GetMethodName(procedure));
+                    var other = HeadingOf(emittedUnits[variant], variant.Variant!.GetMethodName(procedure));
+                    if (heading is not null && other is not null
+                        && (heading.ReturnType != other.ReturnType || !heading.Parameters.SequenceEqual(other.Parameters, StringComparer.Ordinal)))
+                    {
+                        Error(
+                            $"The variant of {procedure} for {variant.Variant!.Description} is called as {other.ReturnType} {procedure}({string.Join(", ", other.Parameters)}), where {procedure} is called as {heading.ReturnType} {procedure}({string.Join(", ", heading.Parameters)}); a variant has to be called as the procedure it stands in for is.",
+                            variant.File);
+                    }
+                }
+            }
+
+            var dispatch = emitter.EmitDispatch(
+                emittedBase,
+                baseUnit.Procedures,
+                [.. variants.Select(variant => variant.Variant!)],
+                procedure => baseUnit.Summary.EntryPoints.FirstOrDefault(entry => entry.Name == procedure)?.Arguments.Any(argument =>
+                    argument.Kind is DummyArgumentKind.Function or DummyArgumentKind.Subroutine or DummyArgumentKind.Procedure) == true);
+            var name = FileName(baseUnit.Name);
+            source.Files[name] = dispatch.Text;
+            source.Emitted[name] = dispatch;
+            foreach (var method in dispatch.Methods)
+            {
+                source.Methods[method.Name] = (baseUnit, method);
+            }
+        }
+
+        private static TreeMethod? HeadingOf(EmittedUnit unit, string procedure) =>
+            unit.File?.Members.OfType<TreeMethod>().FirstOrDefault(method => method.Procedure == procedure);
+
+        // What the constructor of a source's library chooses between: each
+        // unit that has variants, with them in the order they are tried.
+        private static List<(string Unit, IReadOnlyList<PlatformVariant> Variants)> ChoicesOf(Source source) =>
+        [
+            .. source.Variants
+                .OrderBy(pair => pair.Key, StringComparer.Ordinal)
+                .Select(pair => (pair.Key, (IReadOnlyList<PlatformVariant>)[.. pair.Value.Select(unit => unit.Variant!)])),
+        ];
 
         // Each unit again with its procedures' buffers where a context says,
         // now that every procedure has its place, and each class with what
@@ -987,11 +1176,13 @@ public static partial class Translator
                     References = [.. Used(source).Select(other => new LibraryReference(other.Namespace, other.ClassName, other.Catalogue.Find))],
                 };
                 var emitter = new CSharpEmitter(options, source.Catalogue.Find);
-                source.Files[FileName(source.ClassName)] = emitter.EmitClass(new LibraryRegion(
-                    region.Project,
-                    own,
-                    reach,
-                    [.. _references.GetValueOrDefault(source.Project, []).Select(project => project.Name)]));
+                source.Files[FileName(source.ClassName)] = emitter.EmitClass(
+                    new LibraryRegion(
+                        region.Project,
+                        own,
+                        reach,
+                        [.. _references.GetValueOrDefault(source.Project, []).Select(project => project.Name)]),
+                    ChoicesOf(source));
 
                 // The constants in a file of their own beside the class's,
                 // named as no unit can be, a FORTRAN name having no dot.
@@ -1003,12 +1194,14 @@ public static partial class Translator
         }
 
         // A file named for a routine, which on some systems may not have
-        // the name of a device whatever follows the name.
+        // the name of a device whatever follows the name, a dot and more
+        // among it.
         private static string FileName(string name)
         {
             string[] devices = ["CON", "PRN", "AUX", "NUL"];
-            var isDevice = devices.Contains(name, StringComparer.OrdinalIgnoreCase)
-                || (name.Length == 4 && char.IsAsciiDigit(name[3]) && (name.StartsWith("COM", StringComparison.OrdinalIgnoreCase) || name.StartsWith("LPT", StringComparison.OrdinalIgnoreCase)));
+            var stem = name.Split('.')[0];
+            var isDevice = devices.Contains(stem, StringComparer.OrdinalIgnoreCase)
+                || (stem.Length == 4 && char.IsAsciiDigit(stem[3]) && (stem.StartsWith("COM", StringComparison.OrdinalIgnoreCase) || stem.StartsWith("LPT", StringComparison.OrdinalIgnoreCase)));
             return (isDevice ? "_" + name : name) + GeneratedExtension;
         }
 

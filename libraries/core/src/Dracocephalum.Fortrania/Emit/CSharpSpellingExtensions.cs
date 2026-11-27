@@ -58,7 +58,10 @@ internal static class CSharpSpellingExtensions
     };
 
     /// <summary>Spells ASCII text as a literal of bytes.</summary>
-    public static string ToUtf8Literal(this string text)
+    public static string ToUtf8Literal(this string text) => text.ToStringLiteral() + "u8";
+
+    /// <summary>Spells text as a literal of a string, every character that needs it escaped.</summary>
+    public static string ToStringLiteral(this string text)
     {
         const char Backslash = (char)92;
         const char Quote = (char)34;
@@ -86,7 +89,7 @@ internal static class CSharpSpellingExtensions
             }
         }
 
-        return literal.Append(Quote).Append("u8").ToString();
+        return literal.Append(Quote).ToString();
     }
 
     // The shortest text that reads back as the same value, made to look

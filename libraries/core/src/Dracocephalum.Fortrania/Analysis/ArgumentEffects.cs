@@ -25,11 +25,18 @@ public sealed class ArgumentEffects
     /// such as one of a library worked out before, or <see langword="null"/>
     /// when it knows none of that name. May itself be <see langword="null"/>.
     /// </param>
+    /// <param name="variants">
+    /// The summaries of units that are variants of some of
+    /// <paramref name="units"/>, one for each platform: a procedure of one
+    /// is the procedure of the same name, which does with an argument what
+    /// any of its variants does with it. None unless given.
+    /// </param>
     /// <returns>The effects, by procedure.</returns>
-    /// <exception cref="FortranAnalysisException">Two units define a procedure of the same name.</exception>
+    /// <exception cref="FortranAnalysisException">Two units define a procedure of the same name, or a variant one that no unit defines or with another number of arguments.</exception>
     public static ArgumentEffects Compute(
         IEnumerable<UnitSummary> units,
-        Func<string, IReadOnlyList<ArgumentUses>?>? findElsewhere = null)
+        Func<string, IReadOnlyList<ArgumentUses>?>? findElsewhere = null,
+        IEnumerable<UnitSummary>? variants = null)
     {
         ArgumentNullException.ThrowIfNull(units);
 
@@ -42,6 +49,23 @@ public sealed class ArgumentEffects
             if (!byName.TryAdd(entry.Name, uses))
             {
                 throw new FortranAnalysisException(entry.Line, null, $"{entry.Name} is defined by another program unit as well.");
+            }
+
+            procedures.Add((entry, uses));
+        }
+
+        // A variant's procedure shares the answers of the procedure it is a
+        // variant of, so what it does and what it passes on add to them.
+        foreach (var entry in (variants ?? []).SelectMany(unit => unit.EntryPoints))
+        {
+            if (!byName.TryGetValue(entry.Name, out var uses) || uses.Length != entry.Arguments.Count)
+            {
+                throw new FortranAnalysisException(entry.Line, null, $"A variant of {entry.Name} is not the procedure of that name it is to stand in for.");
+            }
+
+            for (var index = 0; index < uses.Length; index++)
+            {
+                uses[index] |= entry.Arguments[index].Uses;
             }
 
             procedures.Add((entry, uses));

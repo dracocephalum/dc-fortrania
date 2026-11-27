@@ -16,7 +16,7 @@ public sealed class CommandLineTests : IDisposable
         """
         {
           "output": "out/Example.Toolkit",
-          "sources": [ { "name": "Core", "files": [ "src/*.f" ] } ]
+          "sources": [ { "name": "Core", "files": [ { "paths": [ "src/*.f" ] } ] } ]
         }
         """;
 
@@ -119,7 +119,7 @@ public sealed class CommandLineTests : IDisposable
         Put("src/twice.f", Source);
         Put("other/thrice.f", "      SUBROUTINE THRICE ( N )\n      INTEGER N\n      CALL TWICE ( N )\n      END\n");
         Put("a.fortrania.json", Settings);
-        Put("b.fortrania.json", """{ "output": "out/Example.Other", "sources": [ { "name": "More", "files": [ "other/*.f" ] } ] }""");
+        Put("b.fortrania.json", """{ "output": "out/Example.Other", "sources": [ { "name": "More", "files": [ { "paths": [ "other/*.f" ] } ] } ] }""");
 
         // Act
         var code = Run("translate", "csharp", "--name", "Example.Toolkit");
@@ -167,10 +167,10 @@ public sealed class CommandLineTests : IDisposable
         // settings in its own folder, the program's beside a project file
         // of its own, which is left as it is.
         Put("lib/twice.f", Source);
-        Put("lib/lib.fortrania.json", """{ "output": ".", "sources": [ { "name": "Core", "files": [ "*.f" ] } ] }""");
+        Put("lib/lib.fortrania.json", """{ "output": ".", "sources": [ { "name": "Core", "files": [ { "paths": [ "*.f" ] } ] } ] }""");
         Put("app/main.f", "      PROGRAM APP\n      INTEGER N\n      N = 4\n      CALL TWICE ( N )\n      END\n");
         Put("app/Example.App.csproj", "<Project Sdk=\"Microsoft.NET.Sdk\" />\n");
-        Put("app/app.fortrania.json", """{ "output": ".", "sources": [ { "name": "AppMain", "files": [ "*.f" ] } ] }""");
+        Put("app/app.fortrania.json", """{ "output": ".", "sources": [ { "name": "AppMain", "files": [ { "paths": [ "*.f" ] } ] } ] }""");
 
         // Act
         var code = Run("translate", "csharp", "--name", "Example.App", "lib", "app/app.fortrania.json");
@@ -557,9 +557,9 @@ public sealed class CommandLineTests : IDisposable
         // Arrange: a library translated on its own, then a program that
         // calls into it, against its summary.
         Put("lib/twice.f", Source);
-        Put("lib/fortrania.json", """{ "output": ".", "sources": [ { "name": "Core", "files": [ "*.f" ] } ] }""");
+        Put("lib/fortrania.json", """{ "output": ".", "sources": [ { "name": "Core", "files": [ { "paths": [ "*.f" ] } ] } ] }""");
         Put("app/main.f", "      PROGRAM APP\n      INTEGER N\n      N = 4\n      CALL TWICE ( N )\n      END\n");
-        Put("app/fortrania.json", """{ "output": ".", "sources": [ { "name": "AppMain", "files": [ "*.f" ] } ] }""");
+        Put("app/fortrania.json", """{ "output": ".", "sources": [ { "name": "AppMain", "files": [ { "paths": [ "*.f" ] } ] } ] }""");
         Run("translate", "csharp", "--name", "Example.Toolkit", "lib").ShouldBe(CommandLine.Done, _error.ToString());
 
         // Act

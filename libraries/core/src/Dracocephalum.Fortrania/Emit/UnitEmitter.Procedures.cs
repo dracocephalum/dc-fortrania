@@ -157,7 +157,7 @@ internal sealed partial class UnitEmitter
             }
         }
 
-        var forwarder = (Name: $"_{UnitName}_passes_{target.Name}", Type: PointerType(target.ResultType, types));
+        var forwarder = (Name: $"_{MemberStem}_passes_{target.Name}", Type: PointerType(target.ResultType, types));
         var returns = target.ResultType is { } result ? ResultType(result) : "void";
         var library = new TreeExpression.Call($"context.Get<{OwnerOf(target.Name)?.QualifiedName ?? _options.ClassName}>", []);
         var forwarded = new TreeExpression.MemberCall(

@@ -22,4 +22,8 @@ internal sealed record TreeFile(
     string? RuntimeAlias,
     IReadOnlyList<string> SuppressedWarnings,
     IReadOnlyList<TreeMember> Members,
-    IReadOnlyList<TreeStatement> TrailingComments);
+    IReadOnlyList<TreeStatement> TrailingComments)
+{
+    /// <summary>Gets the platform the unit is written for, in words, where it is one of its variants; nothing otherwise.</summary>
+    public string? Variant { get; init; }
+}

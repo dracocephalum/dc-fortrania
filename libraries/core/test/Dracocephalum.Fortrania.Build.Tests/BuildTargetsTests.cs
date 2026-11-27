@@ -97,13 +97,13 @@ public sealed class BuildTargetsTests : IDisposable
         }
 
         Put("Lib/Example.Lib.csproj", ProjectFile(string.Empty));
-        Put("Lib/lib.fortrania.json", """{ "output": ".", "sources": [ { "name": "Core", "files": [ "fortran/*.f" ] } ] }""");
+        Put("Lib/lib.fortrania.json", """{ "output": ".", "sources": [ { "name": "Core", "files": [ { "paths": [ "fortran/*.f" ] } ] } ] }""");
         Put("Lib/fortran/lib.f", Library);
-        Put("Lib/more.fortrania.json", """{ "output": "more", "sources": [ { "name": "Halves", "files": [ "more/*.f" ] } ] }""");
+        Put("Lib/more.fortrania.json", """{ "output": "more", "sources": [ { "name": "Halves", "files": [ { "paths": [ "more/*.f" ] } ] } ] }""");
         Put("Lib/more/half.f", Half);
 
         Put("App/Example.App.csproj", ProjectFile("""<PropertyGroup><OutputType>Exe</OutputType></PropertyGroup><ItemGroup><ProjectReference Include="../Lib/Example.Lib.csproj" /></ItemGroup>"""));
-        Put("App/app.fortrania.json", """{ "output": "$(IntermediateOutput)/fortrania", "sources": [ { "name": "AppMain", "files": [ "fortran/*.f" ] } ] }""");
+        Put("App/app.fortrania.json", """{ "output": "$(IntermediateOutput)/fortrania", "sources": [ { "name": "AppMain", "files": [ { "paths": [ "fortran/*.f" ] } ] } ] }""");
         Put("App/fortran/main.f", Program);
         Put("App/Program.cs", Main);
     }
@@ -210,6 +210,25 @@ public sealed class BuildTargetsTests : IDisposable
         touched.Output.ShouldContain("Translated: 3 program units, 0 files written");
         added.Code.ShouldBe(0, added.Output);
         added.Output.ShouldContain("Translated: 3 program units, 2 files written");
+    }
+
+    [Fact]
+    public async Task Build_WhenTheSettingsIgnoreFilesTheirPathsFind_ShouldNotTranslateAgainForThem()
+    {
+        // Arrange: the library's paths at any depth, and a file among them
+        // that is ignored and is not FORTRAN.
+        Put("Lib/lib.fortrania.json", """{ "output": ".", "sources": [ { "name": "Core", "files": [ { "paths": [ "fortran/**/*.f" ], "ignores": [ "**/draft_*.f" ] } ] } ] }""");
+        Put("Lib/fortran/old/draft_one.f", "This is not FORTRAN.\n");
+        (await BuildAsync()).Code.ShouldBe(0);
+
+        // Act
+        var unchanged = await BuildAsync();
+
+        // Assert
+        unchanged.Code.ShouldBe(0, unchanged.Output);
+        unchanged.Output.ShouldNotContain("Translated:");
+        File.ReadAllLines(Directory.GetFiles(Path.Combine(_root, "Lib/obj"), "fortrania.inventory", SearchOption.AllDirectories).Single())
+            .ShouldContain("ignored " + Path.GetFullPath(Path.Combine(_root, "Lib/fortran/old/draft_one.f")));
     }
 
     [Fact]
