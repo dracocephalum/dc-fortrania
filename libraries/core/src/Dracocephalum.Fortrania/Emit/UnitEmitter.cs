@@ -32,6 +32,12 @@ internal sealed partial class UnitEmitter
     private readonly Func<string, ProcedureInterface?> _findProcedure;
     private readonly ConstantEvaluator _evaluator;
 
+    // The platform the unit is written for where it is one of several
+    // variants of a unit; nothing for a unit written once. A variant's
+    // methods are the class's own, under names of their own, and a method
+    // of the unit's name chooses between them.
+    private readonly PlatformVariant? _variant;
+
     // Whether the short name the options give the runtime's class can be
     // used: inside the emitted class a method is found before a name the
     // file declares, so the short name gives way where the program has a
@@ -75,9 +81,10 @@ internal sealed partial class UnitEmitter
     private int _loops;
     private int _line;
 
-    public UnitEmitter(SymbolTable table, EmitOptions options, Func<string, ProcedureInterface?> findProcedure, string? sourceFile = null)
+    public UnitEmitter(SymbolTable table, EmitOptions options, Func<string, ProcedureInterface?> findProcedure, string? sourceFile = null, PlatformVariant? variant = null)
     {
         _sourceFile = sourceFile is null ? null : Path.GetFileName(sourceFile);
+        _variant = variant;
         _table = table;
         _options = options;
         _findProcedure = findProcedure;
@@ -141,7 +148,10 @@ internal sealed partial class UnitEmitter
             _usesAlias ? _options.RuntimeAlias : null,
             suppressed,
             [.. StateMembers(), .. _forwarderMethods, .. methods],
-            trailing.Statements);
+            trailing.Statements)
+        {
+            Variant = _variant?.Description,
+        };
 
         // Where control runs on from one entry point into the next, both
         // methods hold the statements after the second, and so their calls.
@@ -202,19 +212,25 @@ internal sealed partial class UnitEmitter
         var returns = _result is null ? "void" : ResultType(_result.Type!.Type);
         string[] signature = [.. Parameters(parameters, _result)];
         var declarations = Declarations();
+
+        // A variant's method is the class's own and is known by its own
+        // name in the program's graph of calls, below the method of the
+        // procedure's name that calls it; the convention names that one.
+        var procedure = _variant?.GetMethodName(name) ?? name;
         methods.Add(new TreeMethod(
             comments.Statements,
             returns,
-            _options.Convention.ProcedureName(name),
+            _variant is null ? _options.Convention.ProcedureName(name) : procedure,
             signature,
             _preamble.Statements,
             declarations,
             _body.Statements)
         {
-            Procedure = name,
+            Procedure = procedure,
+            IsPublic = _variant is null,
         });
         _methods.Add(new EmittedMethod(
-            name,
+            procedure,
             _stackBytes,
             [.. _calls.Select(call => new EmittedCall(call.Key, [.. call.Value.Passes], call.Value.PassesOnArgument))],
             _callsThroughArgument));

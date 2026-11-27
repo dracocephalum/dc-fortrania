@@ -53,7 +53,17 @@ public sealed class CSharpEmitter
     /// context says; nothing where they keep them on the stack.
     /// </param>
     /// <returns>The text of a C# source file.</returns>
-    public string EmitClass(LibraryRegion? region = null)
+    public string EmitClass(LibraryRegion? region = null) => EmitClass(region, []);
+
+    /// <summary>
+    /// Writes the part of the class that belongs to no program unit, with
+    /// the choice its constructor makes for each unit written for several
+    /// platforms.
+    /// </summary>
+    /// <param name="region">What the library is to ask of its context for its project's working buffers; nothing where its units keep them on the stack.</param>
+    /// <param name="choices">Each unit that has variants, by its name, with those other than the base in the order they are tried.</param>
+    /// <returns>The text of a C# source file.</returns>
+    internal string EmitClass(LibraryRegion? region, IReadOnlyList<(string Unit, IReadOnlyList<PlatformVariant> Variants)> choices)
     {
         var name = _options.ClassName;
         var file = new CodeWriter();
@@ -89,6 +99,11 @@ public sealed class CSharpEmitter
             file.Line($"private readonly BufferRegion {WorkingBuffersPass.RegionField};");
         }
 
+        foreach (var (unit, _) in choices)
+        {
+            file.Line($"private readonly int {PlatformVariant.GetChoiceField(unit)};");
+        }
+
         // Another library of the program is asked of the context when it
         // is first called, which makes it if nothing has, and not when
         // this one is made, so that the libraries of a program need no
@@ -121,6 +136,21 @@ public sealed class CSharpEmitter
             file.Line(string.Create(
                 System.Globalization.CultureInfo.InvariantCulture,
                 $"{WorkingBuffersPass.RegionField} = context.Arena.Register(\"{region.Project}\", {region.OwnBytes}, {region.ReachBytes}, [{refersTo}], BufferPlacement.Default);"));
+        }
+
+        if (choices.Count > 0)
+        {
+            // Which variant of each unit written for several platforms the
+            // library runs, chosen once for its context, the most specific
+            // that suits it first; zero is the base, which runs wherever
+            // none does.
+            foreach (var (unit, variants) in choices)
+            {
+                var chosen = string.Concat(variants.Select((variant, index) => string.Create(
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    $"{variant.WriteCondition("context")} ? {index + 1} : ")));
+                file.Line($"{PlatformVariant.GetChoiceField(unit)} = {chosen}0;");
+            }
         }
 
         file.Line("context.Add(this);");
@@ -159,12 +189,28 @@ public sealed class CSharpEmitter
     /// <returns>The text, and what was learnt writing it.</returns>
     /// <exception cref="UnsupportedConstructException">The unit uses something the emitter cannot translate yet.</exception>
     /// <exception cref="Analysis.FortranAnalysisException">The unit lays variables out in a way the language forbids, which shows only when their places are worked out.</exception>
-    public EmittedUnit EmitUnit(SymbolTable table, string? sourceFile = null)
+    public EmittedUnit EmitUnit(SymbolTable table, string? sourceFile = null) => EmitUnit(table, sourceFile, null);
+
+    /// <summary>Writes the program unit <paramref name="table"/> describes, as one of its variants where it is written for several platforms.</summary>
+    /// <param name="table">The names of a program unit that has passed the type check.</param>
+    /// <param name="sourceFile">The file the unit was read from; <see langword="null"/> when there is none.</param>
+    /// <param name="variant">The variant it is, the base among them; nothing for a unit written once.</param>
+    /// <returns>The text, and what was learnt writing it.</returns>
+    internal EmittedUnit EmitUnit(SymbolTable table, string? sourceFile, PlatformVariant? variant)
     {
         ArgumentNullException.ThrowIfNull(table);
 
-        return new UnitEmitter(table, _options, _findProcedure, sourceFile).Emit();
+        return new UnitEmitter(table, _options, _findProcedure, sourceFile, variant).Emit();
     }
+
+    /// <summary>Writes the methods of a unit's procedures that call the variant of it its library chose.</summary>
+    /// <param name="baseUnit">The unit's base, as <see cref="EmitUnit(SymbolTable, string?, PlatformVariant?)"/> gave it.</param>
+    /// <param name="procedures">The unit's procedures, by their FORTRAN names.</param>
+    /// <param name="variants">The unit's variants other than the base, in the order they are tried.</param>
+    /// <param name="takesProcedures">Whether a procedure takes another as an argument.</param>
+    /// <returns>The file, as a unit.</returns>
+    internal EmittedUnit EmitDispatch(EmittedUnit baseUnit, IReadOnlyList<string> procedures, IReadOnlyList<PlatformVariant> variants, Func<string, bool> takesProcedures) =>
+        VariantDispatch.Write(baseUnit.File ?? throw new ArgumentException("The base was not written as a tree.", nameof(baseUnit)), procedures, variants, _options.Convention, takesProcedures);
 
     /// <summary>
     /// Gives the procedures of a unit that <see cref="WriteWithPlaces"/>
@@ -172,7 +218,7 @@ public sealed class CSharpEmitter
     /// place. A call from the core of another procedure of the project calls
     /// the core, and the entry tests only for a call from outside.
     /// </summary>
-    /// <param name="unit">A unit as <see cref="EmitUnit"/> gave it.</param>
+    /// <param name="unit">A unit as <see cref="EmitUnit(SymbolTable, string?)"/> gave it.</param>
     /// <param name="placeOf">Where a procedure's buffers start in its project's region, by the procedure's name; nothing for one that is to keep the stack.</param>
     /// <returns>The name each is called by.</returns>
     public static IReadOnlyList<string> FindCores(EmittedUnit unit, Func<string, long?> placeOf)
@@ -186,9 +232,9 @@ public sealed class CSharpEmitter
     /// Writes a unit again so that a context chooses where its procedures
     /// keep their working buffers: on the stack, or each at its place in
     /// the project's region of the context's arena. The class is then to
-    /// be written with the region, by <see cref="EmitClass"/>.
+    /// be written with the region, by <see cref="EmitClass(LibraryRegion?)"/>.
     /// </summary>
-    /// <param name="unit">A unit as <see cref="EmitUnit"/> gave it.</param>
+    /// <param name="unit">A unit as <see cref="EmitUnit(SymbolTable, string?)"/> gave it.</param>
     /// <param name="placeOf">Where a procedure's buffers start in its project's region, by the procedure's name; nothing for one that is to keep the stack.</param>
     /// <returns>The text of a C# source file.</returns>
     /// <param name="text">

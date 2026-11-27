@@ -5,6 +5,7 @@
 
 using System;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Threading;
 
 namespace Dracocephalum.Fortrania.Runtime;
@@ -69,9 +70,15 @@ sealed partial class FortranContext : IDisposable
         : this((options ?? throw new ArgumentNullException(nameof(options))).FileProvider ?? new DiskFileProvider())
     {
         IO.RecordLengthUnit = options.RecordLengthUnit;
+        OSPlatform = options.OSPlatform;
         if (options.NewLine is { } ending)
         {
             IO.NewLine = ending;
+        }
+        else if (OSPlatform is not null)
+        {
+            // Unset, it is the machine's line ending already.
+            IO.NewLine = IsOSPlatform("windows") ? "\r\n" : "\n";
         }
 
         if (options.UsesConsole)
@@ -94,6 +101,40 @@ sealed partial class FortranContext : IDisposable
 
     /// <summary>Gets the arena the program's procedures keep their working buffers in when those are not on the stack.</summary>
     public BufferArena Arena { get; }
+
+    /// <summary>
+    /// Gets the operating system the program takes itself to be on, as its
+    /// host gave it; <see langword="null"/> where it is the machine's.
+    /// </summary>
+    public OSPlatform? OSPlatform { get; }
+
+    /// <summary>
+    /// Gets the processor architecture the program runs as, which is the
+    /// process's: an x64 process on an Arm machine is x64. A host cannot
+    /// change it, since a variant translated for another architecture
+    /// would run on this one all the same.
+    /// </summary>
+    public Architecture ProcessArchitecture { get; } = RuntimeInformation.ProcessArchitecture;
+
+    /// <summary>
+    /// Tells whether the program takes itself to be on an operating system:
+    /// what chooses between the variants of a procedure translated for
+    /// several platforms, when a library is made.
+    /// </summary>
+    /// <param name="name">The system's name as .NET gives it, <c>windows</c>, <c>linux</c> or <c>macos</c> say, in any case.</param>
+    /// <returns>
+    /// Where <see cref="OSPlatform"/> is set, whether it has that name,
+    /// <c>macos</c> and <c>osx</c> being one; otherwise whether the machine
+    /// is that system, as <see cref="OperatingSystem.IsOSPlatform(string)"/>
+    /// answers.
+    /// </returns>
+    public bool IsOSPlatform(string name)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+        return OSPlatform is { } platform
+            ? IsSameOSPlatform(platform.ToString(), name)
+            : OperatingSystem.IsOSPlatform(name);
+    }
 
     /// <summary>
     /// Gets a value that stands for the context where an object cannot be
@@ -240,6 +281,17 @@ sealed partial class FortranContext : IDisposable
         Arena.Dispose();
         Array.Clear(_libraries);
     }
+
+    // Two names of one system, as .NET takes them: compared without regard
+    // to case, and macOS by either of the two names .NET's own test accepts
+    // for it. Nothing else is taken as another name of a system; .NET's
+    // set of systems is open, and a list kept here would close it.
+    private static bool IsSameOSPlatform(string? left, string right) =>
+        string.Equals(left, right, StringComparison.OrdinalIgnoreCase)
+        || (IsMacOSName(left) && IsMacOSName(right));
+
+    private static bool IsMacOSName(string? name) =>
+        string.Equals(name, "macos", StringComparison.OrdinalIgnoreCase) || string.Equals(name, "osx", StringComparison.OrdinalIgnoreCase);
 
     [MethodImpl(MethodImplOptions.NoInlining)]
     private T Make<T>()

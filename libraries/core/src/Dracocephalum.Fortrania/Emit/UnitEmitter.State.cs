@@ -21,9 +21,14 @@ internal sealed partial class UnitEmitter
 
     private bool IsKept(Symbol symbol) => _offsets.ContainsKey(symbol.Name);
 
-    private string StateField => "_state_" + UnitName;
+    private string StateField => "_state_" + MemberStem;
 
-    private string StateLoader => "_load_" + UnitName;
+    private string StateLoader => "_load_" + MemberStem;
+
+    // The unit's name as what the class holds of it is named from it: with
+    // the word of its variant after it, for a unit written for several
+    // platforms, whose variants are all parts of one class.
+    private string MemberStem => _variant is null ? UnitName : $"{UnitName}_{_variant.Key}";
 
     private string UnitName => _table.Unit.Header?.Statement switch
     {

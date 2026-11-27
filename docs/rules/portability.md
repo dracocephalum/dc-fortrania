@@ -30,14 +30,15 @@ code that reads it, and that code is translated with the rest.
 
 FORTRAN sources often come in a variant for each platform and compiler, as
 the reference sources do, where a few routines in a hundred differ. The
-translator works from one variant and knows nothing of the others. What
-differs is of three kinds, and each has one answer:
+translator works from one copy, the base, and takes from another platform's
+only the units a source's settings name. What differs is of three kinds,
+and each has one answer:
 
 | What differs | Here |
 |---|---|
-| What the compiler's library does for the program: how a line of text ends, how the process exits, how a line reaches the screen | the runtime's, decided when the program runs: it reads either line ending and writes the running machine's, unless a context is told another |
+| What the compiler's library does for the program: how a line of text ends, how the process exits, how a line reaches the screen | the runtime's, decided when the program runs: it reads either line ending and writes the line ending of the system its context is on, the machine's unless the context is told another |
 | What the language leaves to the compiler: whether a character's code can be negative | one answer everywhere, listed in `VARIANCES.md`: a character is an unsigned byte |
-| What the program says of the platform itself: a name it reports, a limit it sets | the program's to resolve, by a step after the translation that rewrites the unit, until a translation's settings can name a variant for each platform; `PENDING.md`, *What a translation's settings do not do yet* |
+| What the program says of the platform itself: a name it reports, a limit it sets | a variant of the unit for each platform, which the library chooses between when it is made, from its context; `DESIGN.md`, *A source may take a routine from another platform's copy*. A step after the translation that rewrites the unit is the other way, for an answer no platform's copy gives |
 
 A unit that differs by platform is never translated as it stands and left
 so: that would freeze one platform's answer into a translation that runs on

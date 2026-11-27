@@ -998,6 +998,54 @@ elsewhere refuses such a file.
   already what it should be is not written again, and a build that looks
   at dates sees no change.
 
+**A source may take a routine from another platform's copy, and its
+library chooses which runs.** FORTRAN that runs on several platforms often
+comes as a copy for each, alike but for a few routines. A source's
+`variants` name the files that stand in for its own on one platform each:
+
+    { "name": "Core", "files": [ "linux/*.f" ],
+      "variants": [ { "osPlatform": "windows", "files": [ "windows/zzplatfm.f" ] } ] }
+
+- **Each unit of a variant's files stands in for the unit of its name**
+  among the source's own, the base, which runs wherever no variant does.
+  A variant with no base is refused, and so is one that is not called as
+  its base is: the same procedures, the same arguments, the same C#
+  signature, since callers are written against the base.
+- **The platform is .NET's: `osPlatform`, `processArchitecture`, or
+  both.** A system is named as `OperatingSystem.IsOSPlatform` names it,
+  `windows`, `linux`, `macos`, and is not checked, since .NET's set is open:
+  a name it does not know runs where a context is told it is on that
+  system and nowhere else. An architecture is a member of .NET's
+  `Architecture`, a closed set, so any other is an error. Of the variants
+  that suit a platform, the one that gives both is chosen first, then one
+  that gives the system, then the architecture; among equals, the first
+  given.
+- **One class still, and the choice is made once.** The unit is written
+  for each platform under names derived from its own, `_ZZPLATFM_windows`
+  and `_ZZPLATFM_base` in `ZZPLATFM.windows.g.cs` and `ZZPLATFM.base.g.cs`,
+  each with its own saved state, and `ZZPLATFM.g.cs` holds a method of
+  the procedure's own name that calls the one chosen. The library's
+  constructor chooses, from its context, into a field that is zero for the
+  base; a call costs that field's test and is compiled into its callers.
+  One package serves every platform, which a choice made when the
+  translation is compiled would not.
+- **The context says which platform it is on.** `FortranContext.IsOSPlatform`
+  answers from the machine, or from `FortranContextOptions.OSPlatform`
+  where a host gives one: a host on Linux can run what was translated for
+  Windows, to test it above all. A given system is matched by its name
+  alone, without regard to case, `macos` and `osx` being one as they are
+  to .NET; no other name is taken for another, so as not to close the set.
+  A record written as text ends as that system's lines do unless
+  `NewLine` says otherwise, so what the program writes and what a variant
+  expects of its files agree. The architecture is the process's and
+  cannot be given: a variant for another would run on this one all the
+  same, and a test of it would test nothing.
+- **To every caller the variants are one procedure.** In the graph of
+  calls the method of the procedure's name calls each variant, so a
+  caller has room beneath it for the deepest; what the procedure does to
+  an argument is what any variant does; and the project's summary holds the
+  procedure once.
+
 **A project file is written only when asked.** A run told to scaffold,
 `TranslationOptions.Scaffold` or the command's `--scaffold`, writes a
 project file of the project's name in its folder, the folder of its

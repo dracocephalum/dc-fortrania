@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Shouldly;
 
 namespace Dracocephalum.Fortrania.Runtime.Tests;
@@ -200,6 +201,59 @@ public class FortranContextTests
         context.IO.NewLine.ShouldBe(Environment.NewLine);
         context.IO.Output.ShouldBeNull();
         context.IO.Input.ShouldBeNull();
+        context.OSPlatform.ShouldBeNull();
+        context.ProcessArchitecture.ShouldBe(RuntimeInformation.ProcessArchitecture);
+    }
+
+    [Theory]
+    [InlineData("windows")]
+    [InlineData("linux")]
+    [InlineData("macos")]
+    [InlineData("osx")]
+    [InlineData("freebsd")]
+    [InlineData("xyz")]
+    public void IsOSPlatform_WhenNoSystemIsGiven_ShouldAnswerAsTheMachineDoes(string name)
+    {
+        // Arrange
+        using var context = new FortranContext(new FortranContextOptions());
+
+        // Act & Assert
+        context.IsOSPlatform(name).ShouldBe(OperatingSystem.IsOSPlatform(name));
+    }
+
+    [Theory]
+    [InlineData("windows", "windows", true)]
+    [InlineData("Windows", "WINDOWS", true)]
+    [InlineData("xyz", "XYZ", true)]
+    [InlineData("macos", "osx", true)]
+    [InlineData("OSX", "macOS", true)]
+    [InlineData("macos", "ios", false)]
+    [InlineData("linux", "windows", false)]
+    [InlineData("xyz", "linux", false)]
+    public void IsOSPlatform_WhenASystemIsGiven_ShouldAnswerByItsNameAlone(string given, string asked, bool expected)
+    {
+        // Arrange
+        using var context = new FortranContext(new FortranContextOptions { OSPlatform = OSPlatform.Create(given) });
+
+        // Act & Assert
+        context.IsOSPlatform(asked).ShouldBe(expected);
+        context.OSPlatform.ShouldBe(OSPlatform.Create(given));
+    }
+
+    [Theory]
+    [InlineData("windows", null, "\r\n")]
+    [InlineData("WINDOWS", null, "\r\n")]
+    [InlineData("linux", null, "\n")]
+    [InlineData("xyz", null, "\n")]
+    [InlineData("windows", "\n", "\n")]
+    [InlineData("linux", "\r", "\r")]
+    public void Constructor_WhenASystemIsGiven_ShouldEndRecordsAsItsLinesEndUnlessTheOptionsSayOtherwise(string system, string? newLine, string expected)
+    {
+        // Act
+        using var context = new FortranContext(new FortranContextOptions { OSPlatform = OSPlatform.Create(system), NewLine = newLine });
+
+        // Assert
+        context.IO.NewLine.ShouldBe(expected);
     }
 
     [Fact]

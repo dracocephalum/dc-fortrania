@@ -28,7 +28,11 @@ public static partial class Translator
                 foreach (var (name, (unit, method)) in source.Methods)
                 {
                     var depth = DepthOf(source, name);
-                    var heading = unit.Summary.EntryPoints.FirstOrDefault(entry => entry.Name == name);
+
+                    // A variant's method, or the base's, is known by a name
+                    // derived from its procedure's.
+                    var platform = source.PlatformOf(unit);
+                    var heading = unit.Summary.EntryPoints.FirstOrDefault(entry => entry.Name == name || platform?.GetMethodName(entry.Name) == name);
                     var takesProcedures = heading is not null && heading.Arguments.Any(argument =>
                         argument.Kind is DummyArgumentKind.Function or DummyArgumentKind.Subroutine or DummyArgumentKind.Procedure);
                     _stackUse.Add(new StackUse(

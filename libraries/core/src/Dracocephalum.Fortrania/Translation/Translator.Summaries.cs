@@ -191,6 +191,7 @@ public static partial class Translator
                     source.ClassName,
                     [
                         .. source.Units
+                            .Where(unit => unit.Variant is null)
                             .SelectMany(unit => unit.Summary.EntryPoints)
                             .OrderBy(entry => entry.Name, StringComparer.Ordinal)
                             .Select(entry => new ProcedureSummary(
@@ -257,7 +258,11 @@ public static partial class Translator
                     return null;
                 }
 
-                _effects[project] = ArgumentEffects.Compute(sources.SelectMany(source => source.Units).Select(unit => unit.Summary), FindElsewhere);
+                var units = sources.SelectMany(source => source.Units).ToList();
+                _effects[project] = ArgumentEffects.Compute(
+                    units.Where(unit => unit.Variant is null).Select(unit => unit.Summary),
+                    FindElsewhere,
+                    units.Where(unit => unit.Variant is not null).Select(unit => unit.Summary));
             }
 
             foreach (var project in _projects)

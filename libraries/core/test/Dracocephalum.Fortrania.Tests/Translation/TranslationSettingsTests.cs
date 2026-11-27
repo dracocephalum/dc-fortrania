@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using Dracocephalum.Fortrania.Translation;
 using Shouldly;
@@ -45,6 +46,37 @@ public class TranslationSettingsTests
         // Assert
         settings.Output.ShouldBeNull();
         settings.Sources[0].Includes.ShouldBeEmpty();
+        settings.Sources[0].Variants.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void Parse_WhenASourceHasVariants_ShouldReadThePlatformOfEach()
+    {
+        // Arrange
+        const string Json =
+            """
+            {
+              "sources": [
+                {
+                  "name": "Core",
+                  "files": [ "linux/*.f" ],
+                  "variants": [
+                    { "osPlatform": "windows", "files": [ "windows/zzplatfm.f" ] },
+                    { "osPlatform": "macos", "processArchitecture": "arm64", "files": [ "arm/*.f" ] },
+                    { "processArchitecture": "X64", "files": [ "x64/*.f" ] },
+                  ],
+                },
+              ],
+            }
+            """;
+
+        // Act
+        var variants = TranslationSettings.Parse(Json).Sources[0].Variants;
+
+        // Assert
+        variants.Select(variant => variant.OSPlatform).ShouldBe(["windows", "macos", null]);
+        variants.Select(variant => variant.ProcessArchitecture).ShouldBe([null, Architecture.Arm64, Architecture.X64]);
+        variants[0].Files.ShouldBe(["windows/zzplatfm.f"]);
     }
 
     [Theory]
@@ -58,6 +90,7 @@ public class TranslationSettingsTests
     [InlineData("""{ "output": ".", "scaffold": "once" }""")]
     [InlineData("""{ "output": ".", "kind": "executable" }""")]
     [InlineData("""{ "output": ".", "entry": "MAIN" }""")]
+    [InlineData("""{ "sources": [ { "name": "S", "files": [ "a.f" ], "variants": [ { "processArchitecture": "pdp11", "files": [ "b.f" ] } ] } ] }""")]
     [InlineData("""{ "output": ".", "framework": "net10.0" }""")]
     [InlineData("""{ "output": ".", "runtime": { "package": "1.2.3" } }""")]
     [InlineData("""{ "output": ".", "references": [ "Q" ] }""")]

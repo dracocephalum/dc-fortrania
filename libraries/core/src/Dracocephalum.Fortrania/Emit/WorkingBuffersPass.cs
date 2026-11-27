@@ -106,10 +106,13 @@ internal static class WorkingBuffersPass
 
     // The names of the methods written beside a procedure's entry: a name
     // no FORTRAN procedure can have under any convention, starting with an
-    // underscore.
-    private static string CoreOf(string name) => $"_{name}_core";
+    // underscore. A name that starts with one already, a variant's, is not
+    // given a second: C# keeps names with two in a row for itself.
+    private static string CoreOf(string name) => $"{Underscored(name)}_core";
 
-    private static string OpenerOf(string name) => $"_{name}_with_arena";
+    private static string OpenerOf(string name) => $"{Underscored(name)}_with_arena";
+
+    private static string Underscored(string name) => name.StartsWith('_') ? name : "_" + name;
 
     // The procedure as the program calls it: where no copy of the arena is
     // open, nothing translated running, it calls the core through the
@@ -127,12 +130,14 @@ internal static class WorkingBuffersPass
             [
                 new TreeStatement.Branch(
                     new TreeExpression.Local($"{RegionField}.CurrentSource == BufferSource.None"),
-                    CallAgain(method, OpenerOf(method.Name))),
+                    method.ForwardTo(OpenerOf(method.Name))),
             ]),
-            .. CallAgain(method, CoreOf(method.Name), isLast: true),
+            .. method.ForwardTo(CoreOf(method.Name), isLast: true),
         ])
     {
         IsInlined = true,
+        IsPublic = method.IsPublic,
+        IsInternal = method.IsInternal,
     };
 
     private static TreeMethod Apply(TreeMethod method, long place, Func<string, bool> hasCore)
@@ -237,35 +242,12 @@ internal static class WorkingBuffersPass
             new TreeStatement.Comment($"{method.Name} called from outside, with a copy of the arena open for it, closed however the call ends."),
             new TreeStatement.Evaluate(new TreeExpression.Call("_context.Arena.Push", [])),
             new TreeStatement.TryFinally(
-                CallAgain(method, CoreOf(method.Name), isLast: true),
+                method.ForwardTo(CoreOf(method.Name), isLast: true),
                 [new TreeStatement.Evaluate(new TreeExpression.Call("_context.Arena.Pop", []))]),
         ])
     {
         IsPublic = false,
     };
-
-    // A call of a method of the same parameters with what this one was
-    // given, and its result returned; where it gives nothing back and is
-    // the last the method does, nothing more.
-    private static List<TreeStatement> CallAgain(TreeMethod method, string name, bool isLast = false)
-    {
-        var call = new TreeExpression.Call(name, [.. method.Parameters.Select(ArgumentFor)]);
-        if (method.ReturnType != "void")
-        {
-            return [new TreeStatement.Return(call)];
-        }
-
-        return isLast ? [new TreeStatement.Evaluate(call)] : [new TreeStatement.Evaluate(call), new TreeStatement.Return(null)];
-    }
-
-    // What passes a parameter on: its name, after the word that says how
-    // it is passed where there is one.
-    private static TreeExpression.Local ArgumentFor(string parameter)
-    {
-        var name = parameter[(parameter.LastIndexOf(' ') + 1)..];
-        var passing = parameter.Split(' ')[0];
-        return new TreeExpression.Local(passing is "ref" or "out" or "in" ? $"{passing} {name}" : name);
-    }
 
     private static TreeExpression At(TreeExpression start, long offset) => offset == 0
         ? start

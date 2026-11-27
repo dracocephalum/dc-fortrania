@@ -20,6 +20,12 @@ public sealed class SourceSettings
     public IList<string> Files { get; set; } = [];
 
     /// <summary>
+    /// Gets or sets the files that take the place of some of <see cref="Files"/>
+    /// on one platform each, a unit at a time; none unless set.
+    /// </summary>
+    public IList<VariantSettings> Variants { get; set; } = [];
+
+    /// <summary>
     /// Gets or sets the folders an <c>INCLUDE</c> file is looked for in,
     /// after the folder of the file that includes it.
     /// </summary>
