@@ -24,12 +24,8 @@ static unsafe partial class Fortran
 {
     private const byte Blank = (byte)' ';
 
-    // How many bytes are fewer than it pays to hand to a search of the
-    // framework's.
-    private const int ShortRun = 8;
-
-    // How many bytes at most are copied or filled here, a few words at a
-    // time, and not by the framework.
+    // How many bytes at most are copied, filled or compared here, a few
+    // words at a time, and not by the framework.
     private const uint LongestInPieces = 64;
 
     private const ulong EightBlanks = 0x2020202020202020;
@@ -280,30 +276,98 @@ static unsafe partial class Fortran
             (length, shorterLength) = (shorterLength, length);
         }
 
-        shorterLength = Math.Max(shorterLength, 0);
-        if (!new ReadOnlySpan<byte>(longer, shorterLength).SequenceEqual(new ReadOnlySpan<byte>(shorter, shorterLength)))
+        if (shorterLength > 0)
         {
-            return false;
-        }
-
-        // What is left of the longer has to be blank. A few bytes are
-        // looked at one by one: the framework's search is faster over
-        // many and costs more to begin than these take.
-        var rest = length - shorterLength;
-        if (rest >= ShortRun)
-        {
-            return !new ReadOnlySpan<byte>(longer + shorterLength, rest).ContainsAnyExcept(Blank);
-        }
-
-        for (var index = shorterLength; index < length; index++)
-        {
-            if (longer[index] != Blank)
+            if (!AreSame(longer, shorter, (uint)shorterLength))
             {
                 return false;
             }
         }
+        else
+        {
+            shorterLength = 0;
+        }
 
-        return true;
+        // What is left of the longer has to be blank.
+        return length == shorterLength || IsBlank(longer + shorterLength, (uint)(length - shorterLength));
+    }
+
+    // Tells whether one byte or more are the same in two places. Up to
+    // sixty-four are looked at here, as the two or four pieces that cover
+    // them and overlap where the count is no multiple of a piece, as
+    // Assign copies; the framework's comparison is made for any number
+    // and takes longer to begin than a name takes to compare.
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static bool AreSame(byte* left, byte* right, uint count)
+    {
+        if (count >= 16)
+        {
+            if (count > LongestInPieces || !Vector128.IsHardwareAccelerated)
+            {
+                return new ReadOnlySpan<byte>(left, (int)count).SequenceEqual(new ReadOnlySpan<byte>(right, (int)count));
+            }
+
+            var differing = (Vector128.Load(left) ^ Vector128.Load(right))
+                | (Vector128.Load(left + count - 16) ^ Vector128.Load(right + count - 16));
+            if (count > 32)
+            {
+                differing |= (Vector128.Load(left + 16) ^ Vector128.Load(right + 16))
+                    | (Vector128.Load(left + count - 32) ^ Vector128.Load(right + count - 32));
+            }
+
+            return differing == Vector128<byte>.Zero;
+        }
+
+        if (count >= 8)
+        {
+            return ((Unsafe.ReadUnaligned<ulong>(left) ^ Unsafe.ReadUnaligned<ulong>(right))
+                | (Unsafe.ReadUnaligned<ulong>(left + count - 8) ^ Unsafe.ReadUnaligned<ulong>(right + count - 8))) == 0;
+        }
+
+        if (count >= 4)
+        {
+            return ((Unsafe.ReadUnaligned<uint>(left) ^ Unsafe.ReadUnaligned<uint>(right))
+                | (Unsafe.ReadUnaligned<uint>(left + count - 4) ^ Unsafe.ReadUnaligned<uint>(right + count - 4))) == 0;
+        }
+
+        // One to three bytes: the first, the middle and the last are all
+        // of them, some taken twice.
+        return ((left[0] ^ right[0]) | (left[count >> 1] ^ right[count >> 1]) | (left[count - 1] ^ right[count - 1])) == 0;
+    }
+
+    // Tells whether one byte or more are all blanks, in pieces as
+    // AreSame compares.
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static bool IsBlank(byte* text, uint count)
+    {
+        if (count >= 16)
+        {
+            if (count > LongestInPieces || !Vector128.IsHardwareAccelerated)
+            {
+                return !new ReadOnlySpan<byte>(text, (int)count).ContainsAnyExcept(Blank);
+            }
+
+            var blanks = Vector128.Create(Blank);
+            var differing = (Vector128.Load(text) ^ blanks) | (Vector128.Load(text + count - 16) ^ blanks);
+            if (count > 32)
+            {
+                differing |= (Vector128.Load(text + 16) ^ blanks) | (Vector128.Load(text + count - 32) ^ blanks);
+            }
+
+            return differing == Vector128<byte>.Zero;
+        }
+
+        if (count >= 8)
+        {
+            return ((Unsafe.ReadUnaligned<ulong>(text) ^ EightBlanks) | (Unsafe.ReadUnaligned<ulong>(text + count - 8) ^ EightBlanks)) == 0;
+        }
+
+        if (count >= 4)
+        {
+            return ((Unsafe.ReadUnaligned<uint>(text) ^ FourBlanks) | (Unsafe.ReadUnaligned<uint>(text + count - 4) ^ FourBlanks)) == 0;
+        }
+
+        return text[0] == Blank && text[count >> 1] == Blank && text[count - 1] == Blank;
     }
 
     /// <summary>Finds where one character value first occurs in another, as <c>INDEX</c> does.</summary>

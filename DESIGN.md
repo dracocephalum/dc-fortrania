@@ -304,6 +304,15 @@ returns. A comparison that asks for an order stays `Compare`.
   takes a sixth of the time `Compare` took; one that holds takes between
   the same and a little over half. It takes its two values either way
   round.
+- **The rest compares up to 64 bytes itself**, in the overlapping pieces
+  `Assign` copies in, below: the bytes the two values share, and then
+  the blanks the longer must end in. Only more than 64 of either go to
+  the framework's comparison and search. Against the framework for every
+  length, and once the first bytes agree, a routine's name of six
+  characters against a place of thirty-two takes six tenths of the time
+  where they are equal and four fifths where they are not; thirty-two
+  against thirty-two takes seven tenths, and five against eight four
+  fifths.
 - **The whole test written in line was measured too, and not taken.** It
   is faster where the values are equal, but it is several calls for the
   just-in-time compiler to write in line, and in four methods of the
