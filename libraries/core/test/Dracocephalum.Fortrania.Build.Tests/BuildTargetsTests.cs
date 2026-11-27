@@ -97,13 +97,13 @@ public sealed class BuildTargetsTests : IDisposable
         }
 
         Put("Lib/Example.Lib.csproj", ProjectFile(string.Empty));
-        Put("Lib/lib.fortrania.json", """{ "output": ".", "sources": [ { "name": "Core", "files": [ { "patterns": [ "fortran/*.f" ] } ] } ] }""");
+        Put("Lib/lib.fortrania.json", """{ "output": ".", "sources": [ { "name": "Core", "files": [ { "paths": [ "fortran/*.f" ] } ] } ] }""");
         Put("Lib/fortran/lib.f", Library);
-        Put("Lib/more.fortrania.json", """{ "output": "more", "sources": [ { "name": "Halves", "files": [ { "patterns": [ "more/*.f" ] } ] } ] }""");
+        Put("Lib/more.fortrania.json", """{ "output": "more", "sources": [ { "name": "Halves", "files": [ { "paths": [ "more/*.f" ] } ] } ] }""");
         Put("Lib/more/half.f", Half);
 
         Put("App/Example.App.csproj", ProjectFile("""<PropertyGroup><OutputType>Exe</OutputType></PropertyGroup><ItemGroup><ProjectReference Include="../Lib/Example.Lib.csproj" /></ItemGroup>"""));
-        Put("App/app.fortrania.json", """{ "output": "$(IntermediateOutput)/fortrania", "sources": [ { "name": "AppMain", "files": [ { "patterns": [ "fortran/*.f" ] } ] } ] }""");
+        Put("App/app.fortrania.json", """{ "output": "$(IntermediateOutput)/fortrania", "sources": [ { "name": "AppMain", "files": [ { "paths": [ "fortran/*.f" ] } ] } ] }""");
         Put("App/fortran/main.f", Program);
         Put("App/Program.cs", Main);
     }

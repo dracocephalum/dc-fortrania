@@ -339,7 +339,7 @@ public sealed class TranslatorVariantTests : IDisposable
         var source = new SourceSettings
         {
             Name = "Core",
-            Files = [new FileSettings { Patterns = ["core/*.f"] }, Variant("xyz", null, "xyz/*.f"), new FileSettings { Patterns = ["more/*.f"] }],
+            Files = [new FileSettings { Paths = ["core/*.f"] }, Variant("xyz", null, "xyz/*.f"), new FileSettings { Paths = ["more/*.f"] }],
         };
 
         // Act
@@ -361,10 +361,10 @@ public sealed class TranslatorVariantTests : IDisposable
 
     // A source of core/*.f, with files for other platforms after them.
     private static SourceSettings Source(params FileSettings[] variants) =>
-        new() { Name = "Core", Files = [new FileSettings { Patterns = ["core/*.f"] }, .. variants] };
+        new() { Name = "Core", Files = [new FileSettings { Paths = ["core/*.f"] }, .. variants] };
 
-    private static FileSettings Variant(string? system, Architecture? architecture, params string[] patterns) =>
-        new() { OSPlatform = system, ProcessArchitecture = architecture, Patterns = [.. patterns] };
+    private static FileSettings Variant(string? system, Architecture? architecture, params string[] paths) =>
+        new() { OSPlatform = system, ProcessArchitecture = architecture, Paths = [.. paths] };
 
     private TranslationResult Translate(SourceSettings source) => Translator.Run(
         new TranslationProject

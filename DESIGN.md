@@ -933,8 +933,8 @@ elsewhere refuses such a file.
     {
       "output": "$(IntermediateOutput)/fortrania",
       "sources": [
-        { "name": "TestUtil", "files": [ { "patterns": [ "testutil/*.f" ] } ] },
-        { "name": "TSpiceMain", "files": [ { "patterns": [ "tspice/*.f", "tspice/*.pgm" ] } ] }
+        { "name": "TestUtil", "files": [ { "paths": [ "testutil/*.f" ] } ] },
+        { "name": "TSpiceMain", "files": [ { "paths": [ "tspice/*.f", "tspice/*.pgm" ] } ] }
       ]
     }
 
@@ -1005,15 +1005,15 @@ source's `files` that says a platform names files that stand in for the
 source's own on it:
 
     { "name": "Core", "files": [
-        { "patterns": [ "linux/*.f" ] },
-        { "patterns": [ "windows/zzplatfm.f" ], "osPlatform": "windows" } ] }
+        { "paths": [ "linux/*.f" ] },
+        { "paths": [ "windows/zzplatfm.f" ], "osPlatform": "windows" } ] }
 
-- **`files` has one shape.** Each entry is an object, its `patterns` a
-  list, and the platform beside them where there is one. A list of
-  patterns is a JSON array, not a string with a separator in it: a
-  separator such as `;` may be part of a file's name on every system, and
-  an array keeps a comment beside each pattern. A bare string for a
-  pattern would be a second way to say the same thing.
+- **`files` has one shape.** Each entry is an object: its `paths`, each a
+  path whose last part may have `*` and `?`, and the platform beside them
+  where there is one. The paths are a JSON array, not a string with a
+  separator in it: a separator such as `;` may be part of a file's name on
+  every system, and an array keeps a comment beside each path. A bare
+  string for an entry would be a second way to say the same thing.
 - **Each unit of a platform's files is a variant of the unit of its name**
   among the source's own, those of the entries that say no platform, the
   base, which runs wherever no variant does. A source has to have files

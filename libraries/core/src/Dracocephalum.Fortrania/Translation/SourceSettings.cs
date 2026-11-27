@@ -13,7 +13,7 @@ public sealed class SourceSettings
     public string? Class { get; set; }
 
     /// <summary>
-    /// Gets or sets the files to translate, each entry their patterns and
+    /// Gets or sets the files to translate, each entry their paths and
     /// the platform they are for: the source's own where an entry gives
     /// none, and those that stand in for some of them on one platform
     /// where it gives one.

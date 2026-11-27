@@ -560,9 +560,9 @@ public static partial class Translator
 
                         foreach (var files in source.Files)
                         {
-                            if (files.Patterns.Count == 0)
+                            if (files.Paths.Count == 0)
                             {
-                                Error($"Files of the source {source.Name} of the project {name} give no patterns.");
+                                Error($"Files of the source {source.Name} of the project {name} give no paths.");
                             }
 
                             if (files.OSPlatform is { } system && string.IsNullOrWhiteSpace(system))
@@ -601,7 +601,7 @@ public static partial class Translator
         {
             var paths = new[] { part.Settings.Output }
                 .Concat(part.Settings.Plugins)
-                .Concat(IsTranslated(project) ? part.Settings.Sources.SelectMany(source => source.Files.SelectMany(files => files.Patterns).Concat(source.Includes)) : [])
+                .Concat(IsTranslated(project) ? part.Settings.Sources.SelectMany(source => source.Files.SelectMany(files => files.Paths).Concat(source.Includes)) : [])
                 .OfType<string>();
             return new HashSet<string>(
                 paths.SelectMany(path => VariableReference().Matches(path).Select(match => match.Groups[1].Value)),
@@ -695,7 +695,7 @@ public static partial class Translator
 
                     // The source's own first, so that a unit's variants are
                     // read after the base they stand in for.
-                    var own = sourceSettings.Files.Where(files => files.IsBase).SelectMany(files => files.Patterns);
+                    var own = sourceSettings.Files.Where(files => files.IsBase).SelectMany(files => files.Paths);
                     foreach (var file in FilesOf(project, part, sourceSettings, own))
                     {
                         Read(source, file, null);
@@ -704,7 +704,7 @@ public static partial class Translator
                     foreach (var files in sourceSettings.Files.Where(files => !files.IsBase))
                     {
                         var platform = new PlatformVariant(files.OSPlatform, files.ProcessArchitecture);
-                        foreach (var file in FilesOf(project, part, sourceSettings, files.Patterns))
+                        foreach (var file in FilesOf(project, part, sourceSettings, files.Paths))
                         {
                             Read(source, file, platform);
                         }
@@ -754,7 +754,7 @@ public static partial class Translator
 
         // Whether any file a project's sources name is on the machine.
         private static bool HasSources(Project project) => project.Sources
-            .SelectMany(source => source.Settings.Files.SelectMany(files => files.Patterns).Select(entry => Path.GetFullPath(Path.Combine(source.Part.Folder, Expand(source.Part, entry)))))
+            .SelectMany(source => source.Settings.Files.SelectMany(files => files.Paths).Select(entry => Path.GetFullPath(Path.Combine(source.Part.Folder, Expand(source.Part, entry)))))
             .Any(path => Path.GetDirectoryName(path) is { } folder && Directory.Exists(folder) && Directory.GetFiles(folder, Path.GetFileName(path)).Length > 0);
 
         private List<string> FilesOf(Project project, Part part, SourceSettings source, IEnumerable<string> entries)

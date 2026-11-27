@@ -3,8 +3,7 @@ using System.Runtime.InteropServices;
 namespace Dracocephalum.Fortrania.Translation;
 
 /// <summary>
-/// Files of a source, by the patterns that name them, and the platform
-/// they are for. Files for no platform in particular are the source's own,
+/// Files of a source, by their paths, and the platform they are for. Files for no platform in particular are the source's own,
 /// the base. Files for one platform stand in for the base on it: each
 /// program unit of them is a variant of the unit of the same name in the
 /// base, which runs everywhere else, and the library chooses between them
@@ -19,11 +18,11 @@ namespace Dracocephalum.Fortrania.Translation;
 public sealed class FileSettings
 {
     /// <summary>
-    /// Gets or sets the patterns of the files: each a path, which may name
+    /// Gets or sets the paths of the files, each of which may name
     /// variables as <c>$(Name)</c>, and whose last part may have <c>*</c>
     /// for any run of characters and <c>?</c> for any one.
     /// </summary>
-    public IList<string> Patterns { get; set; } = [];
+    public IList<string> Paths { get; set; } = [];
 
     /// <summary>
     /// Gets or sets the operating system the files are for, by the name

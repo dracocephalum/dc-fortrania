@@ -323,7 +323,7 @@ public sealed class TranslatorDownloadTests : IDisposable
         {
             Folder = _root,
             Output = "out/Example.Toolkit",
-            Sources = [new SourceSettings { Name = "Core", Files = [new FileSettings { Patterns = ["$(Sources)/src/core/*.f"] }] }],
+            Sources = [new SourceSettings { Name = "Core", Files = [new FileSettings { Paths = ["$(Sources)/src/core/*.f"] }] }],
         };
         settings.Variables["Sources"] = sources;
         return new TranslationProject
