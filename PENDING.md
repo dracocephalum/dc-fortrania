@@ -1035,11 +1035,21 @@ this list, for `DESIGN.md` where the answer shaped the code.
   calls what it was passed counts as written. Calls are listed as
   breaking FORTRAN's rule on arguments for that alone, and their
   procedures left without locals. Counting what the reference sources
-  list so, and what a closer answer would free, comes first.
+  list so, and what a closer answer would free, comes first. What is
+  known without counting: the answer cannot be made close for a library.
+  Which procedure a procedure argument stands for is settled by whoever
+  calls, another project among them, so a library translated alone has
+  to take such a call as writing what it is passed. A closer answer is
+  for a program translated whole, which has every caller before it.
 - **The scalar locals around calls, by what the call does.** A local is
   read again after every statement that passes its address on, whatever
   is called; where the analysis says the procedure only reads the
-  argument, the reading again could go.
+  argument, the reading again could go. Measured and not worth building:
+  the bisection of `SavedScalarBenchmarks` with the one such reading
+  taken out of each turn takes the same time, 0.92 of the time through
+  the block either way. A value kept across a call is read from memory
+  after it in any case, from the stack where not from behind its
+  address.
 - **Saved state.** The two questions at the end of *Saved state is placed
   at translation and loaded at run time*, answered on Windows and for the
   reference sources. The six largest blocks of their main library, 89 MB
@@ -1050,14 +1060,6 @@ this list, for `DESIGN.md` where the answer shaped the code.
   profile. Left: the same on Linux and macOS, and what many contexts made
   and disposed one after another pay, which *A context's native memory
   comes from one heap* is about.
-- **A search of an array done at once.** `ISRCHI`, which looks for a
-  whole number in an array one element at a time, took 1.6% of the
-  reference sources' quick tests and 3.3% of those that compute most,
-  nearly all of it from one routine that looks plates up. The
-  framework's search of a span looks at several elements at a time. To
-  be counted first: how long the arrays are where it is called, since a
-  short one gains nothing. It would be a loop the translator recognizes,
-  as it does one that copies or fills, or a unit written by hand.
 - **Records.** A record read by number is one system call, and one copy
   unless the item is the whole record. Kernel reading is made of these, so
   what a buffer of several records, or a mapped file, would save is the

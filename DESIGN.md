@@ -516,6 +516,20 @@ gains a second way beside it, under a remark that says so:
   are called 640 million times: 385 million of the calls are for fewer
   than eight elements, and four fifths of the elements moved are in
   runs of eight or more.
+- **A loop that looks for a whole number is looked through by the
+  runtime.** A loop from the first element whose one statement tests the
+  element of its turn against a whole number and, where they are equal,
+  does what ends in a return, is written as the runtime's `FindElement`
+  and one test of where it stopped, with the loop beside it for a run
+  under sixteen as for a copy. The first find is then the only one, and
+  nothing the loop does changes what it compares. The framework's search
+  looks at several elements at a time: forty elements and two hundred
+  take a third of the loop's time where the value is the last, and four
+  the same. A loop over real values is left: its test tells a value that
+  is no number from itself, and the framework's search does not. The
+  reference sources have one such loop, `ISRCHI`, which the rest call
+  to look a number up, and which took 1.6% and 3.3% of two profiles of
+  their tests.
 
 **A library keeps its character constants in one block.** A constant
 written where it is used, as a literal of bytes whose address is taken,
