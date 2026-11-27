@@ -1364,6 +1364,62 @@ each of these is reported as unsupported and never translated by guess:
   unit needs the form `f2c` writes, one body with every entry's arguments
   and a selector that says where to start, and a thin method per entry.
 
+## Storage of two gigabytes or more in a program unit
+
+Refused today, with an error that names the line: "kept variables of two
+gigabytes or more in one program unit". The limit is the translator's
+own and not the language's or the machine's, and is to go. The reference
+sources come nowhere near it; their largest unit keeps 28 MB.
+
+**What the language allows.** Each subscript is an `INTEGER`, 32 bits, so
+no one dimension has more than 2,147,483,647 elements. An array of several
+dimensions may have more elements than that in all, and one of a single
+dimension more bytes: 16 GB of `DOUBLE PRECISION`. Where an element lies is
+then past what 32 bits count, and is worked out in 64 on a machine whose
+addresses are that wide.
+
+**What the reference compiler does**, tried with `DOUBLE PRECISION
+A(20000,20000)`, 3.2 GB. It keeps a large local array in the program's
+static data. On Windows the program does not link, with or without
+`-mcmodel=medium`: an executable there holds under 2 GB of such data. On
+64-bit Linux that option is what lifts the same limit; this was not
+tried here. So its switch chooses how the machine code addresses static
+data, which a translation has none of: a unit's block is taken from the
+heap as the program runs. No setting is needed for the same reason, and
+the same translation serves every system.
+
+**What is to change.**
+
+- **The size of a block and the places in it** are 64 bits wide: what the
+  runtime is asked for, and what a unit adds to its block's address.
+- **Where an element lies is worked out in 64 bits where 32 may not hold
+  it**, and in 32 as today everywhere else. The translator knows the size
+  of every array that is not an argument, so it chooses for each.
+  - *A character array* needs it sooner than a numeric one: the place of
+    an element is its number times its length in bytes, where a numeric
+    element's number is multiplied by the machine as the address is
+    formed.
+  - *An array that is an argument* has no size the procedure can see,
+    `A(LDA,*)`. Inside a project the translator sees every call and what
+    is passed; for a procedure called from outside, a setting says that
+    its subscripts are to be worked out in 64 bits.
+- **A block the system cannot give is the runtime's
+  `OutOfMemoryException`**, raised where the unit is first called. The
+  translator checks no size against a machine it does not know.
+- **Tests** that translate, compile and run an array past each of the
+  bounds: 2 GB in bytes, and 2,147,483,647 elements. They need the memory
+  and are to be marked so that a pipeline may leave them out.
+
+**Not settled:** whether such an array should lie in the unit's block at
+all where the program did not ask for it to be kept. The block is held
+until the context is disposed, as the reference compiler holds static
+data until the program ends; on the working side, under *Working buffers:
+what is not built*, a place could be shared by procedures that are never
+active together.
+
+A later standard's arrays that are allocated as the program runs come to
+the same arithmetic, with the sizes known only then.
+
 ## Settings for what differs by platform
 
 Where the reference toolkit differs by platform in a value and not in logic,
