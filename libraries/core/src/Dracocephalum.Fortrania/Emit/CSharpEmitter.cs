@@ -246,13 +246,22 @@ public sealed class CSharpEmitter
     /// <param name="keepsArrayLoops">Whether a loop that only copies or fills an array is left as the loop alone, and not given the runtime's copy or fill beside it for a long run.</param>
     /// <param name="whyOnStack">Why a procedure that has no place keeps the stack, as lines of a comment for its buffers, by the procedure's name; nothing for one that has a place, or where nothing is to be said.</param>
     /// <param name="hasCore">Whether a call, by what it calls as written, reaches a procedure of the project that <see cref="FindCores"/> gave; the core of a procedure calls the core of such a one. None does unless given.</param>
+    /// <param name="isAliased">
+    /// Whether an argument of an entry point, by the name the program calls
+    /// it by and the argument's place counted from zero, may be the same
+    /// storage as another, some call passing it so. Given, a method keeps
+    /// its other scalar arguments in locals while it runs, by FORTRAN's rule
+    /// that no two arguments are the same storage where one is given a
+    /// value; left out, every argument stays behind its address.
+    /// </param>
     public static string WriteWithPlaces(
         EmittedUnit unit,
         Func<string, long?> placeOf,
         TextBlock? text = null,
         bool keepsArrayLoops = false,
         Func<string, IReadOnlyList<string>?>? whyOnStack = null,
-        Func<string, bool>? hasCore = null)
+        Func<string, bool>? hasCore = null,
+        Func<string, int, bool>? isAliased = null)
     {
         ArgumentNullException.ThrowIfNull(unit);
         ArgumentNullException.ThrowIfNull(placeOf);
@@ -268,6 +277,11 @@ public sealed class CSharpEmitter
         if (!keepsArrayLoops)
         {
             file = ArrayLoopPass.Apply(file);
+        }
+
+        if (isAliased is not null)
+        {
+            file = ScalarArgumentPass.Apply(file, isAliased);
         }
 
         return CSharpFileWriter.Write(text is null ? file : TextBlockPass.Apply(file, text));

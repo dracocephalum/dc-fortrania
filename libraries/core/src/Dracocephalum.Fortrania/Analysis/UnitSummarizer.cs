@@ -31,7 +31,7 @@ public static class UnitSummarizer
 
         var entryPoints = table.EntryPoints.Select(entry => Describe(table, entry, collector)).ToList();
 
-        return new UnitSummary(kind, name, entryPoints, collector.Calls);
+        return new UnitSummary(kind, name, entryPoints, collector.Calls) { CallsThroughArguments = collector.CallsThroughArguments };
     }
 
     private static ProcedureInterface Describe(SymbolTable table, ParsedStatement entry, Collector collector)
@@ -105,6 +105,8 @@ public static class UnitSummarizer
         private bool _listsCalls;
 
         public List<CallSite> Calls { get; } = [];
+
+        public List<CallSite> CallsThroughArguments { get; } = [];
 
         public ProcedureShape? ShapeOf(string dummy) => _shapes.GetValueOrDefault(dummy);
 
@@ -339,6 +341,7 @@ public static class UnitSummarizer
 
             if (procedure.IsDummyArgument && _listsCalls)
             {
+                CallsThroughArguments.Add(new CallSite(procedure.Name, resultType, [.. arguments.Select(argument => Describe(argument, at))], at.Line));
                 var shape = new ProcedureShape(resultType, [.. arguments.Select(argument => _typer.TypeOfArgument(argument, at))]);
                 _shapes[procedure.Name] = _shapes.TryGetValue(procedure.Name, out var seen) && !shape.Equals(seen) ? null : shape;
             }
@@ -501,7 +504,7 @@ public static class UnitSummarizer
                     };
 
                 case Expression.Reference reference when table.Find(reference.Identifier) is { Kind: SymbolKind.Variable } array:
-                    return new ActualArgument(ActualArgumentKind.ArrayElement, type, array.Name);
+                    return new ActualArgument(ActualArgumentKind.ArrayElement, type, array.Name) { Subscripts = ExpressionKey.Of(reference.Arguments) };
 
                 default:
                     return new ActualArgument(ActualArgumentKind.Value, type, null);

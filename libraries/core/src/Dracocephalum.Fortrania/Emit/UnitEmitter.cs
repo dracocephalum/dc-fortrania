@@ -227,6 +227,8 @@ internal sealed partial class UnitEmitter
             _body.Statements)
         {
             Procedure = procedure,
+            EntryPoint = name,
+            ScalarArguments = [.. ScalarArguments(parameters)],
             IsPublic = _variant is null,
         });
         _methods.Add(new EmittedMethod(
@@ -311,6 +313,21 @@ internal sealed partial class UnitEmitter
         }
 
         return addresses.Concat(lengths);
+    }
+
+    // The arguments of a method that are one number or logical value each:
+    // not an array, not a character value, not a procedure. A pass may keep
+    // such a one in a local.
+    private IEnumerable<ScalarArgument> ScalarArguments(IReadOnlyList<string> names)
+    {
+        for (var position = 0; position < names.Count; position++)
+        {
+            var symbol = _table.Find(names[position])!;
+            if (!IsProcedure(symbol) && !symbol.IsArray && symbol.Type!.Type != DataType.Character)
+            {
+                yield return new ScalarArgument(position, names[position].ToCSharpLocal(), symbol.Type.Type.ToCSharpStorageType());
+            }
+        }
     }
 
     // Writes the name of one of the runtime's methods as a call needs it:

@@ -17,4 +17,12 @@ public sealed record UnitSummary(
     UnitKind Kind,
     string? Name,
     IReadOnlyList<ProcedureInterface> EntryPoints,
-    IReadOnlyList<CallSite> Calls);
+    IReadOnlyList<CallSite> Calls)
+{
+    /// <summary>
+    /// Gets every call and function reference to a procedure the unit was
+    /// passed as an argument, in the order written. What each reaches is
+    /// known only where the unit itself is called.
+    /// </summary>
+    public IReadOnlyList<CallSite> CallsThroughArguments { get; init; } = [];
+}

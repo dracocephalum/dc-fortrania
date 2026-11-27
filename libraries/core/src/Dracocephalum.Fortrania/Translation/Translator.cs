@@ -255,6 +255,7 @@ public static partial class Translator
             if (!HasErrors)
             {
                 WorkOutStackUse();
+                WorkOutAliases();
                 WriteWithPlaces();
             }
 
@@ -287,6 +288,7 @@ public static partial class Translator
                 WorkingRegions = _workingRegions,
                 UnalignedPlaces = _unaligned,
                 WidenedPlaces = _widened,
+                AliasedPlaces = _aliased,
                 Fetched = _fetched,
                 Read = _read,
                 Patterns = _patterns,
@@ -1166,7 +1168,8 @@ public static partial class Translator
                         text,
                         source.Part.Settings.PlainArrayLoops,
                         procedure => _whyOnStack.TryGetValue((source, procedure), out var why) && why.Count > 0 ? why : null,
-                        HasCore);
+                        HasCore,
+                        source.Part.Settings.AllowsArgumentAliasing ? null : (entry, position) => IsAliased(source, entry, position));
                 }
 
                 var region = _workingRegions.Single(region => region.Project == source.Project.Name);
