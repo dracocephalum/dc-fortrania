@@ -933,8 +933,8 @@ elsewhere refuses such a file.
     {
       "output": "$(IntermediateOutput)/fortrania",
       "sources": [
-        { "name": "TestUtil", "files": [ "testutil/*.f" ] },
-        { "name": "TSpiceMain", "files": [ "tspice/*.f", "tspice/*.pgm" ] }
+        { "name": "TestUtil", "files": [ { "patterns": [ "testutil/*.f" ] } ] },
+        { "name": "TSpiceMain", "files": [ { "patterns": [ "tspice/*.f", "tspice/*.pgm" ] } ] }
       ]
     }
 
@@ -1000,17 +1000,26 @@ elsewhere refuses such a file.
 
 **A source may take a routine from another platform's copy, and its
 library chooses which runs.** FORTRAN that runs on several platforms often
-comes as a copy for each, alike but for a few routines. A source's
-`variants` name the files that stand in for its own on one platform each:
+comes as a copy for each, alike but for a few routines. An entry of a
+source's `files` that says a platform names files that stand in for the
+source's own on it:
 
-    { "name": "Core", "files": [ "linux/*.f" ],
-      "variants": [ { "osPlatform": "windows", "files": [ "windows/zzplatfm.f" ] } ] }
+    { "name": "Core", "files": [
+        { "patterns": [ "linux/*.f" ] },
+        { "patterns": [ "windows/zzplatfm.f" ], "osPlatform": "windows" } ] }
 
-- **Each unit of a variant's files stands in for the unit of its name**
-  among the source's own, the base, which runs wherever no variant does.
-  A variant with no base is refused, and so is one that is not called as
-  its base is: the same procedures, the same arguments, the same C#
-  signature, since callers are written against the base.
+- **`files` has one shape.** Each entry is an object, its `patterns` a
+  list, and the platform beside them where there is one. A list of
+  patterns is a JSON array, not a string with a separator in it: a
+  separator such as `;` may be part of a file's name on every system, and
+  an array keeps a comment beside each pattern. A bare string for a
+  pattern would be a second way to say the same thing.
+- **Each unit of a platform's files is a variant of the unit of its name**
+  among the source's own, those of the entries that say no platform, the
+  base, which runs wherever no variant does. A source has to have files
+  of its own; a variant with no base is refused, and so is one that is not
+  called as its base is: the same procedures, the same arguments, the same
+  C# signature, since callers are written against the base.
 - **The platform is .NET's: `osPlatform`, `processArchitecture`, or
   both.** A system is named as `OperatingSystem.IsOSPlatform` names it,
   `windows`, `linux`, `macos`, and is not checked, since .NET's set is open:

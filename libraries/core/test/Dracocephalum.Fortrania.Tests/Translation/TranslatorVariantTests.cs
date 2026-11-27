@@ -299,7 +299,7 @@ public sealed class TranslatorVariantTests : IDisposable
         Put("core/core.f", Base);
         Put("one/plat.f", Plat(1));
         Put("two/plat.f", Plat(2));
-        VariantSettings[] variants = second is null
+        FileSettings[] variants = second is null
             ? [Variant(first, null, "one/*.f")]
             : [Variant(first, null, "one/*.f"), Variant(second, null, "two/*.f")];
 
@@ -312,17 +312,43 @@ public sealed class TranslatorVariantTests : IDisposable
     }
 
     [Fact]
-    public void Run_WhenAVariantSaysNoPlatform_ShouldRefuse()
+    public void Run_WhenEveryFileIsForAPlatform_ShouldRefuseForWantOfABase()
     {
         // Arrange
-        Put("core/core.f", Base);
+        Put("xyz/plat.f", Plat(1));
 
         // Act
-        var result = Translate(Source(Variant(null, null, "core/*.f")));
+        var result = Translate(new SourceSettings { Name = "Core", Files = [Variant("xyz", null, "xyz/*.f")] });
 
         // Assert
         result.Succeeded.ShouldBeFalse();
-        result.Messages.ShouldContain(message => message.Text == "A variant of the source Core of the project Example.Toolkit says no platform; give it an osPlatform, a processArchitecture or both.");
+        result.Messages.ShouldContain(message => message.Text == "The source Core of the project Example.Toolkit names no files of its own, for no platform in particular.");
+    }
+
+    [Fact]
+    public void Run_WhenFilesOfTheSourcesOwnAreGivenTwice_ShouldReadThemAsOne()
+    {
+        // Arrange: the base in two entries, and a variant between them.
+        Put("core/core.f", Base);
+        Put("more/more.f", """
+                  INTEGER FUNCTION MORE ( )
+                  MORE = 7
+                  END
+            """);
+        Put("xyz/plat.f", Plat(3));
+        var source = new SourceSettings
+        {
+            Name = "Core",
+            Files = [new FileSettings { Patterns = ["core/*.f"] }, Variant("xyz", null, "xyz/*.f"), new FileSettings { Patterns = ["more/*.f"] }],
+        };
+
+        // Act
+        var result = Translate(source);
+
+        // Assert
+        result.Succeeded.ShouldBeTrue(string.Join('\n', result.Messages));
+        Files().ShouldContain("MORE.g.cs");
+        Compile().Run<int>("OnXyz").ShouldBe(3);
     }
 
     private static string Plat(int number) =>
@@ -333,10 +359,12 @@ public sealed class TranslatorVariantTests : IDisposable
               END
         """;
 
-    private static SourceSettings Source(params VariantSettings[] variants) => new() { Name = "Core", Files = ["core/*.f"], Variants = [.. variants] };
+    // A source of core/*.f, with files for other platforms after them.
+    private static SourceSettings Source(params FileSettings[] variants) =>
+        new() { Name = "Core", Files = [new FileSettings { Patterns = ["core/*.f"] }, .. variants] };
 
-    private static VariantSettings Variant(string? system, Architecture? architecture, params string[] files) =>
-        new() { OSPlatform = system, ProcessArchitecture = architecture, Files = [.. files] };
+    private static FileSettings Variant(string? system, Architecture? architecture, params string[] patterns) =>
+        new() { OSPlatform = system, ProcessArchitecture = architecture, Patterns = [.. patterns] };
 
     private TranslationResult Translate(SourceSettings source) => Translator.Run(
         new TranslationProject

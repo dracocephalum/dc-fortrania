@@ -242,7 +242,7 @@ public sealed class TranslatorPluginTests : IDisposable
     private TranslationProject Project() => new()
     {
         Name = "Example.Toolkit",
-        Settings = [new TranslationSettings { Folder = _root, Output = "out", Sources = [new SourceSettings { Name = "Core", Files = ["*.f"] }] }],
+        Settings = [new TranslationSettings { Folder = _root, Output = "out", Sources = [new SourceSettings { Name = "Core", Files = [new FileSettings { Patterns = ["*.f"] }] }] }],
         Summary = Path.Combine(_root, "out", ProjectSummary.GetFileName("Example.Toolkit")),
     };
 

@@ -2092,7 +2092,7 @@ public sealed class TranslatorTests : IDisposable
         Summary = Path.Combine(_root, "out", name, ProjectSummary.GetFileName(name)),
     };
 
-    private static SourceSettings Source(string name, params string[] files) => new() { Name = name, Files = [.. files] };
+    private static SourceSettings Source(string name, params string[] files) => new() { Name = name, Files = [new FileSettings { Patterns = [.. files] }] };
 
     private void Put(string path, string text)
     {

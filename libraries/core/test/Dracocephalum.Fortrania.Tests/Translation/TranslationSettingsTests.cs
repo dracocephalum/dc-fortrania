@@ -18,8 +18,8 @@ public class TranslationSettingsTests
               "namespace": "Example.Tools",
               "output": "tools/tool",
               "sources": [
-                { "name": "Core", "files": [ "core/*.f" ], "includes": [ "core/inc" ] },
-                { "name": "Support", "class": "SupportLibrary", "files": [ "support/*.f", "support/extra.for" ] },
+                { "name": "Core", "files": [ { "patterns": [ "core/*.f" ] } ], "includes": [ "core/inc" ] },
+                { "name": "Support", "class": "SupportLibrary", "files": [ { "patterns": [ "support/*.f", "support/extra.for" ] } ] },
               ],
             }
             """;
@@ -33,7 +33,7 @@ public class TranslationSettingsTests
         settings.Sources.Select(source => source.Name).ShouldBe(["Core", "Support"]);
         settings.Sources[0].Includes.ShouldBe(["core/inc"]);
         settings.Sources[1].Class.ShouldBe("SupportLibrary");
-        settings.Sources[1].Files.ShouldBe(["support/*.f", "support/extra.for"]);
+        settings.Sources[1].Files.Single().Patterns.ShouldBe(["support/*.f", "support/extra.for"]);
         settings.Folder.ShouldBeNull();
     }
 
@@ -41,16 +41,17 @@ public class TranslationSettingsTests
     public void Parse_WhenNothingButSourcesIsGiven_ShouldLeaveTheRestAsItIsByDefault()
     {
         // Act
-        var settings = TranslationSettings.Parse("""{ "sources": [ { "name": "S", "files": [ "a.f" ] } ] }""");
+        var settings = TranslationSettings.Parse("""{ "sources": [ { "name": "S", "files": [ { "patterns": [ "a.f" ] } ] } ] }""");
 
         // Assert
         settings.Output.ShouldBeNull();
         settings.Sources[0].Includes.ShouldBeEmpty();
-        settings.Sources[0].Variants.ShouldBeEmpty();
+        settings.Sources[0].Files.Single().OSPlatform.ShouldBeNull();
+        settings.Sources[0].Files.Single().ProcessArchitecture.ShouldBeNull();
     }
 
     [Fact]
-    public void Parse_WhenASourceHasVariants_ShouldReadThePlatformOfEach()
+    public void Parse_WhenFilesAreForAPlatform_ShouldReadThePlatformOfEach()
     {
         // Arrange
         const string Json =
@@ -59,11 +60,11 @@ public class TranslationSettingsTests
               "sources": [
                 {
                   "name": "Core",
-                  "files": [ "linux/*.f" ],
-                  "variants": [
-                    { "osPlatform": "windows", "files": [ "windows/zzplatfm.f" ] },
-                    { "osPlatform": "macos", "processArchitecture": "arm64", "files": [ "arm/*.f" ] },
-                    { "processArchitecture": "X64", "files": [ "x64/*.f" ] },
+                  "files": [
+                    { "patterns": [ "linux/*.f" ] },
+                    { "patterns": [ "windows/zzplatfm.f" ], "osPlatform": "windows" },
+                    { "patterns": [ "arm/*.f" ], "osPlatform": "macos", "processArchitecture": "arm64" },
+                    { "patterns": [ "x64/*.f" ], "processArchitecture": "X64" },
                   ],
                 },
               ],
@@ -71,12 +72,12 @@ public class TranslationSettingsTests
             """;
 
         // Act
-        var variants = TranslationSettings.Parse(Json).Sources[0].Variants;
+        var files = TranslationSettings.Parse(Json).Sources[0].Files;
 
         // Assert
-        variants.Select(variant => variant.OSPlatform).ShouldBe(["windows", "macos", null]);
-        variants.Select(variant => variant.ProcessArchitecture).ShouldBe([null, Architecture.Arm64, Architecture.X64]);
-        variants[0].Files.ShouldBe(["windows/zzplatfm.f"]);
+        files.Select(entry => entry.OSPlatform).ShouldBe([null, "windows", "macos", null]);
+        files.Select(entry => entry.ProcessArchitecture).ShouldBe([null, null, Architecture.Arm64, Architecture.X64]);
+        files[1].Patterns.ShouldBe(["windows/zzplatfm.f"]);
     }
 
     [Theory]
@@ -85,12 +86,15 @@ public class TranslationSettingsTests
     [InlineData("""{ "name": "P", "sources": [] }""")]
     [InlineData("""{ "output": ".", "translate": false }""")]
     [InlineData("""{ "output": ".", "sources": [ { "name": "S", "files": "a.f" } ] }""")]
+    [InlineData("""{ "output": ".", "sources": [ { "name": "S", "files": [ "a.f" ] } ] }""")]
+    [InlineData("""{ "output": ".", "sources": [ { "name": "S", "files": [ { "patterns": "a.f" } ] } ] }""")]
     [InlineData("""{ "projects": [ { "name": "P", "sources": [] } ] }""")]
     [InlineData("""{ "solution": "All.slnx" }""")]
     [InlineData("""{ "output": ".", "scaffold": "once" }""")]
     [InlineData("""{ "output": ".", "kind": "executable" }""")]
     [InlineData("""{ "output": ".", "entry": "MAIN" }""")]
-    [InlineData("""{ "sources": [ { "name": "S", "files": [ "a.f" ], "variants": [ { "processArchitecture": "pdp11", "files": [ "b.f" ] } ] } ] }""")]
+    [InlineData("""{ "sources": [ { "name": "S", "files": [ { "patterns": [ "a.f" ], "processArchitecture": "pdp11" } ] } ] }""")]
+    [InlineData("""{ "sources": [ { "name": "S", "files": [ { "patterns": [ "a.f" ] } ], "variants": [] } ] }""")]
     [InlineData("""{ "output": ".", "framework": "net10.0" }""")]
     [InlineData("""{ "output": ".", "runtime": { "package": "1.2.3" } }""")]
     [InlineData("""{ "output": ".", "references": [ "Q" ] }""")]
