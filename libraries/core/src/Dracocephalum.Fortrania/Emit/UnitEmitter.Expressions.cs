@@ -260,6 +260,13 @@ internal sealed partial class UnitEmitter
         {
             length = Add(Plus(last), Minus(new TreeExpression.Integer(known - 1)));
         }
+        else if (substring.Last is not null && ExpressionKey.Of(substring.First!) == ExpressionKey.Of(substring.Last))
+        {
+            // One position written twice, TEXT(I:I), is one character,
+            // wherever it is: which lets what is done with it be done
+            // with a byte.
+            length = One;
+        }
         else
         {
             length = Add(Plus(last), Minus(first), Plus(One));

@@ -202,7 +202,7 @@ internal sealed partial class UnitEmitter
         if (!IsConcatenation(assignment.Value) || TryFold(assignment.Value, out _))
         {
             var value = Value(assignment.Value);
-            _body.Add(new TreeStatement.Evaluate(Assigned(target, value)));
+            _body.Add(Assigned(target, value));
             return;
         }
 
@@ -224,13 +224,25 @@ internal sealed partial class UnitEmitter
             ?? Bound(assignment.Value)
             ?? throw Unsupported("a concatenation of assumed length assigned to part of itself");
         var joined = Joined(assignment.Value, capacity);
-        _body.Add(new TreeStatement.Evaluate(Assigned(target, joined)));
+        _body.Add(Assigned(target, joined));
     }
 
-    // One character value copied to another by the runtime, padded or cut
-    // to the length of where it goes.
-    private TreeExpression.Call Assigned(Code target, Code value) =>
-        new(Runtime("Assign"), [target.Node, target.LengthNode!, value.Node, value.LengthNode!]);
+    // One character value copied to another, padded or cut to the length
+    // of where it goes. One byte that takes one byte is stored where the
+    // statement stands, as a call for it costs several times the store;
+    // anything else is the runtime's to copy.
+    private TreeStatement Assigned(Code target, Code value) =>
+        target.LengthNode is TreeExpression.Integer { Value: 1 } && value.LengthNode is TreeExpression.Integer { Value: >= 1 }
+            ? new TreeStatement.Assign(new TreeExpression.Dereference(target.Node), FirstByte(value.Node))
+            : new TreeStatement.Evaluate(new TreeExpression.Call(Runtime("Assign"), [target.Node, target.LengthNode!, value.Node, value.LengthNode!]));
+
+    // The first byte of a character value: of a constant the character
+    // itself, where the target language writes it plainly, and otherwise
+    // what lies at the value's address.
+    private static TreeExpression FirstByte(TreeExpression address) =>
+        address is TreeExpression.Call { Arguments: [TreeExpression.Utf8 { Text: [var first, ..] }] } && CharacterEqualityPass.IsWrittenAsItself(first)
+            ? new TreeExpression.Converted("byte", new TreeExpression.Character(first))
+            : new TreeExpression.Dereference(address);
 
     private static string Root(Expression target) => target switch
     {

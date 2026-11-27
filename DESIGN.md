@@ -288,25 +288,56 @@ it never set is wrong in FORTRAN as well, and gets whatever the stack
 held, which may differ from one call to the next. What a unit keeps
 between calls is not touched by this, and is still handed out zeroed.
 
-**Equality with a constant is tested as equality.** The emitter writes
-every comparison of character values as the runtime's `Compare`, which
-orders two values of any lengths, and a question about how it came out.
-Where the question is whether they are equal and one side is a constant,
-a pass writes less: one byte against a constant of one byte is a
-comparison of the two bytes, `*c == 'U'`, and anything else is the
-runtime's `IsEqual`. The reference sources' main library has some 1,600
-such tests, most of them in chains where all but one fail.
+**Equality of character values is tested as equality.** The emitter
+writes every comparison of character values as the runtime's `Compare`,
+which orders two values of any lengths, and a question about how it came
+out. Where the question is whether they are equal, a pass writes less:
+one byte against one byte is a comparison of the two bytes, `*c == 'U'`
+or `*(name + i - 1) == *c`, and anything else is the runtime's `IsEqual`.
+The reference sources' main library has some 1,600 such tests against a
+constant, most of them in chains where all but one fail, and some 200
+between two variables, one of which every traced routine makes as it
+returns. A comparison that asks for an order stays `Compare`.
 
 - **`IsEqual` compares the first bytes where it is used and calls for
   the rest.** A test that fails on its first byte, as most in a chain do,
   takes a sixth of the time `Compare` took; one that holds takes between
-  the same and a little over half.
+  the same and a little over half. It takes its two values either way
+  round.
 - **The whole test written in line was measured too, and not taken.** It
   is faster where the values are equal, but it is several calls for the
   just-in-time compiler to write in line, and in four methods of the
   reference sources it used up what that compiler allows a method, after
   which the method's other small calls were no longer written in line
   either. One comparison of two bytes uses next to nothing of it.
+
+**A short character value is assigned without the framework.** An
+assignment of character values is the runtime's `Assign`, which copies
+as much as fits and fills what room is left with blanks. Most of what a
+FORTRAN program assigns is a name of a few characters into a variable of
+a few dozen, and the framework's copy and fill, made for any number of
+bytes, take longer to begin than that takes to move.
+
+- **One character assigned to one is a store.** `OUT(I:I) = IN(J:J)` is
+  written `*(@out + i - 1) = *(@in + j - 1)`, and a constant as its
+  byte; one position written twice, `TEXT(I:I)`, is known to be one
+  character whatever `I` is. A store takes a sixth of the time the call
+  took. The reference sources' main library has some 400, most of them
+  in loops that move text a character at a time.
+- **`Assign` copies and fills up to 64 bytes itself**, as two or four
+  pieces that cover them and overlap where the count is no multiple of a
+  piece: sixteen bytes, eight, four, or single ones. Every piece is read
+  before any is stored, so the two values may overlap as before. More
+  than 64 bytes go to the framework. Against the framework's copy and
+  fill for every length, six characters into thirty-two take a little
+  over half the time, twenty-eight into eighty three quarters, and a
+  blank into eighty nine tenths; a copy with nothing to fill, and one of
+  a single byte, take the same.
+- **A length the compiler can see was fast already.** Where both lengths
+  are written in the call and the just-in-time compiler writes `Assign`
+  in line, it writes the copy out for that length, with either form. The
+  figures above are for the other kind: a length worked out as the
+  program runs, or a call not written in line.
 
 **A scalar argument is kept in a local.** Every argument is an address,
 and a method that reads and stores a number behind one does so in memory

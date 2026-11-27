@@ -115,6 +115,51 @@ public unsafe class FortranTextTests
     }
 
     [Theory]
+    [InlineData(0)]
+    [InlineData(3)]
+    [InlineData(-3)]
+    [InlineData(17)]
+    [InlineData(-17)]
+    public void Assign_WhateverTheLengthsAndHoweverTheTwoOverlap_ShouldStoreWhatACopyTakenFirstWouldGive(int distance)
+    {
+        // Arrange: the source lies so far from the target in one buffer;
+        // every pair of lengths goes through one of the ways of copying
+        // and one of the ways of filling.
+        const int Room = 200;
+        const int Target = 100;
+        var text = new byte[Room];
+        var expected = new byte[Room];
+
+        for (var targetLength = 0; targetLength <= 70; targetLength++)
+        {
+            for (var sourceLength = 0; sourceLength <= 70; sourceLength++)
+            {
+                for (var index = 0; index < Room; index++)
+                {
+                    text[index] = (byte)('A' + (index % 26));
+                }
+
+                text.CopyTo(expected, 0);
+                var copied = Math.Min(targetLength, sourceLength);
+                text.AsSpan(Target + distance, copied).CopyTo(expected.AsSpan(Target, copied));
+                expected.AsSpan(Target + copied, targetLength - copied).Fill((byte)' ');
+
+                // Act
+                fixed (byte* first = text)
+                {
+                    Fortran.Assign(first + Target, targetLength, first + Target + distance, sourceLength);
+                }
+
+                // Assert
+                if (!text.AsSpan().SequenceEqual(expected))
+                {
+                    Assert.Fail($"A value of {sourceLength} assigned to one of {targetLength}, {distance} apart, gave '{Encoding.ASCII.GetString(text)}'.");
+                }
+            }
+        }
+    }
+
+    [Theory]
     [InlineData("ABC", "ABC", 0)]
     [InlineData("ABC", "ABC  ", 0)]
     [InlineData("ABC  ", "ABC", 0)]
