@@ -232,6 +232,95 @@ hosting package, which also takes what spans contexts: settings read from
 the host's configuration, memory shared between them, and registration with
 the usual container. The translator and the runtime depend on none of it.
 
+## A context's native memory comes from one heap
+
+Two parts of the runtime take native memory today, each by itself:
+`StateMemory` with `NativeMemory.AllocZeroed` for what units keep between
+calls, and `BufferArena` with `NativeMemory.AlignedAlloc` for each copy of
+the working buffers. They are to take it from one owner, `FortranHeap`, a
+context's as `FortranIO` is, `context.Heap`.
+
+- **A block never moves.** Its address is held for as long as the context
+  lives, without a `fixed`, and may be handed to native code later. So a
+  block is native memory, or an array of the pinned object heap, which the
+  collector never moves; never an ordinary array, which it may.
+- **What a call asks for:** a size, an alignment, and whether the block is
+  to be zero, which saved state needs and working buffers do not. Nothing
+  is ever made larger: FORTRAN 77 allocates nothing as it runs, and every
+  size is known when a library is made or a procedure first called.
+- **What a block is for is counted:** saved state, working buffers, and
+  later the buffers of input and output, so that a context says in one
+  place how much it holds and of what, where `StateMemory.Allocated` and
+  `BufferArena.Bytes` each say their own today.
+- **Nothing is freed before the context is.** What a context holds lives
+  as long as it does, so blocks are carved one after another from chunks of
+  some tens of kilobytes, and a context takes a few chunks, not a block for
+  every unit. That is an arena's way, a region freed whole; the name of the
+  owner is to be settled with that in mind, beside `BufferArena`.
+- **Where the chunks come from is the heap's to choose**, among three:
+  - *Native memory*, as now: given back the moment the context is
+    disposed, and kept until the process ends if it never is.
+  - *The pinned object heap*, `GC.AllocateArray<byte>(length, pinned:
+    true)`: managed, so a context that is never disposed is collected with
+    its memory, and counted with the rest of the managed heap. It comes
+    back only when the collector next collects generation 2, aligns its
+    data to 8 bytes, so a larger alignment is had by offsetting into it,
+    and is zero unless `AllocateUninitializedArray` takes it. The chunk is
+    held by the context as long as an address into it may be used.
+  - *A pool of pinned chunks*, shared between contexts in a few sizes as
+    `ArrayPool` buckets arrays: a context disposed gives its chunks back
+    and the next takes them, so that contexts made and dropped per request,
+    transient or scoped, cost no allocation once the pool is warm. A chunk
+    taken again is cleared, where one new from the system often comes
+    zero. Not `ArrayPool<byte>.Shared`, whose arrays are not pinned and
+    would have to be pinned for a context's whole life, which fragments
+    the heap they lie in. The summaries give each unit's state and each
+    project's arena, so the sizes are chosen from what translations hold.
+    It belongs to the hosting package, with the pool of contexts above,
+    which spares a context its kernels where this spares it its memory.
+- **Which is the default is measured**: a chunk taken and given back, and
+  a context made, used and disposed, over each kind. A context serves one
+  caller at a time, so its heap needs no lock; a pool shared between
+  contexts does.
+- **A host may give the heap**, by the context's options, as it gives a
+  file provider.
+- **No call is on a computation path.** Memory is taken when a library is
+  made, on a unit's first call and when a deeper copy of the arena opens,
+  so a heap behind an interface costs nothing that can be measured; it is
+  measured all the same, as `docs/rules/performance.md` asks. A profile of
+  the toolkit's quick test families puts taking and freeing native memory
+  under 1% of their time, each family a context of its own.
+
+`StateMemory` and `BufferArena` keep their own members, so the code a
+translation emits need not change, and this may come after the toolkit's
+translation is committed. An earlier library for translated C, outside
+this repository, had a heap of this kind and more besides: the allocators
+of COM, a block made larger, a call when one is freed. What is above is the
+part of it a FORTRAN 77 program needs, its pinned and pooled blocks among
+it.
+
+## A context's environment variables
+
+`GETENV` reads the process's environment today, wherever the context is.
+A context is to have environment variables of its own, as it has a command
+line:
+
+- **`FortranContextOptions.EnvironmentVariables`**, an
+  `IReadOnlyDictionary<string, string>`. Left `null`, the context passes
+  every name through to the process's environment as it is when asked, as
+  it reaches the file system. Given, the context has exactly those, and
+  nothing of the process's: a host that wants both copies the process's
+  and adds its own.
+- **A name is compared as the context's system compares it**: without
+  regard to case where `IsOSPlatform("windows")`, with regard to it
+  elsewhere.
+- **`FortranContext.GetEnvironmentVariable(name)`** answers in either case,
+  `null` for a name with no value, and is what `GETENV` calls. A plugin's
+  code reads a library's parameters through it, so that a host sets them
+  as it sets the variables.
+- **Text, not objects.** `GETENV` gives text, so a value of any other type
+  would be made text to reach it; a plugin that wants a number reads one.
+
 ## What the translator is told
 
 Required: the source files, where their include files are, and where to
@@ -455,6 +544,14 @@ else.
   on the name.
 - Whether each read and write carries what the opening did, or only the
   opening does: a call per record is the path that has to stay short.
+
+**It comes before the toolkit's translation is committed.** The code a
+translation emits calls the runtime's input and output by name, and what
+the translator is to add to an opening, the library and the unit, is in
+those calls, so a design that changes them changes every translation. It
+is designed and built in step 3 of *Before Fortrania is published*, with
+the optimizations, and the measurements of a profile of the toolkit's
+tests come first, since they say which of its paths are the short ones.
 
 ## A setting for each variance from the reference compiler
 
