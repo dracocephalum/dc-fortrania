@@ -119,6 +119,48 @@ public unsafe class FortranTests
         }
     }
 
+    [Fact]
+    public void IsEqual_WhateverTheTwoLengthsAndWhereverOneByteDiffers_ShouldSayWhatCompareSaysByGivingZero()
+    {
+        // Arrange: a name followed by blanks in both; every pair of lengths
+        // goes through one of the ways of comparing and one of the ways of
+        // looking for blanks, and one byte of the first is changed at each
+        // place in turn, the first place among them.
+        const int Room = 80;
+        var left = new byte[Room];
+        var right = new byte[Room];
+
+        fixed (byte* a = left, b = right)
+        {
+            for (var leftLength = 0; leftLength <= 70; leftLength++)
+            {
+                for (var rightLength = 0; rightLength <= 70; rightLength++)
+                {
+                    for (var changed = -1; changed < leftLength; changed++)
+                    {
+                        left.AsSpan().Fill((byte)' ');
+                        right.AsSpan().Fill((byte)' ');
+                        "FORTRAN SEVENTY-SEVEN"u8.CopyTo(left);
+                        "FORTRAN SEVENTY-SEVEN"u8.CopyTo(right);
+                        if (changed >= 0)
+                        {
+                            left[changed] = (byte)'#';
+                        }
+
+                        // Act
+                        var equal = Fortran.IsEqual(a, leftLength, b, rightLength);
+
+                        // Assert
+                        if (equal != (Fortran.Compare(a, leftLength, b, rightLength) == 0))
+                        {
+                            Assert.Fail($"Lengths {leftLength} and {rightLength}, with byte {changed} changed, were said {(equal ? "equal" : "to differ")}.");
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     [Theory]
     [InlineData(0, 20, 16, true)]
     [InlineData(20, 0, 16, true)]
