@@ -36,6 +36,9 @@ internal sealed record TreeMethod(
     /// <summary>Gets the arguments that are one number or logical value each, which a pass may keep in locals; none for a method the translator adds.</summary>
     public IReadOnlyList<ScalarArgument> ScalarArguments { get; init; } = [];
 
+    /// <summary>The single numbers and logical values the method's unit keeps between calls and no other variable is laid over, in the order the unit declares them; a pass may keep one in a local.</summary>
+    public IReadOnlyList<SavedScalar> SavedScalars { get; init; } = [];
+
     /// <summary>Gets a value indicating whether the program's own code may call it; one the translator adds is the class's alone.</summary>
     public bool IsPublic { get; init; } = true;
 

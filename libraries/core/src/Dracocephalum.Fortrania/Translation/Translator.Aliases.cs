@@ -86,7 +86,7 @@ public static partial class Translator
                                 else
                                 {
                                     Warning(
-                                        $"{unit.Name} passes {call.Arguments[first].Name} as arguments {first + 1} and {second + 1} of {call.Name}, which may give one of them a value. FORTRAN 77 forbids it, and {call.Name} is translated in another project, {owner.Project.Name}, to rely on that; pass a copy, or translate that project with \"{ScalarArgumentPass.Setting}\": true.",
+                                        $"{unit.Name} passes {call.Arguments[first].Name} as arguments {first + 1} and {second + 1} of {call.Name}, which may give one of them a value. FORTRAN 77 forbids it, and {call.Name} is translated in another project, {owner.Project.Name}, to rely on that; pass a copy, or translate that project with \"{ScalarLocalPass.Setting}\": true.",
                                         unit.File,
                                         call.Line);
                                 }

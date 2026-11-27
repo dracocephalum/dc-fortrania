@@ -104,7 +104,16 @@ internal abstract record TreeExpression
     internal sealed record Converted(string Type, TreeExpression Operand) : TreeExpression;
 
     /// <summary>A call of a method by its name: the runtime's, the framework's, or one of the program's own.</summary>
-    internal sealed record Call(string Method, IReadOnlyList<TreeExpression> Arguments) : TreeExpression;
+    internal sealed record Call(string Method, IReadOnlyList<TreeExpression> Arguments) : TreeExpression
+    {
+        /// <summary>
+        /// The procedure of the program that is called, by the name the
+        /// program calls it by; nothing for a method of the runtime's or
+        /// the framework's. A pass that gives the call another method to
+        /// reach the same procedure by leaves this as it is.
+        /// </summary>
+        public string? Procedure { get; init; }
+    }
 
     /// <summary>A call of a method of a value, as each step of a concatenation is of the one before.</summary>
     internal sealed record MemberCall(TreeExpression Target, string Method, IReadOnlyList<TreeExpression> Arguments) : TreeExpression;

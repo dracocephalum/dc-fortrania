@@ -254,6 +254,13 @@ public sealed class CSharpEmitter
     /// that no two arguments are the same storage where one is given a
     /// value; left out, every argument stays behind its address.
     /// </param>
+    /// <param name="mayReenter">
+    /// Whether a call may come back into the unit of the method that makes
+    /// it, by that method's name among the program's calls and the name of
+    /// the procedure called. Given, a method keeps in locals the single
+    /// values its unit keeps between calls, and stores and reads them
+    /// around such a call; left out, each stays behind its address.
+    /// </param>
     public static string WriteWithPlaces(
         EmittedUnit unit,
         Func<string, long?> placeOf,
@@ -261,7 +268,8 @@ public sealed class CSharpEmitter
         bool keepsArrayLoops = false,
         Func<string, IReadOnlyList<string>?>? whyOnStack = null,
         Func<string, bool>? hasCore = null,
-        Func<string, int, bool>? isAliased = null)
+        Func<string, int, bool>? isAliased = null,
+        Func<string, string, bool>? mayReenter = null)
     {
         ArgumentNullException.ThrowIfNull(unit);
         ArgumentNullException.ThrowIfNull(placeOf);
@@ -279,9 +287,9 @@ public sealed class CSharpEmitter
             file = ArrayLoopPass.Apply(file);
         }
 
-        if (isAliased is not null)
+        if (isAliased is not null || mayReenter is not null)
         {
-            file = ScalarArgumentPass.Apply(file, isAliased);
+            file = ScalarLocalPass.Apply(file, isAliased, mayReenter);
         }
 
         return CSharpFileWriter.Write(text is null ? file : TextBlockPass.Apply(file, text));

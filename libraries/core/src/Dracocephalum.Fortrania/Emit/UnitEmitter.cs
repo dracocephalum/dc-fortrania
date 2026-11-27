@@ -229,6 +229,7 @@ internal sealed partial class UnitEmitter
             Procedure = procedure,
             EntryPoint = name,
             ScalarArguments = [.. ScalarArguments(parameters)],
+            SavedScalars = [.. SavedScalars()],
             IsPublic = _variant is null,
         });
         _methods.Add(new EmittedMethod(
@@ -329,6 +330,16 @@ internal sealed partial class UnitEmitter
             }
         }
     }
+
+    // The variables the unit keeps between calls that are one number or
+    // logical value each and that share their storage with no other. A
+    // pass may keep such a one in a local while a method runs.
+    private IEnumerable<SavedScalar> SavedScalars() => _table.Symbols
+        .Where(symbol => symbol is { Kind: SymbolKind.Variable, IsDummyArgument: false, IsEntryPoint: false, IsArray: false }
+            && symbol.Type!.Type != DataType.Character
+            && IsKept(symbol)
+            && !_overlayOf.ContainsKey(symbol.Name))
+        .Select(symbol => new SavedScalar(symbol.Name.ToCSharpLocal(), symbol.Type!.Type.ToCSharpStorageType()));
 
     // Writes the name of one of the runtime's methods as a call needs it:
     // behind the short name where the options give one, and bare otherwise,

@@ -108,7 +108,7 @@ internal sealed partial class UnitEmitter
         // A procedure of another library is called on that library's
         // instance, which this one finds in the context they share.
         var owner = OwnerOf(name) is { } other ? other.Accessor + "." : string.Empty;
-        return new TreeExpression.Call($"{owner}{_options.Convention.ProcedureName(name)}", [.. addresses, .. lengths]);
+        return new TreeExpression.Call($"{owner}{_options.Convention.ProcedureName(name)}", [.. addresses, .. lengths]) { Procedure = name };
     }
 
     // Adds a call to what the method being written calls, joined with the
