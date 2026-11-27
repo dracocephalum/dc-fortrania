@@ -977,16 +977,18 @@ public sealed class TranslatorTests : IDisposable
     }
 
     [Fact]
-    public void Run_WhenACharacterValueIsTestedAgainstAConstant_ShouldTestForEqualityAndNotOrderTheTwo()
+    public void Run_WhenACharacterValueIsTestedForEquality_ShouldTestForEqualityAndNotOrderTheTwo()
     {
         // Arrange: one byte against one, a name in a longer variable, the
-        // constant on the left, a test for difference, and a comparison
-        // of two variables, which stays as it is. COUNT adds a power of
-        // two for each test that comes out as FORTRAN has it.
+        // constant on the left, a test for difference, two variables, and
+        // one character of each of two. A comparison that asks for an
+        // order stays as it is. COUNT adds a power of two for each test
+        // that comes out as FORTRAN has it.
         Put("core/tests.f", """
-                  INTEGER FUNCTION COUNT ( C, NAME, OTHER )
+                  INTEGER FUNCTION COUNT ( C, NAME, OTHER, I )
                   CHARACTER*1 C
                   CHARACTER*(*) NAME, OTHER
+                  INTEGER I
                   COUNT = 0
                   IF ( C .EQ. 'U' ) COUNT = COUNT + 1
                   IF ( C .NE. 'X' ) COUNT = COUNT + 2
@@ -995,6 +997,10 @@ public sealed class TranslatorTests : IDisposable
                   IF ( NAME .EQ. OTHER ) COUNT = COUNT + 16
                   IF ( NAME .LT. 'K' ) COUNT = COUNT + 32
                   IF ( NAME .EQ. 'J2000   X' ) COUNT = COUNT + 64
+                  IF ( OTHER .NE. NAME ) COUNT = COUNT + 128
+                  IF ( NAME(I:I) .EQ. OTHER(I+1:I+1) ) COUNT = COUNT + 256
+                  IF ( NAME(I:I) .NE. C ) COUNT = COUNT + 512
+                  IF ( 'J' .EQ. NAME(1:1) ) COUNT = COUNT + 1024
                   END
             """);
         const string Driver =
@@ -1009,7 +1015,8 @@ public sealed class TranslatorTests : IDisposable
                 public static int Count()
                 {
                     using var context = new FortranContext();
-                    return context.Get<Example.Toolkit.Core>().COUNT(AddrOf("U"u8), 1, AddrOf("J2000   "u8), 8, AddrOf("J2000"u8), 5);
+                    var i = 3;
+                    return context.Get<Example.Toolkit.Core>().COUNT(AddrOf("U"u8), 1, AddrOf("J2000   "u8), 8, AddrOf("J2000"u8), 5, &i);
                 }
             }
             """;
@@ -1025,12 +1032,76 @@ public sealed class TranslatorTests : IDisposable
         count.ShouldContain("if (IsEqual(name, name_len, _text");
         count.ShouldContain("/* \"J2000\" */, 5))");
         count.ShouldContain("if (!IsEqual(name, name_len, _text");
-        count.ShouldContain("if (Compare(name, name_len, other, other_len) == 0)");
+        count.ShouldContain("if (IsEqual(name, name_len, other, other_len))");
+        count.ShouldContain("if (!IsEqual(other, other_len, name, name_len))");
         count.ShouldContain("/* \"K\" */, 1) < 0)");
+        count.ShouldContain("if (*(name + i_value - 1) == *(other + i_value + 1 - 1))");
+        count.ShouldContain("if (*(name + i_value - 1) != *c)");
+        count.ShouldContain("if (*name == 'J')");
 
         var compiled = TranslatedProgram.FromSources(
             Directory.GetFiles(Path.Combine(_root, "out"), "*.cs", SearchOption.AllDirectories).Select(File.ReadAllText).Append(Driver));
-        compiled.Run<int>("Count").ShouldBe(1 + 2 + 4 + 8 + 16 + 32);
+        compiled.Run<int>("Count").ShouldBe(1 + 2 + 4 + 8 + 16 + 32 + 256 + 512 + 1024);
+    }
+
+    [Fact]
+    public void Run_WhenOneCharacterIsAssignedToOne_ShouldStoreTheByteAndCallNothing()
+    {
+        // Arrange: one position of a value written twice is one character;
+        // one assigned a variable's character, a constant, a value whose
+        // length is not known, which stays a call, and a character the
+        // target language does not write plainly. An assignment to more
+        // than one character stays a call.
+        Put("core/turn.f", """
+                  SUBROUTINE TURN ( IN, OUT, N )
+                  CHARACTER*(*) IN, OUT
+                  INTEGER N, I
+                  OUT = '#'
+                  DO I = 1, N
+                     OUT(I:I) = IN(N+1-I:N+1-I)
+                  END DO
+                  OUT(N+1:N+1) = '*'
+                  OUT(N+2:N+2) = IN
+                  OUT(N+3:N+3) = ''''
+                  OUT(N+4:N+5) = IN(1:1)
+                  END
+            """);
+        const string Driver =
+            """
+            using System.Text;
+            using Dracocephalum.Fortrania.Runtime;
+            using static Dracocephalum.Fortrania.Runtime.Fortran;
+
+            namespace Translated;
+
+            public static unsafe class Driver
+            {
+                public static string Turn()
+                {
+                    using var context = new FortranContext();
+                    var target = stackalloc byte[10];
+                    var n = 3;
+                    context.Get<Example.Toolkit.Core>().TURN(AddrOf("ABC"u8), 3, target, 10, &n);
+                    return Encoding.ASCII.GetString(target, 10);
+                }
+            }
+            """;
+
+        // Act
+        var result = Translate(Settings(Project("Example.Toolkit", Source("Core", "core/*.f"))));
+
+        // Assert
+        result.Succeeded.ShouldBeTrue();
+        var turn = Text("out/Example.Toolkit/Generated/Core/TURN.g.cs");
+        turn.ShouldContain("*(@out + i - 1) = *(@in + n_value + 1 - i - 1);");
+        turn.ShouldContain("*(@out + n_value + 1 - 1) = (byte)'*';");
+        turn.ShouldContain("Assign(@out + n_value + 2 - 1, 1, @in, in_len);");
+        turn.ShouldContain("*(@out + n_value + 3 - 1) = *");
+        turn.ShouldContain("Assign(@out + n_value + 4 - 1, n_value + 5 - (n_value + 4) + 1, @in, 1);");
+
+        var compiled = TranslatedProgram.FromSources(
+            Directory.GetFiles(Path.Combine(_root, "out"), "*.cs", SearchOption.AllDirectories).Select(File.ReadAllText).Append(Driver));
+        compiled.Run<string>("Turn").ShouldBe("CBA*A'A   ");
     }
 
     [Fact]

@@ -282,7 +282,7 @@ internal sealed partial class UnitEmitter
             var length = new TreeExpression.Integer(size);
 
             TreeStatement Stores(TreeExpression address, TreeExpression held) =>
-                new TreeStatement.Evaluate(Assigned(new Code(address, DataType.Character, held), value));
+                Assigned(new Code(address, DataType.Character, held), value);
 
             if (first.First is { } position)
             {

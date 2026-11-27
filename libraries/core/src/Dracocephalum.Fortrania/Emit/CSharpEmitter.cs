@@ -273,7 +273,7 @@ public sealed class CSharpEmitter
 
         // Before the constants are moved, while one is still to be seen
         // for what it is.
-        file = ConstantEqualityPass.Apply(WorkingBuffersPass.Apply(file, placeOf, whyOnStack ?? (_ => null), hasCore ?? (_ => false)));
+        file = CharacterEqualityPass.Apply(WorkingBuffersPass.Apply(file, placeOf, whyOnStack ?? (_ => null), hasCore ?? (_ => false)));
         if (!keepsArrayLoops)
         {
             file = ArrayLoopPass.Apply(file);

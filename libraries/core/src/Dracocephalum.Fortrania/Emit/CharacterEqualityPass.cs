@@ -1,34 +1,33 @@
 namespace Dracocephalum.Fortrania.Emit;
 
 /// <summary>
-/// The pass that has a character value tested for equality with a
-/// constant by a test that only says whether they are equal. The emitter
-/// writes every comparison of character values as the runtime's ordering
-/// of the two and a question about how it came out; where the question
-/// is whether they are equal, and one side is a constant, the ordering
-/// is more than is asked for.
+/// The pass that has two character values tested for equality by a test
+/// that only says whether they are equal. The emitter writes every
+/// comparison of character values as the runtime's ordering of the two
+/// and a question about how it came out; where the question is whether
+/// they are equal, the ordering is more than is asked for.
 /// </summary>
 /// <remarks>
 /// <para>
-/// One byte against a constant of one byte becomes a comparison of the
-/// two bytes, written where it stands. Anything else becomes the
-/// runtime's test for equality, which compares the first bytes where it
-/// is used and is a call only for values that agree in them;
-/// <c>DESIGN.md</c>, <em>Equality with a constant is tested as equality</em>,
-/// has the measurements.
+/// One byte against one byte becomes a comparison of the two bytes,
+/// written where it stands. Anything else becomes the runtime's test for
+/// equality, which compares the first bytes where it is used and is a
+/// call only for values that agree in them; <c>DESIGN.md</c>,
+/// <em>Equality of character values is tested as equality</em>, has the
+/// measurements.
 /// </para>
 /// <para>
 /// It is to run before the pass that moves constants to a library's
 /// block, while a constant is still to be seen for what it is.
 /// </para>
 /// </remarks>
-internal static class ConstantEqualityPass
+internal static class CharacterEqualityPass
 {
     private const string Ordering = "Compare";
     private const string Equality = "IsEqual";
     private const string AddressOfConstant = "AddrOf";
 
-    /// <summary>Rewrites the tests for equality with a constant in the methods of a file.</summary>
+    /// <summary>Rewrites the tests for equality of character values in the methods of a file.</summary>
     /// <param name="file">The file as the emitter made it.</param>
     public static TreeFile Apply(TreeFile file) =>
         file with
@@ -45,6 +44,10 @@ internal static class ConstantEqualityPass
             ],
         };
 
+    /// <summary>Tells whether the target language writes a character between two marks with nothing before it.</summary>
+    /// <param name="character">The character.</param>
+    internal static bool IsWrittenAsItself(char character) => character is >= ' ' and < (char)127 and not '\'' and not '\\';
+
     private static TreeExpression ToEqualityTest(TreeExpression node)
     {
         if (node is not TreeExpression.Binary { Operator: TreeExpression.Operation.Equal or TreeExpression.Operation.NotEqual, Right: TreeExpression.Integer { Value: 0 } } asked
@@ -54,29 +57,17 @@ internal static class ConstantEqualityPass
             return node;
         }
 
-        // Equality does not mind which side the constant is on.
-        TreeExpression value;
-        TreeExpression length;
-        TreeExpression constant;
-        string text;
-        if (ReadConstant(right, rightLength) is { } onTheRight)
+        // Equality does not mind which side a constant is on; the test
+        // for one byte is written with it on the right, as a person would.
+        if (ReadConstant(left, leftLength) is not null && ReadConstant(right, rightLength) is null)
         {
-            (value, length, constant, text) = (left, leftLength, right, onTheRight);
-        }
-        else if (ReadConstant(left, leftLength) is { } onTheLeft)
-        {
-            (value, length, constant, text) = (right, rightLength, left, onTheLeft);
-        }
-        else
-        {
-            return node;
+            (left, leftLength, right, rightLength) = (right, rightLength, left, leftLength);
         }
 
-        TreeExpression test = text.Length == 1 && length is TreeExpression.Integer { Value: 1 } && IsWrittenAsItself(text[0])
-            ? new TreeExpression.Binary(TreeExpression.Operation.Equal, new TreeExpression.Dereference(value), new TreeExpression.Character(text[0]))
-            : new TreeExpression.Call(
-                ordering.Method[..^Ordering.Length] + Equality,
-                [value, length, constant, new TreeExpression.Integer(text.Length)]);
+        var isOneByteEach = leftLength is TreeExpression.Integer { Value: 1 } && rightLength is TreeExpression.Integer { Value: 1 };
+        TreeExpression test = isOneByteEach && ReadByte(right, rightLength) is { } other
+            ? new TreeExpression.Binary(TreeExpression.Operation.Equal, new TreeExpression.Dereference(left), other)
+            : new TreeExpression.Call(ordering.Method[..^Ordering.Length] + Equality, [left, leftLength, right, rightLength]);
 
         if (asked.Operator == TreeExpression.Operation.Equal)
         {
@@ -88,6 +79,18 @@ internal static class ConstantEqualityPass
             : new TreeExpression.Unary(TreeExpression.Operation.Not, test);
     }
 
+    // The one byte a value of that length is, to compare another with: a
+    // constant's character where the target language writes it plainly,
+    // what lies at the address of anything that is no constant, and
+    // nothing for a constant that has to stay a constant.
+    private static TreeExpression? ReadByte(TreeExpression address, TreeExpression length) =>
+        ReadConstant(address, length) switch
+        {
+            null => new TreeExpression.Dereference(address),
+            [var character] when IsWrittenAsItself(character) => new TreeExpression.Character(character),
+            _ => null,
+        };
+
     // The text of a constant whose address and length the two are, or
     // nothing where they are anything else.
     private static string? ReadConstant(TreeExpression address, TreeExpression length)
@@ -97,10 +100,6 @@ internal static class ConstantEqualityPass
             && length is TreeExpression.Integer;
         return isConstant ? ((TreeExpression.Utf8)((TreeExpression.Call)address).Arguments[0]).Text : null;
     }
-
-    // A character the target language writes between two marks with
-    // nothing before it.
-    private static bool IsWrittenAsItself(char character) => character is >= ' ' and < (char)127 and not '\'' and not '\\';
 
     // The runtime's procedure by its own name, or by the name the file
     // gives the runtime's class where it has to.

@@ -837,10 +837,16 @@ with its measurement, as `docs/rules/performance.md` asks. A number is the
 same only if it is the same bits the reference compiler gives, so a
 rewrite of arithmetic is checked against that compiler and not argued.
 
-- **A character value compared with a constant.** Done for equality;
-  `DESIGN.md` has it under *Equality with a constant is tested as
-  equality*. An ordering against a constant, `NAME .LT. 'K'`, still goes
-  through the runtime's comparison, and is rare.
+- **A character value compared with another.** Done for equality,
+  against a constant or a variable; `DESIGN.md` has it under *Equality
+  of character values is tested as equality*. An ordering, `NAME .LT.
+  'K'`, still goes through the runtime's comparison, and is rare.
+- **A character value assigned.** One character to one is a store, and
+  the runtime moves short values itself; `DESIGN.md` has it under *A
+  short character value is assigned without the framework*. Left as
+  calls: one character taken from a value whose length is not known when
+  translating, and a blank assigned to a whole variable, which is a copy
+  of one byte and a fill where a fill alone would do.
 - **A whole array copied or cleared by a `DO` loop.** Done for the
   plainest loop; `DESIGN.md` has it under *A loop that copies or fills
   an array is done at once where it is long*. A loop over part of an
