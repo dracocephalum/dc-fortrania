@@ -64,6 +64,12 @@ public sealed record TranslationResult(
     public IReadOnlyList<string> Patterns { get; init; } = [];
 
     /// <summary>
+    /// Gets the files a pattern of <see cref="Patterns"/> matched that the
+    /// settings ignore, in full: such a file matching a pattern is no change.
+    /// </summary>
+    public IReadOnlyList<string> Ignored { get; init; } = [];
+
+    /// <summary>
     /// Gets every file the translation of the projects translated is made
     /// of, in full, written this time or kept from the last: each project's
     /// translated sources, its summary, and the program a scaffold gives it

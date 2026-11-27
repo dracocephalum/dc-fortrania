@@ -213,6 +213,25 @@ public sealed class BuildTargetsTests : IDisposable
     }
 
     [Fact]
+    public async Task Build_WhenTheSettingsIgnoreFilesTheirPathsFind_ShouldNotTranslateAgainForThem()
+    {
+        // Arrange: the library's paths at any depth, and a file among them
+        // that is ignored and is not FORTRAN.
+        Put("Lib/lib.fortrania.json", """{ "output": ".", "sources": [ { "name": "Core", "files": [ { "paths": [ "fortran/**/*.f" ], "ignores": [ "**/draft_*.f" ] } ] } ] }""");
+        Put("Lib/fortran/old/draft_one.f", "This is not FORTRAN.\n");
+        (await BuildAsync()).Code.ShouldBe(0);
+
+        // Act
+        var unchanged = await BuildAsync();
+
+        // Assert
+        unchanged.Code.ShouldBe(0, unchanged.Output);
+        unchanged.Output.ShouldNotContain("Translated:");
+        File.ReadAllLines(Directory.GetFiles(Path.Combine(_root, "Lib/obj"), "fortrania.inventory", SearchOption.AllDirectories).Single())
+            .ShouldContain("ignored " + Path.GetFullPath(Path.Combine(_root, "Lib/fortran/old/draft_one.f")));
+    }
+
+    [Fact]
     public async Task Clean_WhenATranslationLiesInTheIntermediateFolder_ShouldLeaveNothingOfItAndTheNextBuildTranslateAgain()
     {
         // Arrange: the program's translation is in its intermediate folder.

@@ -19,10 +19,23 @@ public sealed class FileSettings
 {
     /// <summary>
     /// Gets or sets the paths of the files, each of which may name
-    /// variables as <c>$(Name)</c>, and whose last part may have <c>*</c>
-    /// for any run of characters and <c>?</c> for any one.
+    /// variables as <c>$(Name)</c>. Any part of one may have <c>*</c> for
+    /// any run of characters and <c>?</c> for any one, and a part that is
+    /// <c>**</c> stands for any number of folders, none among them; as the
+    /// last part, for every file at any depth. The folder before the first
+    /// part with a wildcard is the path's root.
     /// </summary>
     public IList<string> Paths { get; set; } = [];
+
+    /// <summary>
+    /// Gets or sets the files among those <see cref="Paths"/> finds that are
+    /// not to be read: each a glob, as a path is, or a regular expression
+    /// after <c>regex:</c>, matched against a file's path from the root of
+    /// the path that found it, parts joined by <c>/</c>, without regard to
+    /// case. A glob matches that whole path, and a regular expression
+    /// anywhere in it. None unless set.
+    /// </summary>
+    public IList<string> Ignores { get; set; } = [];
 
     /// <summary>
     /// Gets or sets the operating system the files are for, by the name

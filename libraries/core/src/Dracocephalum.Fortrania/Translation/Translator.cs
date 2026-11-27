@@ -201,6 +201,7 @@ public static partial class Translator
         private readonly List<string> _read = [];
         private readonly HashSet<string> _readOnce = new(StringComparer.OrdinalIgnoreCase);
         private readonly List<string> _patterns = [];
+        private readonly List<string> _ignored = [];
         private readonly List<string> _files = [];
         private readonly List<string> _removed = [];
         private readonly List<StackUse> _stackUse = [];
@@ -289,6 +290,7 @@ public static partial class Translator
                 Fetched = _fetched,
                 Read = _read,
                 Patterns = _patterns,
+                Ignored = _ignored,
                 Files = _files,
             };
 
@@ -569,6 +571,15 @@ public static partial class Translator
                             {
                                 Error($"Files of the source {source.Name} of the project {name} have an osPlatform with no name.");
                             }
+
+                            try
+                            {
+                                IgnoreRules.Parse(files.Ignores);
+                            }
+                            catch (ArgumentException exception)
+                            {
+                                Error($"An ignore of the source {source.Name} of the project {name} cannot be read: {exception.Message}");
+                            }
                         }
                     }
                 }
@@ -693,10 +704,16 @@ public static partial class Translator
                     var source = new Source(project, part, sourceSettings);
                     _sources.Add(source);
 
-                    // The source's own first, so that a unit's variants are
-                    // read after the base they stand in for.
-                    var own = sourceSettings.Files.Where(files => files.IsBase).SelectMany(files => files.Paths);
-                    foreach (var file in FilesOf(project, part, sourceSettings, own))
+                    // The source's own first, each file once however many of
+                    // its entries find it, so that a unit's variants are read
+                    // after the base they stand in for.
+                    var own = new List<string>();
+                    foreach (var files in sourceSettings.Files.Where(files => files.IsBase))
+                    {
+                        own.AddRange(FilesOf(project, part, sourceSettings, files).Where(file => !own.Contains(file, StringComparer.OrdinalIgnoreCase)));
+                    }
+
+                    foreach (var file in own)
                     {
                         Read(source, file, null);
                     }
@@ -704,7 +721,7 @@ public static partial class Translator
                     foreach (var files in sourceSettings.Files.Where(files => !files.IsBase))
                     {
                         var platform = new PlatformVariant(files.OSPlatform, files.ProcessArchitecture);
-                        foreach (var file in FilesOf(project, part, sourceSettings, files.Paths))
+                        foreach (var file in FilesOf(project, part, sourceSettings, files))
                         {
                             Read(source, file, platform);
                         }
@@ -755,29 +772,44 @@ public static partial class Translator
         // Whether any file a project's sources name is on the machine.
         private static bool HasSources(Project project) => project.Sources
             .SelectMany(source => source.Settings.Files.SelectMany(files => files.Paths).Select(entry => Path.GetFullPath(Path.Combine(source.Part.Folder, Expand(source.Part, entry)))))
-            .Any(path => Path.GetDirectoryName(path) is { } folder && Directory.Exists(folder) && Directory.GetFiles(folder, Path.GetFileName(path)).Length > 0);
+            .Any(path => Glob.Find(path).Count > 0);
 
-        private List<string> FilesOf(Project project, Part part, SourceSettings source, IEnumerable<string> entries)
+        // The files one entry of a source's files finds, each path's in
+        // ordinal order, less those it ignores. A path that finds nothing is
+        // an error; one whose files are all ignored found what it names.
+        private List<string> FilesOf(Project project, Part part, SourceSettings source, FileSettings entry)
         {
+            // Read once already, by CheckSettings.
+            var ignores = IgnoreRules.Parse(entry.Ignores);
             var files = new List<string>();
-            foreach (var entry in entries)
+            foreach (var given in entry.Paths)
             {
-                var path = Path.GetFullPath(Path.Combine(part.Folder, Expand(part, entry)));
+                var path = Path.GetFullPath(Path.Combine(part.Folder, Expand(part, given)));
                 if (!_patterns.Contains(path, StringComparer.OrdinalIgnoreCase))
                 {
                     _patterns.Add(path);
                 }
 
-                var folder = Path.GetDirectoryName(path) ?? path;
-                var found = Directory.Exists(folder)
-                    ? Directory.GetFiles(folder, Path.GetFileName(path)).Order(StringComparer.Ordinal).ToList()
-                    : [];
+                var found = Glob.Find(path);
                 if (found.Count == 0)
                 {
-                    Error($"The source {source.Name} of the project {project.Name} names '{entry}', and there is no such file.");
+                    Error($"The source {source.Name} of the project {project.Name} names '{given}', and there is no such file.");
                 }
 
-                files.AddRange(found.Where(file => !files.Contains(file, StringComparer.OrdinalIgnoreCase)));
+                foreach (var (file, relative) in found)
+                {
+                    if (ignores.IsIgnored(relative))
+                    {
+                        if (!_ignored.Contains(file, StringComparer.OrdinalIgnoreCase))
+                        {
+                            _ignored.Add(file);
+                        }
+                    }
+                    else if (!files.Contains(file, StringComparer.OrdinalIgnoreCase))
+                    {
+                        files.Add(file);
+                    }
+                }
             }
 
             return files;

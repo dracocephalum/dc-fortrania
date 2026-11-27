@@ -333,6 +333,7 @@ internal static class CommandLine
     // What a build reads to tell when to translate again, a line a file:
     // "read" for what the translation was made from, the settings files and
     // the plugins among it, "pattern" for a file pattern its sources name,
+    // "ignored" for a file a pattern matched that the settings ignore,
     // and "file" for what the translation is made of. It is written only for
     // a translation that was done, and one that was not removes the last, so
     // that a build that failed is not taken for one that needs nothing.
@@ -349,6 +350,7 @@ internal static class CommandLine
             var read = settingsPaths.SelectMany(path => new[] { path, TranslationSettings.GetLocalFile(path) }.Where(File.Exists));
             var lines = read.Concat(result.Read).Select(file => "read " + file)
                 .Concat(result.Patterns.Select(pattern => "pattern " + pattern))
+                .Concat(result.Ignored.Select(file => "ignored " + file))
                 .Concat(result.Files.Select(file => "file " + file));
             Directory.CreateDirectory(Path.GetDirectoryName(inventory) ?? ".");
             File.WriteAllLines(inventory, lines);

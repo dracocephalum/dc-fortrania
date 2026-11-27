@@ -167,6 +167,9 @@
                          Condition="$([System.String]::Copy('%(_FortraniaInventoryLine.Identity)').StartsWith('pattern '))" />
       <_FortraniaMade Include="$([System.String]::Copy('%(_FortraniaInventoryLine.Identity)').Substring(5))"
                       Condition="$([System.String]::Copy('%(_FortraniaInventoryLine.Identity)').StartsWith('file '))" />
+      <!-- A file a pattern matches that the settings ignore is not come to match it. -->
+      <_FortraniaIgnored Include="$([System.String]::Copy('%(_FortraniaInventoryLine.Identity)').Substring(8))"
+                         Condition="$([System.String]::Copy('%(_FortraniaInventoryLine.Identity)').StartsWith('ignored '))" />
       <!-- A reference read is told by what stands for it in _FortraniaReferenceInput. -->
       <_FortraniaRead Remove="@(_FortraniaReference->'%(FullPath)')" />
     </ItemGroup>
@@ -177,7 +180,7 @@
     </PropertyGroup>
     <ItemGroup>
       <_FortraniaMatched Include="$(_FortraniaPatterns)" />
-      <_FortraniaAdded Include="@(_FortraniaMatched)" Exclude="@(_FortraniaRead)" />
+      <_FortraniaAdded Include="@(_FortraniaMatched)" Exclude="@(_FortraniaRead);@(_FortraniaIgnored)" />
       <_FortraniaGone Include="@(_FortraniaRead);@(_FortraniaMade)" Condition="!Exists('%(Identity)')" />
     </ItemGroup>
     <Delete Files="$(_FortraniaInventory)"
