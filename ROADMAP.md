@@ -43,9 +43,9 @@ order, since each changes what the next looks at:
 2. **A cleanup round**, against the C# rules, so that what it tidies is
    the code that stays. What is `public` is decided here type by type,
    the translation's settings above all, with the translator's tunables
-   in one group; `TODO.md` has that entry. With it, **a code for each
-   kind of message, and a file of what a run reported**: `PENDING.md`,
-   *What a translation reports has codes, and is written to a file*.
+   in one group; `TODO.md` has that entry. With it, **a file of what a run
+   reported**, which a build says again: `PENDING.md`, *What a
+   translation reports is written to a file, and later has codes*.
 3. **Which runtime goes with which translator:** one version number for
    the two.
 4. **The release pipeline**, the packages' own readmes, and the check
@@ -176,6 +176,13 @@ it needs.
 - **Files mapped into memory.** `PENDING.md`, *Memory-mapped kernels*.
 - **The runtime handed out as source.** `PENDING.md`, *The runtime can
   be handed out as source*.
+
+**What a translation reports.**
+
+- **A code for each kind of message**, once the set has been designed as
+  a whole. It waits for nothing and nothing waits for it. `PENDING.md`,
+  *What a translation reports is written to a file, and later has
+  codes*.
 
 **Variants of a translation.**
 
