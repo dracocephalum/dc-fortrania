@@ -29,11 +29,13 @@ undecided adds it here rather than mentioning it once in a conversation.
       reference sources. The rules have been reworded, and `DESIGN.md` for
       the most part. Close by: each section reworded as it is next
       touched, or moved to `DESIGN.md` when it is built.
-- [ ] **Whether a routine called again while it runs is refused** is to
-      be decided again. `PENDING.md`, *Working buffers: what is not
-      built*, has why what was decided no longer stands and the three
-      answers there are. Close by: choosing one, before the first
-      release.
+- [ ] **Whether a chain of calls that returns to a unit is reported when
+      translating.** What a routine called again while it runs meets is
+      decided, `PENDING.md`, *Working buffers: what is not built*: a unit
+      that calls itself is an error, one reached again through others
+      runs, and a setting has it throw. Left open there is a warning for
+      a chain the translator can prove. Close by: choosing, when the
+      error and the setting are built.
 - [ ] **The plan says some things in more than one place:** what a
       record costs to read, under input and output, under the
       measurements and under mapped files; the page that cannot be

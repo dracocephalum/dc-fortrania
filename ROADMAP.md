@@ -74,6 +74,8 @@ the reference sources happen never to use.
   input and output not built yet.
 - **A procedure of the language passed as an argument**, and the smaller
   refusals the translator lists.
+- **A unit that calls itself refused, and a setting that has a unit
+  reached again throw**, as the reference compiler has both.
 - **Storage of two gigabytes or more in a program unit.**
 - **Conformance tests against a reference compiler**, so that the
   language is covered by tests of its own and not by one library's.

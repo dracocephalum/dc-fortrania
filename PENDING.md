@@ -829,22 +829,51 @@ copy of the arena of its own. Left to do:
   let one routine overwrite another's buffers with nothing to see.
 - **The comparison to the last digit with the reference compiler's
   build**, which was not run again in the arena's mode.
-- **Whether a routine called again while it runs is refused**, below.
+- **A routine called again while it runs**, below.
 
-**Whether a routine called again while it runs is refused.** FORTRAN 77
-does not allow it, and what a unit keeps is not made for it: a function
-of the user's given to a search that calls the search again overwrites
-the search's kept state. It was decided once that such a unit throws, by
-a flag of the instance set on entry and tested there. Since then a method
-keeps what its unit keeps in locals, and stores and reads them around a
-call that may come back: `DESIGN.md`, *A kept scalar is in a local while
-its method runs*. A unit entered again then sees what the first call
-stored, as it does in the reference compiler's build, where kept state
-is static, and throwing would refuse a program that build runs. To be
-decided again, among three: nothing more; a report when translating,
-since the translator finds which units a call can come back into; or the
-flag under a setting, for finding such a call in a program that is
-thought to have none.
+**A routine called again while it runs is treated as the reference
+compiler treats it.** FORTRAN 77 does not allow a procedure to call
+itself by any way round, and leaves that to the program: a compiler need
+not find it. The reference compiler does three things, tried with it, and
+a translation is to do the same three.
+
+- **A unit that calls itself is refused when translating.** A call in a
+  unit to the unit's own procedure, or to another of its entry points, is
+  an error that names the line, as the reference compiler's is; a build
+  that translates fails with it. Not built: such a unit translates today.
+- **A unit reached again through others runs.** It sees what the first
+  call stored in what the unit keeps, as it does in the reference
+  compiler's build, where kept state is static. Built: `DESIGN.md`, *A
+  kept scalar is in a local while its method runs*.
+- **A setting has such a unit throw**, as the reference compiler's
+  `-fcheck=recursion` has it stop, for finding such a call in a program
+  thought to have none. Off unless asked for, since it refuses what the
+  reference compiler's build runs. Not built.
+
+What the setting writes: a flag of the instance for the unit, tested and
+set where a method of the unit starts and cleared before every return.
+
+- **Only where it can happen.** The translator already tells which units
+  a call can come back into, for the locals: those on a chain of calls
+  that returns to them, and those that can be running while a procedure
+  passed as an argument is called. Only those carry the flag, so a
+  project with neither is written the same with the setting as without.
+- **A flag an exception left set matches nothing.** The boundary numbers
+  each outermost call into a library, the flag holds that number and not
+  a yes, and a method compares it with the number of the call it is in;
+  so no method needs a `try` and a `finally` for it.
+
+    if (_running_SEARCH == _context.CallNumber)
+    {
+        throw new FortranRecursionException("SEARCH");
+    }
+
+    _running_SEARCH = _context.CallNumber;
+
+Not decided: whether a chain of calls the translator can prove returns to
+a unit is also reported when translating, as a warning that names the
+chain. It would cost a translation nothing as it runs, and is more than
+the reference compiler can say, which sees one file at a time.
 
 **Where the memory comes from** is under *A context's native memory comes
 from one heap*, which takes the place of an earlier plan here, an
