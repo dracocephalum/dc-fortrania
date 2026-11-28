@@ -321,6 +321,54 @@ several from them. Left to do:
 - **The runtime as source**, under *The runtime can be handed out as
   source*.
 
+## What a translation reports has codes, and is written to a file
+
+A run's errors and warnings are lines of text today, each a file, a line
+and what is wrong, in the form compilers use, so that a build shows them
+against the FORTRAN source. Three things are missing, and are decided.
+
+**Each kind of message has a code.** No standard gives FORTRAN's messages
+codes: the language's standards number only what a statement of input or
+output hands back as it runs, and leave those numbers to each compiler;
+the reference compiler names its warnings by the option that turns each
+on and gives its errors no name at all, and the codes of other compilers
+are their own. So the codes are Fortrania's, `FTN` and four digits,
+grouped by what a message is about: the source's form, a statement, what
+a name means, what crosses program units, what is not translated yet,
+the settings and the files a run reads. A code never changes its meaning
+and is never given to another message. A document lists them, each with
+what it means and what to do about it, and a message names its code as a
+build expects, `file.f(845): warning FTN3104: ...`, so that a build's
+own settings silence one or make it an error. What a program does as it
+runs is not among them: the status a statement hands back stays the
+reference compiler's, as `DESIGN.md` has it.
+
+**A run writes what it reported to a file**, in SARIF, the format the
+tools around a build read: the C# compiler writes it, an editor shows it,
+and a host of repositories shows its results on the lines of a pull
+request. The command takes where to write it, as it takes where the
+inventory goes. Each result has its code, its level, the source file and
+line, and the text; the codes are the file's rules, each with the address
+of its entry in the document. A format of our own would be smaller and
+easier to read by eye, and was not taken: nothing would read it.
+
+**The build package says them again where it does not translate.** A
+project is translated only where something it was made from changed, and
+on every other build nothing runs to report anything, so a warning is
+seen once and then not again. The package is to read the file of the
+last run and report what it holds, as warnings of the build.
+
+**What a run finds beyond messages is in the file too:** the arguments a
+call passes as one storage, the arguments passed as another type than
+the procedure declares, and the variables that lie off their alignment,
+which only the translator's caller can ask for today. Each is a result
+of its own kind there, a note where it is no warning. How much stack
+each procedure can take is a table and not a finding, and goes to a file
+of its own if it is wanted.
+
+It is part of `ROADMAP.md`, *A first release*, with the cleanup round:
+a code is a promise as a public type is.
+
 ## Translating as a step of the build
 
 Built: `DESIGN.md`, *A project translates its FORTRAN as it builds*, has
