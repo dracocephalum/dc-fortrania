@@ -79,4 +79,31 @@ static unsafe partial class Fortran
         new Span<T>(array, count).Fill(value);
         return count + 1;
     }
+
+    /// <summary>
+    /// Looks through a run of whole numbers for a value, as a loop from the
+    /// first element does that leaves where it finds one: by the
+    /// framework, several elements at a time. It is a call, so a
+    /// translation keeps its loop for a run shorter than
+    /// <see cref="LongRun"/>, which the loop looks through sooner.
+    /// </summary>
+    /// <param name="array">The first element.</param>
+    /// <param name="count">How many elements; none where it is below one.</param>
+    /// <param name="value">The value looked for.</param>
+    /// <returns>
+    /// Where a loop from one stands when it ends: the place of the first
+    /// element that is the value, counted from one, or one past the last
+    /// where none is, which is one for a run of no elements.
+    /// </returns>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    public static int FindElement(int* array, int count, int value)
+    {
+        if (count <= 0)
+        {
+            return 1;
+        }
+
+        var found = new ReadOnlySpan<int>(array, count).IndexOf(value);
+        return found < 0 ? count + 1 : found + 1;
+    }
 }

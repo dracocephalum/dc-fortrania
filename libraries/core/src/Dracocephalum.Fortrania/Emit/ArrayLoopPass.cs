@@ -6,7 +6,9 @@ namespace Dracocephalum.Fortrania.Emit;
 /// The pass that has a <c>DO</c> loop which only copies one array to
 /// another, or gives every element of one the same value, done at once by
 /// the runtime where the run is long, and by the loop as it was where it
-/// is short or where doing it at once would give something else.
+/// is short or where doing it at once would give something else; and a
+/// loop which only looks for a whole number in an array, and leaves the
+/// procedure where it finds it, looked through by the runtime.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -24,6 +26,14 @@ namespace Dracocephalum.Fortrania.Emit;
 /// ways are written and the program chooses.
 /// </para>
 /// <para>
+/// A loop that looks for a value is taken where the array and the value
+/// are whole numbers, where the test is the loop's one statement, and
+/// where what follows a find ends in a return: then the first find is the
+/// only one, and nothing the loop does changes what it compares. Real
+/// values are left to the loop, whose test tells a value that is no
+/// number from itself and the framework's does not.
+/// </para>
+/// <para>
 /// <c>DESIGN.md</c>, <em>A loop that copies or fills an array is done at
 /// once where it is long</em>, has the measurements.
 /// </para>
@@ -36,7 +46,9 @@ internal static class ArrayLoopPass
     private const string ShouldMove = "ShouldMoveElements";
     private const string Move = "MoveElements";
     private const string Fill = "FillElements";
+    private const string Find = "FindElement";
     private const string LongRunName = "LongRun";
+    private const string WholeNumber = "int";
 
     // The runtime's LongRun, which the two have to agree on: the pass
     // decides by it for a length it knows, and the runtime for the rest.
@@ -66,11 +78,28 @@ internal static class ArrayLoopPass
                 _ => (long?)null,
             });
 
-        return method with { Body = TreeRewriter.RewriteStatements(method.Body, statement => Replace(statement, runtime, constants)) };
+        // What the method names that is a whole number, and what is the
+        // address of whole numbers: a loop that looks for a value is taken
+        // only where both sides of its test are seen to be such.
+        var typed = method.Parameters
+            .Select(parameter => parameter.Split(' '))
+            .Where(words => words.Length == 2)
+            .Select(words => (Type: words[0], Name: words[1]))
+            .Concat(method.Declarations.Concat(method.Body).OfType<TreeStatement.Declare>().Select(declared => (declared.Type, declared.Name)))
+            .ToLookup(pair => pair.Type, pair => pair.Name, StringComparer.Ordinal);
+        var numbers = typed[WholeNumber].ToHashSet(StringComparer.Ordinal);
+        var arrays = typed[WholeNumber + "*"].ToHashSet(StringComparer.Ordinal);
+
+        return method with { Body = TreeRewriter.RewriteStatements(method.Body, statement => Replace(statement, runtime, constants, numbers, arrays)) };
     }
 
-    private static IReadOnlyList<TreeStatement> Replace(TreeStatement statement, string runtime, Dictionary<string, long?> constants)
+    private static IReadOnlyList<TreeStatement> Replace(TreeStatement statement, string runtime, Dictionary<string, long?> constants, HashSet<string> numbers, HashSet<string> arrays)
     {
+        if (ReplaceSearch(statement, runtime, constants, numbers, arrays) is { } search)
+        {
+            return search;
+        }
+
         if (statement is not TreeStatement.For loop
             || loop.Start is not TreeStatement.Assign { Target: TreeExpression.Local variable, Value: TreeExpression.Integer { Value: 1 } }
             || loop.Condition is not TreeExpression.Binary { Operator: TreeExpression.Operation.LessOrEqual, Left: TreeExpression.Local counted, Right: var last }
@@ -114,6 +143,66 @@ internal static class ArrayLoopPass
         [
             new TreeStatement.Note($"A long run is done at once and a short one by the loop; \"{Setting}\": true in the translation's settings writes the loop alone."),
             new TreeStatement.If([new TreeStatement.Branch(condition, [done]), new TreeStatement.Branch(null, [loop])]),
+        ];
+    }
+
+    // A loop from the first element, one at a time, whose one statement
+    // tests the element of its turn against a whole number and, where
+    // they are equal, does what ends in a return. The runtime gives back
+    // where the loop would stand: at the first element found, or one
+    // past the last. Nothing where the statement is no such loop, or its
+    // length is known to be short.
+    private static IReadOnlyList<TreeStatement>? ReplaceSearch(TreeStatement statement, string runtime, Dictionary<string, long?> constants, HashSet<string> numbers, HashSet<string> arrays)
+    {
+        if (statement is not TreeStatement.For loop
+            || loop.Start is not TreeStatement.Assign { Target: TreeExpression.Local variable, Value: TreeExpression.Integer { Value: 1 } }
+            || loop.Condition is not TreeExpression.Binary { Operator: TreeExpression.Operation.LessOrEqual, Left: TreeExpression.Local counted, Right: var last }
+            || loop.Step is not [TreeStatement.Advance { Target: TreeExpression.Local advanced, Amount: TreeExpression.Integer { Value: 1 }, IsSubtracted: false }]
+            || loop.Body is not [TreeStatement.If { Branches: [{ Condition: TreeExpression.Binary { Operator: TreeExpression.Operation.Equal, Left: var left, Right: var right }, Body: [.., TreeStatement.Return] found }] }]
+            || counted != variable
+            || advanced != variable
+            || last == variable
+            || !numbers.Contains(variable.Name)
+            || !TryCount(last, constants, out var known)
+            || known < LongRun)
+        {
+            return null;
+        }
+
+        bool IsSearched(TreeExpression side) =>
+            side is TreeExpression.Indexed { Address: TreeExpression.Local array } element && arrays.Contains(array.Name) && IsElementOfTheTurn(element, variable);
+
+        bool IsSought(TreeExpression side) => side switch
+        {
+            TreeExpression.Integer => true,
+            TreeExpression.Local local => local != variable && numbers.Contains(local.Name),
+            TreeExpression.Dereference { Address: TreeExpression.Local pointer } => arrays.Contains(pointer.Name),
+            _ => false,
+        };
+
+        var (searched, sought) = IsSearched(left) ? (left, right) : (right, left);
+        if (!IsSearched(searched) || !IsSought(sought))
+        {
+            return null;
+        }
+
+        // A short run costs the loop less than the call does, so both ways
+        // are written where the length is not known, as for a copy.
+        TreeStatement[] atOnce =
+        [
+            new TreeStatement.Assign(variable, new TreeExpression.Call(runtime + Find, [((TreeExpression.Indexed)searched).Address, last, sought])),
+            new TreeStatement.If([new TreeStatement.Branch(new TreeExpression.Binary(TreeExpression.Operation.LessOrEqual, variable, last), found)]),
+        ];
+        if (known is not null)
+        {
+            return [new TreeStatement.Note($"A loop that looks for a value, done by the runtime; \"{Setting}\": true in the translation's settings writes the loop."), .. atOnce];
+        }
+
+        var isLong = new TreeExpression.Binary(TreeExpression.Operation.GreaterOrEqual, last, new TreeExpression.Local(runtime + LongRunName));
+        return
+        [
+            new TreeStatement.Note($"A long run is looked through by the runtime and a short one by the loop; \"{Setting}\": true in the translation's settings writes the loop alone."),
+            new TreeStatement.If([new TreeStatement.Branch(isLong, atOnce), new TreeStatement.Branch(null, [loop])]),
         ];
     }
 

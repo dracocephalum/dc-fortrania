@@ -223,6 +223,40 @@ public unsafe class FortranTests
         new Span<float>(elements, 12).ToArray().ShouldBe([0f, 2.5f, 2.5f, 2.5f, 2.5f, 2.5f, 2.5f, 2.5f, 2.5f, 2.5f, 2.5f, 0f]);
     }
 
+    [Fact]
+    public void FindElement_WhateverTheLengthAndWhereverTheValueIs_ShouldGiveWhereALoopFromTheFirstEnds()
+    {
+        // Arrange: every element twice over, so that the first of two is
+        // the one to be found.
+        const int Length = 70;
+        var elements = stackalloc int[Length];
+        for (var index = 0; index < Length; index++)
+        {
+            elements[index] = index % 35;
+        }
+
+        for (var count = -2; count <= Length; count++)
+        {
+            for (var value = -1; value <= 35; value++)
+            {
+                var expected = 1;
+                while (expected <= count && elements[expected - 1] != value)
+                {
+                    expected++;
+                }
+
+                // Act
+                var found = Fortran.FindElement(elements, count, value);
+
+                // Assert
+                if (found != expected)
+                {
+                    Assert.Fail($"{value} among {count} elements was said to be at {found} and is at {expected}.");
+                }
+            }
+        }
+    }
+
     [Theory]
     [InlineData(1.7f, 7, 4.103387070E+01f)]
     [InlineData(1.7f, -5, 7.042962313E-02f)]
