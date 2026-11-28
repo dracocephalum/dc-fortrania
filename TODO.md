@@ -53,20 +53,17 @@ undecided adds it here rather than mentioning it once in a conversation.
       that commit as a release and publishes to nuget.org, and nothing
       else ever publishes there. It refuses a tag that is not the version
       in the code, a commit that is not on the default branch, and a
-      version nuget.org already has. Close by: the workflow, and trusted
-      publishing set up on the nuget.org account, before the first
-      release.
+      version nuget.org already has. It also makes the release on the
+      repository's host and attaches the command to it as a program that
+      stands alone, `PENDING.md`, *What the command does not do yet*.
+      Close by: the workflow, and trusted publishing set up on the
+      nuget.org account, before the first release.
 - [ ] **Nothing stops a version that was released from being built
       again.** `Version.props` holds the next release's number and is
       raised by hand after a release; a ci build made before it is raised
       sorts below the release it follows. Close by: a step of the ci
       pipeline that fails when the version in the code is already on
       nuget.org, once there is a release to compare with.
-- [ ] **A package says little about itself.** No readme is packed, since
-      the component's has links that only resolve in the repository.
-      Close by: a readme written for each package's page, the command's
-      above all, named in the pipeline's trigger list after the entry
-      that takes documents away.
 - [ ] **A build on a developer's machine has no feed.** It is numbered
       `-dev` and packed to whatever folder is named; nothing reads it
       from there. Close by: a folder feed named by an environment

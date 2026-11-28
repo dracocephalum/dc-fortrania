@@ -266,10 +266,16 @@ line:
 `DESIGN.md`, *The command is `fortrania`, and its first word what to
 do*, has what is built. Left to do:
 
-- **Whether one tool package can give more than one command**, should a
-  short name of its own, `f2cs`, ever be wanted beside `fortrania`.
-- **A program that stands alone**, for a machine without the .NET tool
-  installed, released under the name of its target.
+- **A program that stands alone**, for a machine without .NET installed:
+  the command published whole, one file for each system and processor
+  it is built for, named `fortrania` as the tool is. It is attached to
+  the release on the repository's host, where such files are looked for,
+  by the pipeline that releases the packages, from the same commit.
+  Other programs of this repository that are worth handing out go the
+  same way.
+- **More first words than `translate`.** The command's shape leaves room
+  for them; none is planned. Fetching the sources, once thought of as a
+  word of its own, is part of translating, by `--fetch`.
 
 ## What a translation's settings do not do yet
 
