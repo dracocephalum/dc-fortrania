@@ -1,6 +1,7 @@
 # Roadmap
 
-Where Fortrania is going, in the order it is to get there. Each stage
+Where Fortrania is going. The stages are in the order they are to be
+reached, each named for what it ends with. Each stage
 says what it is for, what it needs first and roughly what it takes, and
 names where the detail is. It is the least exact of the root documents on
 purpose: a stage far off is a paragraph, and is worked out when it comes
@@ -30,7 +31,7 @@ changes is changed here first, and `PENDING.md` follows.
   translating as a step of a build, with development packages from every
   merge.
 
-## 1. A first release
+## A first release
 
 What stands between the code as it is and packages on nuget.org. In this
 order, since each changes what the next looks at:
@@ -53,7 +54,7 @@ translation made with the packages, which is the proof that they serve.
 `PENDING.md`, *Before Fortrania is published*, has what is settled of the
 pipelines.
 
-## 2. All of FORTRAN 77
+## All of FORTRAN 77
 
 Fortrania translates the FORTRAN 77 that its reference sources use, and
 reports the rest as unsupported. This stage makes it a translator for the
@@ -77,16 +78,16 @@ the reference sources happen never to use.
 - **Conformance tests against a reference compiler**, so that the
   language is covered by tests of its own and not by one library's.
 
-It needs: stage 1, so that the tree is finished and its passes are known
-to hold. `PENDING.md`, *FORTRAN 77 that Fortrania does not handle yet*,
+It needs: *A first release*, so that the tree is finished and its passes
+are known to hold. `PENDING.md`, *FORTRAN 77 that Fortrania does not handle yet*,
 *Storage of two gigabytes or more in a program unit*, *Conformance tests
 against a reference compiler* and *A tree between the analysis and the
 writers*.
 
-## 3. FORTRAN before 77
+## FORTRAN before 77
 
-FORTRAN 66 and the dialects around it are for the most part what stage 2
-already covers. What differs is a short list, each a setting of a
+FORTRAN 66 and the dialects around it are for the most part what *All of
+FORTRAN 77* already covers. What differs is a short list, each a setting of a
 translation:
 
 - **A `DO` loop runs at least once**, where FORTRAN 77's may run not at
@@ -96,9 +97,9 @@ translation:
 - **The extensions of the compilers of the time** that a program at hand
   turns out to need, each added when one does.
 
-It needs: stage 2. It is small beside it.
+It needs: *All of FORTRAN 77*. It is small beside it.
 
-## 4. Fortran 90 and 95
+## Fortran 90 and 95
 
 The largest stage, several times what FORTRAN 77 has taken, since three
 things the translator rests on stop holding:
@@ -119,13 +120,13 @@ optional and keyword arguments; generic interfaces and defined operators;
 and some seventy more procedures of the language. Fortran 95 adds little
 to that: `FORALL`, and procedures declared `PURE` or `ELEMENTAL`.
 
-It needs: stage 2, and the tree one step higher than it is, with an
+It needs: *All of FORTRAN 77*, and the tree one step higher than it is, with an
 element of an array and an argument passed by reference still seen as
 that. `PENDING.md`, *The language written and the safety of what is
 written are two choices*, has that step, which the checked ways of
 reaching memory need as well.
 
-## 5. Fortran 2003 and after
+## Fortran 2003 and after
 
 Not planned in any detail.
 
@@ -137,7 +138,7 @@ Not planned in any detail.
   images running side by side, are a runtime of their own and are left
   out until something needs them.
 
-It needs: stage 4.
+It needs: *Fortran 90 and 95*.
 
 ## Beside the stages
 
