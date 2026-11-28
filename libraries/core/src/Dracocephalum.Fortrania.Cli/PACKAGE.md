@@ -3,6 +3,8 @@
 `fortrania`, the command that translates FORTRAN 77 to C#. It is a .NET
 tool.
 
+## What it is
+
     dotnet tool install --global Dracocephalum.Fortrania.Cli
     fortrania translate csharp --name Example.Library --scaffold
 
@@ -27,18 +29,29 @@ and their comments, and runs on
 `fortrania --help` lists the options. At a prompt a word may be shortened
 to any start of it that is no other's: `fortrania t cs --name Example`.
 
-## What it translates
-
-Fixed-form FORTRAN 77, as far as the sources it was written for use it:
-subroutines and functions with their entry points, kept and initialized
-variables, character values, formatted and unformatted input and output,
-procedures passed as arguments. It refuses a program unit that uses what
-it does not translate yet, naming the construct and the line, and never
-writes part of one. `GO TO` and statement labels, `COMMON` and `COMPLEX`
-are among what it does not translate yet.
-
 To translate as a project builds, with no tool installed, use
 [Dracocephalum.Fortrania.Build](https://www.nuget.org/packages/Dracocephalum.Fortrania.Build).
 
-Documentation, the design and its reasons, and where to report a fault:
-<https://github.com/dracocephalum/dc-fortrania>.
+## What it does not do yet
+
+It translates fixed-form FORTRAN 77 as far as the sources it was written
+for use it: subroutines and functions with their entry points, kept and
+initialized variables, character values, formatted and unformatted input
+and output, procedures passed as arguments. `GO TO` and statement labels,
+`COMMON` and `COMPLEX` are among what it does not translate yet. It
+refuses a program unit that uses any of them, naming the construct and
+the line, and never writes part of one.
+
+## What it writes
+
+What this tool writes is made from what it was given, and carries the terms
+of that and not this package's.
+
+## Terms
+
+Apache-2.0, the text of which is at <https://www.apache.org/licenses/LICENSE-2.0>.
+
+## Where to ask
+
+Questions, faults and requests go to <https://github.com/dracocephalum/dc-fortrania/issues>.
+The design and its reasons are at <https://github.com/dracocephalum/dc-fortrania>.

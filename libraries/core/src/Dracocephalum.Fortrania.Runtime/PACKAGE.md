@@ -4,6 +4,8 @@ The library that C# translated from FORTRAN 77 by Fortrania calls as it
 runs. A translation refers to it; there is little reason to refer to it
 otherwise.
 
+## What it is
+
 It supplies what a FORTRAN program takes from its language and its
 compiler's library:
 
@@ -27,5 +29,17 @@ but the base class library. The translator and the runtime carry one
 version number: a translation runs on the runtime of the version that
 made it.
 
-Documentation and where to report a fault:
-<https://github.com/dracocephalum/dc-fortrania>.
+## What it does not do yet
+
+It has what the sources Fortrania was written for use, and not all of
+FORTRAN 77: `ENDFILE`, formatted input and output by record number and
+unformatted input and output in sequence are among what is missing, and
+the translator refuses a program that needs them.
+
+## Terms
+
+Apache-2.0, the text of which is at <https://www.apache.org/licenses/LICENSE-2.0>.
+
+## Where to ask
+
+Questions, faults and requests go to <https://github.com/dracocephalum/dc-fortrania/issues>.
