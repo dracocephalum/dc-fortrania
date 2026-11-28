@@ -251,7 +251,7 @@ as text and searched to decide a blank line is asked of the tree. It was
 moved a part at a time, each part checked by translating the reference
 sources and comparing every file with the one before. Passes change it
 before it is written: the layout of working buffers, the character
-constants' block, and two rewrites, below.
+constants' block, and the rewrites below.
 
 **Constants are joined when translating.** The values of literals and
 named constants are known then, so a concatenation of them alone is
@@ -404,6 +404,12 @@ says so:
 - **A method that ends by an exception stores nothing back.** That is a
   procedure it called stopping the program, after which FORTRAN has no
   values either.
+- **A local is read again after every statement that passes its address
+  on, whatever is called.** Leaving the reading out where the procedure
+  called only reads the argument was measured and gains nothing: a
+  bisection with one such reading taken out of each turn takes the same
+  time. A value kept across a call is read from memory after it in any
+  case, from the stack where not from behind its address.
 
 Measured in `tools/benchmarks`, `ScalarArgumentBenchmarks`, on the series
 of the reference sources' `STMP03`, two loops of nine turns over one
@@ -530,6 +536,15 @@ gains a second way beside it, under a remark that says so:
   reference sources have one such loop, `ISRCHI`, which the rest call
   to look a number up, and which took 1.6% and 3.3% of two profiles of
   their tests.
+- **The small routines for vectors and matrices are left to the
+  translator.** `VDOT`, `MXV`, `MXM`, `VCRSS` and their like could each
+  be a unit left out and written by hand with the framework's vectors.
+  Looked for in the same two profiles and not found: none of the four
+  takes a fiftieth of a percent as a method of its own, and of their like
+  only two show, at about one percent of one profile each. A routine this
+  small is written in line where it is called and its time counted there,
+  so this says that none is a place where time goes, and not that they
+  take none.
 
 **A library keeps its character constants in one block.** A constant
 written where it is used, as a literal of bytes whose address is taken,
@@ -1035,8 +1050,8 @@ item's call is the same call.
 **A main program is a method that takes nothing.** It is emitted like a
 subroutine, under the program's name, or `MAIN` where the source gives it
 none. What starts it is not the translated code's business: a host calls
-the method, and a program translated to run on its own is to get a `Main`
-that does.
+the method, and a project scaffolded as a program gets a `Main` that
+does.
 
 **What a program takes from its compiler's library, the context supplies.**
 Six procedures that no standard of the language defines are called by the

@@ -7,7 +7,9 @@ are built; the names are the ones the code is to use.
 
 When a section is built, its reasoning moves to [`DESIGN.md`](DESIGN.md) in
 the same change, and the section is deleted here. What is merely owed or
-undecided is in [`TODO.md`](TODO.md), not here.
+undecided is in [`TODO.md`](TODO.md), not here. The order things are to be
+done in, and what waits for what, is in [`ROADMAP.md`](ROADMAP.md), which
+names the sections here that hold each stage's detail.
 
 ## Text is UTF-8 bytes end to end
 
@@ -125,13 +127,14 @@ reading it, as `DESIGN.md` has under *A project is translated apart by
 the summaries of those it calls into*; *What is translated is set out in
 settings files, and the project is its own* says how each is described.
 
-A main program is a method like any other, which is built. Not built: when
-an executable is asked for, a `Main` is emitted that makes the context,
-gives it the console and the command line, lets it run commands, calls
-that method and returns the exit code. A library has none.
+A main program is a method like any other, and where a project is
+scaffolded as a program a `Main` is written that makes the context, gives
+it the console and the command line, lets it run commands, calls that
+method and returns the exit code: `DESIGN.md`, *A project file is written
+only when asked*. A library has none.
 
 `STOP` throws an exception of the runtime's, from any depth, and so does the
-`EXIT` the runtime supplies. The emitted `Main` catches it and returns its
+`EXIT` the runtime supplies. The `Main` catches it and returns its
 code; a program that hosts the library catches it like any other, and is not
 ended by a routine it called. The reference sources do end the program from
 library code: their default action on an error calls `EXIT`, and two files
@@ -189,13 +192,13 @@ available as a third choice for that purpose. Local variables differ: the
 reference build already leaves them unset on every call, so local arrays are
 not zeroed.
 
-Where the memory comes from is the context's allocator, under *How much
-goes on the stack is a setting*, *Memory comes from an allocator, in two
-layers*.
+Where the memory comes from is the context's, under *A context's native
+memory comes from one heap*.
 
-To be measured before the defaults are fixed: what an allocated and
-untouched block costs in physical memory on each platform, and what the
-test on entry costs in a routine of the 50.
+What an allocated and untouched block costs, and what the test on entry
+costs, were to be measured before the defaults are fixed, and are for
+Windows: *Measurements still to make*, *Saved state*, has the answers and
+what is left.
 
 ## One caller at a time, and a pool of contexts
 
@@ -422,9 +425,10 @@ several from them. Left to do:
 Built: `DESIGN.md`, *A project translates its FORTRAN as it builds*, has
 the package. Left to do:
 
-- **The translated library's repository taking it**, with its settings
-  files beside the project file of each project, and each project's
-  summary committed beside it.
+- **The translated library's repository committing what it writes.** It
+  takes the package, with its settings files beside the project file of
+  each project; what the build writes, each project's summary with it, is
+  ignored there until the translation is committed.
 - **Two settings files that name one download differently are refused**:
   the same variable naming the same folder with another address or hash.
   A run sees both and does not check yet; a build sees only the files of
@@ -461,13 +465,10 @@ reader of the host's. A further one is to turn what the toolkit writes to
 its error output into an exception, which interrupts where the original
 only informed, and so depends on how the code being run uses that output.
 
-Five things about files are decided and not built:
-
-- A program translated to run on its own has the console, as the FORTRAN
-  did: the `Main` the translator emits for an executable calls
-  `UseConsole`. A library leaves the screen and keyboard unset, and the
-  managed layer decides what it shows of what the toolkit writes there,
-  its error messages above all.
+A program translated to run on its own has the console, as the FORTRAN
+did; a library leaves the screen and keyboard unset, and the managed
+layer decides what it shows of what the program writes there, its error
+messages above all. Three things about files are decided and not built:
 
 - A program's contexts are to be configurable from the host's settings, the
   usual application settings among them. `FortranContextOptions` is what
@@ -549,9 +550,11 @@ else.
 translation emits calls the runtime's input and output by name, and what
 the translator is to add to an opening, the library and the unit, is in
 those calls, so a design that changes them changes every translation. It
-is designed and built in step 3 of *Before Fortrania is published*, with
-the optimizations, and the measurements of a profile of the toolkit's
-tests come first, since they say which of its paths are the short ones.
+is the first item of `ROADMAP.md`, *A first release*. The measurements
+that were to come first are made: in two profiles of the toolkit's tests
+the runtime's input and output took about one percent of the processor's
+time, with the files in memory, and what it costs with files on disk is
+still to be measured, as part of this.
 
 ## A setting for each variance from the reference compiler
 
@@ -639,9 +642,10 @@ The same arrangement serves the runtime: how a number is formatted, what
 list-directed output looks like and how an unformatted record is laid out
 are each a program and its output.
 
-It needs the emitter and enough of the runtime to print, so it starts when
-those exist. Until then the compiler is used by hand to settle single
-questions, and what it settles is recorded where the answer is used.
+It needs the emitter and enough of the runtime to print, which exist; it
+is the last part of `ROADMAP.md`, *All of FORTRAN 77*. Until then the
+compiler is used by hand to settle single questions, and what it settles
+is recorded where the answer is used.
 
 ## Before Fortrania is published
 
@@ -651,43 +655,20 @@ nothing of the toolkit's, so nothing stops it being published but its
 readiness.
 
 **Not before it has been tested on the toolkit, and made fast and clean.**
-In this order, because each step changes what the next one looks at:
+`ROADMAP.md`, *A first release*, has the order of what is left, and under
+*Done* what is behind it: the toolkit's tests agreeing with the reference
+compiler's build, the round for speed, and the command with its build
+package. Two things of that order are decided here:
 
-1. **The toolkit's tests agree with the reference compiler's build.** Done
-   for the outcome of every family and case. The check is the translated
-   library's and is run in its repository, since it needs the toolkit's
-   sources.
-2. **Agreement to the last digit**, over the main library's core routines.
-   Done by hand for some 25 of them; to become a job there, and to reach
-   further.
-3. **An optimization round**, for speed: the runtime's hot paths and the
-   code the translator emits, measured with a benchmark project as
-   `docs/rules/performance.md` asks, and the rewrites listed under *More
-   that the translator can write more simply*, which make the translator
-   an optimizer for what keeps the behaviour exactly. It is built on the
-   tree of *A tree between the analysis and the writers*, which comes
-   first, and each rewrite is a pass over it. Each change is held
-   to the same tests, so the first two steps say whether it changed a
-   result.
-4. **A cleanup round**, against the C# rules, after the optimization round
-   so that what it tidies is the code that stays. A published type is a
-   promise, so what is `public` is decided type by type here, the
-   translation settings above all.
-5. **The command**, `fortrania translate csharp`, published as a .NET
-   tool. Built; `DESIGN.md` has it under *The command is `fortrania`,
-   and its first word what to do*.
-6. **Which runtime a translation runs on.** Emitted code calls the
-   runtime's API, so a package's user has to know which runtime goes with
-   which translator. The rule already decided for a scaffolded library,
-   the runtime of the translator's own version, is to be the rule for the
-   packages: one version number for the two.
-
-**The command and the build package are taken ahead of the cleanup
-round.** The optimization round's three rewrites are done, and the
-translated library's repository waits for a translation it can commit
-and build on a server, which needs step 5, which is built, and then
-*Translating as a step of the build*. The cleanup round follows them, and still comes
-before anything is released.
+- **The cleanup round comes after the round for speed**, so that what it
+  tidies is the code that stays. A published type is a promise, so what
+  is `public` is decided type by type in it, the translation settings
+  above all.
+- **Which runtime a translation runs on.** Emitted code calls the
+  runtime's API, so a package's user has to know which runtime goes with
+  which translator. The rule already decided for a scaffolded library,
+  the runtime of the translator's own version, is to be the rule for the
+  packages: one version number for the two.
 
 **Development packages come before all of that.** The translated library
 is built in a repository of its own and takes the translator and the
@@ -726,24 +707,24 @@ templates of the agentics toolkit for every repository after this one.
 ## A tree between the analysis and the writers
 
 The emitter once turned the analysed program into C# text in one step, so
-that what it decided and what it wrote were mixed. The optimization round,
-step 3 of *Before Fortrania is published*, put a tree in between, and is
-built on it:
+that what it decided and what it wrote were mixed. The round for speed
+put a tree in between, and is built on it:
 
     parse → analyse → lower to the program tree → passes → a writer
 
 **The program tree is the program after lowering, with nothing of
 FORTRAN's left in it.** Blocks, assignments, calls, loops and
-conditionals; storage, as locals, saved state and common blocks; typed
+conditionals; storage, as locals and saved state; typed
 memory, as addresses and offsets; calls into the runtime, for text and
 for input and output; and comments, as nodes of their own, so that they
 pass through every stage. It is the translator's own, and so its shape is
 ours, which is why the emitter writes text and not the C# compiler's
 tree; see *Back ends beyond C# source*.
 
-**A pass takes a tree and gives one.** Four exist: the layout of working
-buffers, the character constants' block, and two of the rewrites under
-*More that the translator can write more simply*; `DESIGN.md` has each.
+**A pass takes a tree and gives one.** Five exist: the layout of working
+buffers, the character constants' block, equality of character values,
+the loops over an array done at once, and the scalars kept in locals;
+`DESIGN.md` has each.
 Still to become passes:
 
 - joining constants, which the emitter does as it builds the tree;
@@ -806,7 +787,9 @@ this section's plan:
   instance is made over its context, is still written as text.
 - **The settings name no pass of a user's own**, and the tree is not
   public. Two settings switch a pass of the translator's off,
-  `inlineTextConstants` and `plainArrayLoops`.
+  `inlineTextConstants` and `plainArrayLoops`, and a third,
+  `allowsArgumentAliasing`, the part of one that keeps arguments in
+  locals.
 
 Two things the first piece settled:
 
@@ -824,7 +807,7 @@ it is the published interface for tools of others: its types public in
 the translator's package, so that a .NET tool takes and gives trees in
 memory, and a JSON form over them for tools in other languages, with a
 schema and a version in each file. Each published node is a promise, and
-the reason this waits for the move to dc-fortrania and the cleanup round.
+the reason this waits for the cleanup round.
 After that, a translation's settings may name passes of a user's own, to
 run before or after a stage.
 
@@ -1041,15 +1024,6 @@ this list, for `DESIGN.md` where the answer shaped the code.
   calls, another project among them, so a library translated alone has
   to take such a call as writing what it is passed. A closer answer is
   for a program translated whole, which has every caller before it.
-- **The scalar locals around calls, by what the call does.** A local is
-  read again after every statement that passes its address on, whatever
-  is called; where the analysis says the procedure only reads the
-  argument, the reading again could go. Measured and not worth building:
-  the bisection of `SavedScalarBenchmarks` with the one such reading
-  taken out of each turn takes the same time, 0.92 of the time through
-  the block either way. A value kept across a call is read from memory
-  after it in any case, from the stack where not from behind its
-  address.
 - **Saved state.** The two questions at the end of *Saved state is placed
   at translation and loaded at run time*, answered on Windows and for the
   reference sources. The six largest blocks of their main library, 89 MB
@@ -1063,7 +1037,8 @@ this list, for `DESIGN.md` where the answer shaped the code.
 - **Records.** A record read by number is one system call, and one copy
   unless the item is the whole record. Kernel reading is made of these, so
   what a buffer of several records, or a mapped file, would save is the
-  first thing to measure once kernels load.
+  first thing to measure with the files on disk, as part of *Input and
+  output is to be looked at again as a whole*.
 - **Callbacks from native code.** What the two transitions cost when a C
   program passes one of the library's own exports as a callback, against
   the direct managed call, in a search that calls it per step.
@@ -1074,20 +1049,6 @@ this list, for `DESIGN.md` where the answer shaped the code.
   call to `fmod`, and SPICE reduces angles and times with it. `fmod` is
   exact, so only an exact form may take its place, or the results move;
   the question is whether one is faster.
-- **The toolkit's small vector and matrix routines.** `VDOT`, `MXV`,
-  `MXM`, `VCRSS` and their like are the most called arithmetic of the
-  toolkit, and the just-in-time compiler vectorizes no loop by itself.
-  Each could be a unit left out and written by hand with `Vector128` and
-  `Vector256`, provided its additions keep their order, so that the
-  results stay bit for bit; for three elements the gain may be small, and
-  a product of 3-by-3 matrices is the likelier case. Looked for in two
-  profiles of the reference sources' tests, the quick families and
-  fifteen that compute most, and not found: none of the four takes a
-  fiftieth of a percent as a method of its own, and of their like only
-  `XPOSEG` and `VPERP` show, at about one percent of the second profile
-  each. A routine this small is written in line where it is called, and
-  its time counted there, so this says that none is a place where time
-  goes and not that they take none. Not worth building on what is seen.
 
 The functions of the mathematical library are not among these. `SIN`,
 `EXP`, `ATAN2` and a real exponent call the platform's C runtime, as the
@@ -1372,8 +1333,15 @@ The translator is meant to cover the whole language in the end. What the
 reference sources do not use is left until the rest works, and until then
 each of these is reported as unsupported and never translated by guess:
 
-- `GO TO` in every form, statement labels as branch targets, and alternate
-  returns. The reference sources carry no statement label at all.
+- `GO TO` in every form, the arithmetic `IF`, statement labels as branch
+  targets, and alternate returns. The reference sources carry no statement
+  label at all.
+- `COMMON` and `BLOCK DATA`. The reference sources share nothing between
+  units but by arguments and by the entry points of one unit.
+- The `COMPLEX` type: a variable of it, and its arithmetic.
+- A function of the language passed as an argument.
+- `IMPLICIT` in any form but `IMPLICIT NONE`, `ASSIGN` and the `GO TO`
+  that goes with it, and `PAUSE`.
 - A `DO` that ends at a labelled statement. Every loop in the reference
   sources ends with `END DO`.
 - `FORMAT` statements. The reference sources give every format as a
