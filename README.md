@@ -1,5 +1,7 @@
 # dc-fortrania
 
+![Fortrania](docs/images/readme-banner.png)
+
 > Initialized with <https://github.com/dracocephalum/dc-agentics>. The
 > choices made, and the toolkit commit, are in
 > [`.agentics.yaml`](.agentics.yaml); open items are in [`TODO.md`](TODO.md).
