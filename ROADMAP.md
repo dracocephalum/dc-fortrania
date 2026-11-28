@@ -172,6 +172,10 @@ it needs.
   runtime written again in that language is the larger part. Not
   planned.
 - **Passes of a user's own**, once the tree is public.
+- **A managed layer over a translated library, made from a description**
+  of its routines and not written by hand. An idea, to be looked at when
+  the first such layer is wanted. `PENDING.md`, *A managed layer made
+  from a description*.
 
 **What the runtime offers.**
 

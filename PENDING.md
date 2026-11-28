@@ -1266,6 +1266,43 @@ Open:
   and a page that guessed would be wrong where it matters most. The page
   is to leave them for its owner and say that it has.
 
+## A managed layer made from a description
+
+An idea, not decided. A translated library takes addresses and lengths,
+as the FORTRAN did, and whoever publishes one writes a second layer over
+it for a .NET caller: one that takes strings, spans and ordinary types,
+pins what it is given, sizes the buffers for what comes back, checks the
+library's own error state and throws. Most of that follows, routine by
+routine, from the arguments and a few facts the source does not state.
+The translator could write the layer from a description that states
+them.
+
+- **What the translator already knows:** each routine's arguments, their
+  types and dimensions, and what the routine reads and writes through
+  each, which the analysis works out across the program.
+- **What a description would add:** which results have a length to be
+  sized and by what, which arguments belong together, the names a caller
+  is to see, which routines are left out, and how an error of the library
+  is found and what it becomes.
+- **Where it would be made:** as files beside the translation, by the
+  same run, so that a library and its layer cannot come apart; a routine
+  the description does not cover is written by hand in the same partial
+  class.
+
+It is to be looked at when the first such layer is wanted, which is the
+translated toolkit's, before that one is written by hand. Open:
+
+- **Whether a description is less work than the layer.** A library whose
+  routines follow a few shapes gains; one where each is its own case does
+  not, and the hand-written file is then the honest form.
+- **Whether it is the translator's or a plugin's**, given the tree a
+  plugin can reach.
+- **Under whose terms what is made stands.** It is made from a
+  description that is its owner's and from the translator's knowledge of
+  the sources' arguments, and not from the sources' text.
+- **What it costs a call**, measured in the benchmarks here, against the
+  same layer written by hand.
+
 ## FORTRAN 77 that Fortrania does not handle yet
 
 The translator is meant to cover the whole language in the end. What the
