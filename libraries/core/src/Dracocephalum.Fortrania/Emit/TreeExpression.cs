@@ -10,9 +10,9 @@ namespace Dracocephalum.Fortrania.Emit;
 /// takes one and gives another.
 /// </summary>
 /// <remarks>
-/// <c>PENDING.md</c>, <em>A tree between the analysis and the writers</em>,
-/// has the plan this is the first piece of: every expression the emitter
-/// makes is one of these, and statements are still written as text.
+/// <c>DESIGN.md</c>, <em>What emitted code looks like, and why</em>, has
+/// the tree this is the expressions of: every expression the emitter makes
+/// is one of these, and a statement holds them.
 /// </remarks>
 internal abstract record TreeExpression
 {

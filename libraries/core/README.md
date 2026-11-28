@@ -31,10 +31,12 @@ before:
 | Source form | physical lines | whole statements with their comments | done |
 | Lexer | a statement | tokens | done |
 | Parser | tokens | a syntax tree per program unit | done for every construct the reference sources use; [`PENDING.md`](../../PENDING.md) lists what is left |
-| Analysis | every program unit | symbols, types, and what each call does to its arguments | started: each unit has a symbol table that says what every name in it stands for, every expression is typed and checked against its place, and constant expressions are evaluated; each unit has a summary of how it is called and what it calls, every call is set against the procedure it reaches, and what each procedure reads and writes through its arguments is worked out across the program |
-| Emitter | the analysed program | C# source | started: subroutines and functions over integer, real, double precision, logical and character values, with their arrays, substrings, concatenation, loops, branches and calls of one another, and what a unit keeps between calls: saved and initialized variables, with a method for each `ENTRY`, statement functions, procedures passed as arguments, variables that share storage, and of input and output the statements that connect and inquire, unformatted records read and written by number, text read and written by a format or list-directed, to a file or a character variable, `BACKSPACE`, main programs, and the procedures a program takes from its compiler's library. Every program unit of the reference sources' main library is translated, and the translation compiles whole; what the language has beyond those is listed in [`PENDING.md`](../../PENDING.md) |
+| Analysis | every program unit | symbols, types, and what each call does to its arguments | done for what the reference sources use: each unit has a symbol table that says what every name in it stands for, every expression is typed and checked against its place, and constant expressions are evaluated; each unit has a summary of how it is called and what it calls, every call is set against the procedure it reaches, and what each procedure reads and writes through its arguments is worked out across the program |
+| Emitter | the analysed program | a program tree per unit | done for what the reference sources use: subroutines and functions over integer, real, double precision, logical and character values, with their arrays, substrings, concatenation, loops, branches and calls of one another, and what a unit keeps between calls: saved and initialized variables, with a method for each `ENTRY`, statement functions, procedures passed as arguments, variables that share storage, and of input and output the statements that connect and inquire, unformatted records read and written by number, text read and written by a format or list-directed, to a file or a character variable, `BACKSPACE`, main programs, and the procedures a program takes from its compiler's library. Every program unit of the reference sources' two libraries and of their test program is translated, and the translation gives the reference compiler's results; what the language has beyond those is listed in [`PENDING.md`](../../PENDING.md) |
+| Passes | a program tree | a program tree | five, each a change measured to be faster; [`DESIGN.md`](../../DESIGN.md) has each |
+| Writer | a program tree | C# source | done; it chooses spelling and layout and nothing else |
 
-The emitter refuses a program unit that uses what it does not translate yet,
+The translator refuses a program unit that uses what it does not translate yet,
 naming the construct and the line, and never writes a partial translation.
 
 Everything up to the emitter is independent of the output language, and the
@@ -60,11 +62,11 @@ The command is a .NET tool. From a build of this folder it runs as
 and, installed from its package, as
 
     dotnet tool install --global Dracocephalum.Fortrania.Cli
-    fortrania translate csharp --name <project> [settings]... [--summary <file>]
-                               [--reference <assembly or summary>]... [--plugin <assembly>]...
-                               [--force] [--fetch never|once|always] [--inventory <file>]
-                               [--namespace <namespace>]
-                               [--scaffold [--entry <program>] [--framework <framework>]]
+    fortrania translate csharp --name <project> [settings]...
+
+Run with nothing after its name it lists every option, and
+[`DESIGN.md`](../../DESIGN.md), *The command is `fortrania`, and its first
+word what to do*, has what each is for.
 
 The settings files named, or every `fortrania.json` and
 `*.fortrania.json` in the folder it is run in, are one project, named by
