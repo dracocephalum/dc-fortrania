@@ -68,10 +68,12 @@ numerical libraries of that time lean on the first two items below, which
 the reference sources happen never to use.
 
 - **`GO TO` in every form, statement labels, a `DO` that ends at a label,
-  the arithmetic `IF`, and alternate returns.** The largest part. The
-  target language cannot jump into a block, so a unit that does is
-  written another way; an entry point reached by a jump needs the form of
-  one body with a selector.
+  the arithmetic `IF`, and alternate returns.** The largest part, and
+  less than it looks: what FORTRAN 77 allows of a jump the target
+  language allows too, so most are written as jumps. It starts with a
+  count, over a few libraries, of which forms occur and where they land.
+  A jump into a block, which older code has, and an entry point reached
+  by a jump are the two that need a unit written another way.
 - **`COMMON` and `BLOCK DATA`.** Storage that several units share by its
   place and not by its name, and may each see as other types.
 - **`COMPLEX`**, its constants and its arithmetic.
@@ -86,7 +88,8 @@ the reference sources happen never to use.
   language is covered by tests of its own and not by one library's.
 
 It needs: *A first release*, so that the tree is finished and its passes
-are known to hold. `PENDING.md`, *FORTRAN 77 that Fortrania does not handle yet*,
+are known to hold. `PENDING.md`, *FORTRAN 77 that Fortrania does not handle yet*, *Jumps:
+what FORTRAN 77 allows is what the target language allows*,
 *Storage of two gigabytes or more in a program unit*, *Conformance tests
 against a reference compiler* and *A tree between the analysis and the
 writers*.

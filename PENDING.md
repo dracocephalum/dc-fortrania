@@ -1291,7 +1291,8 @@ each of these is reported as unsupported and never translated by guess:
 
 - `GO TO` in every form, the arithmetic `IF`, statement labels as branch
   targets, and alternate returns. The reference sources carry no statement
-  label at all.
+  label at all. *Jumps: what FORTRAN 77 allows is what the target
+  language allows*, below, has how each is to be written.
 - `COMMON` and `BLOCK DATA`. The reference sources share nothing between
   units but by arguments and by the entry points of one unit.
 - The `COMPLEX` type: a variable of it, and its arithmetic.
@@ -1315,6 +1316,95 @@ each of these is reported as unsupported and never translated by guess:
   which comes with `GO TO`. A method per entry point cannot hold it; such a
   unit needs the form `f2c` writes, one body with every entry's arguments
   and a selector that says where to start, and a thin method per entry.
+
+## Jumps: what FORTRAN 77 allows is what the target language allows
+
+Not built, and the first part of `ROADMAP.md`, *All of FORTRAN 77*. What
+follows is the ground it starts from. It is written from the language's
+standard and from what is known of the libraries, and nothing of it has
+been counted yet; the count is its first step.
+
+**Most of it is a jump in the target language too.** FORTRAN 77 does not
+let control pass into the range of a `DO` loop or into a block `IF` from
+outside it: a jump stays in its block or leaves for one that encloses it.
+C# has the same rule for `goto` and a label. A `goto` is a branch in the
+compiled code, and the just-in-time compiler finds loops from where
+control goes and not from how the source spells them, so a jump written
+as a jump costs nothing. No rewriting into loops is needed for the code to
+be right or fast.
+
+**The forms are few, and each has one way to be written.**
+
+| FORTRAN 77 | Written as |
+|---|---|
+| `GO TO 10` | `goto L10;` |
+| computed, `GO TO (10, 20, 30), I` | a `switch` on `I` whose cases jump; no case for a value outside the list, which goes on to the next statement |
+| arithmetic `IF (X) 10, 20, 30` | a test of the sign and three jumps |
+| assigned, `ASSIGN 10 TO K` and `GO TO K` | `K` holds a number the translator gives the label, and the jump is a `switch` over the labels the unit assigns |
+| `DO 10 I = 1, N` ... `10 CONTINUE` | a loop; a jump to `10` from inside it is the loop's `continue` |
+| `ERR=10`, `END=10` on a statement of input or output | a test of what the statement handed back, and a jump |
+| an alternate return, `CALL X(*10, *20)` with `RETURN 2` | the method gives back a number, and the caller switches on it |
+
+**Where a jump lands decides whether more is needed.** Crossed with the
+forms above, these are all the cases there are:
+
+| The label is | Needs |
+|---|---|
+| in the same block, or one that encloses the jump | nothing more |
+| the last statement of the loop the jump is in | `continue`, or a label at the loop's end |
+| the last statement of several nested loops at once, `DO 10` twice over one `10 CONTINUE` | a label for each loop's end, and the jump given the one of the loop it stands in |
+| among another entry point's statements | one body for the unit with a selector that says where to start, and a thin method for each entry, as *FORTRAN 77 that Fortrania does not handle yet* has it |
+| inside a block the jump is outside of | see below |
+
+**A jump into a block is not FORTRAN 77, and is met in older code.**
+FORTRAN 66 let control leave a `DO` loop and come back into it, and
+compilers have let more through. The target language refuses it. Such a
+unit can always be written as one loop around a `switch` on a variable
+that says which piece runs next; that is slower and reads badly, so it is
+for the units that need it and no others, and the translator says which
+those are. Whether to take such code at all, or refuse it and name the
+line, is decided when the count says how much of it there is.
+
+**What else has to hold.**
+
+- **The passes take a jump.** A scalar kept in a local is stored and read
+  around calls and returns, which a jump does not change. A loop that is
+  rewritten whole, a copy, a fill, a search, is one that no jump enters
+  or leaves but by its own statements, and is to be checked for that.
+- **A label nothing jumps to is not written**, and one that only a `DO`
+  names is the loop's end and no label at all.
+- **A label is followed by a statement** in the target language, an
+  empty one where the FORTRAN has `CONTINUE`.
+- **Output that reads as loops** where a jump is plainly one, the last
+  statement of a loop jumping to its first, is an option for later.
+  Decompilers and compilers to stack machines have published ways of
+  doing it; none is needed for the translation to be right.
+
+**First, a count.** Once the parser takes labels, a run over a few
+libraries that says how often each form occurs with each kind of
+landing, and names every unit with a jump into a block. It decides the
+order of the work and whether the last row above is built. It is a tool
+of this repository's and writes a table, nothing more.
+
+**What to translate and check against.** Each has tests of its own or
+values to compare; what is listed is from memory, and each one's terms
+are to be read before a translation of it is kept or handed out.
+
+| Sources | What they are | Why |
+|---|---|---|
+| NIST's FORTRAN 77 validation suite | some two hundred programs, each testing part of the language and saying whether it passed | every form of jump, among everything else; it is the language's own test |
+| BLAS and LAPACK | linear algebra | large test suites of their own |
+| MINPACK | least squares and systems of equations | small, dense with jumps, with programs that test it |
+| QUADPACK | integration | dense with jumps |
+| ODEPACK | differential equations | computed jumps throughout |
+| FFTPACK, EISPACK, LINPACK, SLATEC | transforms, eigenvalues, linear systems, and a collection | older styles, the arithmetic `IF` among them |
+| the IAU's SOFA, in FORTRAN 77 | the standards of fundamental astronomy | a test program with the values expected; its terms say how what is derived from it may be named |
+
+FORTRAN 77 has no `DO WHILE`, no `EXIT` and no `CYCLE`, so a loop that
+does not count, a loop left early and a turn skipped are each a jump in
+code that keeps to the standard: nearly every library of the time is full
+of them. The reference sources are the exception, by extensions their
+compilers all took and a rule of their authors' own.
 
 ## Storage of two gigabytes or more in a program unit
 
