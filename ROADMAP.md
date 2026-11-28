@@ -48,8 +48,11 @@ order, since each changes what the next looks at:
    translation reports is written to a file, and later has codes*.
 3. **Which runtime goes with which translator:** one version number for
    the two.
-4. **The release pipeline**, the packages' own readmes, and the check
-   that a released version is not built again; `TODO.md` has each.
+4. **The release pipeline**, which publishes the packages and attaches
+   the command, as a program that stands alone, to the release on the
+   repository's host; and the check that a released version is not built
+   again. `TODO.md` has each, and `PENDING.md`, *What the command does
+   not do yet*, the program.
 
 It needs: the translated library's repository to have committed a
 translation made with the packages, which is the proof that they serve.

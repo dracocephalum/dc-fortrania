@@ -1596,8 +1596,12 @@ layout already, for what is never published.
 - **Not a name made of the target**, as `f2c` and `f2j` are: that needs
   a name for each, and the obvious ones are not all free, `f2fs` being a
   file system and `f2` alone a tool that renames files. The short names
-  stay where they clash with nothing: a program standing alone may be
-  released as `f2cs`, and the project is tagged `f2cs` and `f2csharp`.
+  stay where they clash with nothing: the project is tagged `f2cs` and
+  `f2csharp`.
+- **One command, and no second name for it.** A tool package gives one
+  command, so a short name would be a second package to publish and to
+  keep in step, for what a start of each word already does at a prompt.
+  A program standing alone is named `fortrania` too.
 - **Messages go to the error stream** in the form a build reads, a file
   and its line, and the outcome to the output. It exits with zero when
   it did as asked, one when the settings or the translation failed, and
@@ -1735,3 +1739,12 @@ built and tested as a pull request and publishes nothing when it is
 merged. Neither is given a secret: the registry beside the repository
 takes the run's own token, which may write this repository's packages
 and is gone when the run ends.
+
+**A package has a page of its own.** `PACKAGE.md` beside a project file
+is packed as the package's `README.md`, which is what a registry shows of
+it. It is written for someone who has only the package: what it is, the
+few lines that use it, what it does not do yet, and whole addresses for
+the rest. The component's `README.md` is for someone in the repository,
+with links that hold only there, and is not packed. A change to a
+`PACKAGE.md` alone starts the pipeline that publishes, as no other
+document does, since it changes what a package holds.
