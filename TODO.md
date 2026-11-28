@@ -29,37 +29,18 @@ undecided adds it here rather than mentioning it once in a conversation.
       reference sources. The rules have been reworded, and `DESIGN.md` for
       the most part. Close by: each section reworded as it is next
       touched, or moved to `DESIGN.md` when it is built.
-- [ ] **Some sections of the plan describe what was since built another
-      way.** `PENDING.md` was groomed against the code once, and what
-      could be mended in a line was. These need rewriting from what is
-      built, and were left:
-      - *The translated layer passes pointers*: kept memory is the
-        context's and not the library instance's, a small local array is
-        on the stack or in the arena, `DATA` values are stored on a
-        unit's first call, and a character constant is a place in its
-        library's block.
-      - *What the translator is told*: written before settings files and
-        scaffolding; a project file is written only when asked, the
-        namespace is the project's name and the class a source's, and
-        the runtime is referred to as a package unless told otherwise.
-      - *The runtime can be handed out as source*: the compile rules are
-        built and the writing out is not, and source is no longer the
-        default for a program.
-      - *Text is UTF-8 bytes end to end*: the translator refuses a
-        character constant outside ASCII, and text stored to a field is
-        cut where the field ends, inside a character or not.
-      - *Working buffers: what is not built*: its allocator in two
-        layers, which gives blocks back, disagrees with *A context's
-        native memory comes from one heap*, where nothing is freed before
-        the context is; and its procedure that throws when called again
-        while it runs stands against what `DESIGN.md` says of calls that
-        come back into a unit.
-      - Said in more than one place: what a record costs to read, the
-        runtime as source, the page that cannot be touched around the
-        arena and the setting that clears every local, which are here
-        too, and the tunables of the first entry above.
-      Close by: each rewritten or cut when its stage of `ROADMAP.md` is
-      taken up, the first three with the cleanup round.
+- [ ] **Whether a routine called again while it runs is refused** is to
+      be decided again. `PENDING.md`, *Working buffers: what is not
+      built*, has why what was decided no longer stands and the three
+      answers there are. Close by: choosing one, before the first
+      release.
+- [ ] **The plan says some things in more than one place:** what a
+      record costs to read, under input and output, under the
+      measurements and under mapped files; the page that cannot be
+      touched around the arena and the setting that clears every local,
+      which are here too; and the tunables of the first entry above,
+      which the plan lists under its settings. Close by: each said once
+      and pointed at, as its stage of `ROADMAP.md` is taken up.
 - [ ] **Where the publishing pipeline runs.** `PENDING.md`, *Before
       Fortrania is published*, has what weighs in it. Close by: choosing,
       before the first release.
