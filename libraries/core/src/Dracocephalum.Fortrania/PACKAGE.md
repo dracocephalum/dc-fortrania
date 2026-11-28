@@ -14,8 +14,8 @@ Most uses want one of the two packages built on it and not this one:
 | translate as a project builds | [Dracocephalum.Fortrania.Build](https://www.nuget.org/packages/Dracocephalum.Fortrania.Build) |
 
 Refer to this one to run a translation from a program of your own, or to
-write a plugin, which takes part in a translation: before the sources are
-read, before the files are written and after.
+write a plugin, which takes part in a translation: before and after the
+sources are read, the program is analysed and the files are written.
 
     var result = Translator.Run(project, new TranslationOptions());
 

@@ -31,11 +31,10 @@ undecided adds it here rather than mentioning it once in a conversation.
       touched, or moved to `DESIGN.md` when it is built.
 - [ ] **Whether a chain of calls that returns to a unit is reported when
       translating.** What a routine called again while it runs meets is
-      decided, `PENDING.md`, *Working buffers: what is not built*: a unit
-      that calls itself is an error, one reached again through others
-      runs, and a setting has it throw. Left open there is a warning for
-      a chain the translator can prove. Close by: choosing, when the
-      error and the setting are built.
+      decided, `PENDING.md`, *Working buffers: what is not built*, and
+      all but the setting that has it throw is built. Left open there is
+      a warning for a chain the translator can prove. Close by: choosing,
+      when the setting is built.
 - [ ] **The plan says some things in more than one place:** what a
       record costs to read, under input and output, under the
       measurements and under mapped files; the page that cannot be
@@ -91,24 +90,26 @@ undecided adds it here rather than mentioning it once in a conversation.
 
 - [ ] **The arena of working buffers has nothing around it.** The runtime
       has the arena, `BufferArena`, with its regions and its copies, and
-      translated code keeps its buffers there where a context says. A page that cannot be touched at each
-      end of a block is decided and not built: it needs the operating
+      translated code keeps its buffers there where a context says. A
+      page that cannot be touched at each end of a copy is decided and
+      not built: it needs the operating
       system's own calls to protect memory, one way on Windows and
       another elsewhere, which the runtime has none of so far. Close by:
       the two pages, with a platform that has neither call left as it is
       now, and `docs/rules/portability.md` saying so.
-- [ ] **A call through an argument takes a whole block.** Each level of
-      such calls has a block as large as the first, every region in it,
+- [ ] **A call through an argument takes a whole copy of the arena.**
+      Each such call opens a copy as large as the first, every region in
+      it,
       113,528 bytes for the reference sources with their test program,
       though the procedure called and what it reaches mostly need a
       small part. Ways to take less, each with more code behind it: a
-      level sized by what the procedure called can reach, which the
-      translator knows for one of its own; levels that share one block
-      and start where the chain that led to the call ends, which needs
-      that end known when the call is made; or a level's block given
-      back when the outermost call returns. Close by: the bytes a
-      level really uses measured over the reference sources' tests, and
-      one of these taken if they are far below a block.
+      copy sized by what the procedure called can reach, which the
+      translator knows for one of its own; copies that share one piece
+      of memory and start where the chain that led to the call ends,
+      which needs that end known when the call is made; or a copy's
+      memory given back when the outermost call returns. Close by: the
+      bytes a copy really uses measured over the reference sources'
+      tests, and one of these taken if they are far below a whole one.
 - [ ] **A method too large for the just-in-time compiler to optimize
       takes a large frame, whatever the setting for working buffers.**
       Eight methods of the reference sources' test program are past the

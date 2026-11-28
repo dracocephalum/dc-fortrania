@@ -46,37 +46,6 @@ It is the same translation with tests added. The checked ways of reaching
 memory under *The language written and the safety of what is written are
 two choices* are another thing: they change how an argument is passed.
 
-## A library is one class, and a program unit one file of it
-
-The code translated from one set of sources is a single partial class, and
-each program unit adds its methods to it in a file of its own. An instance of
-the class is one independent copy of the library: every routine is an
-instance method, and everything the FORTRAN keeps between calls belongs to
-the instance. Being partial, the class also takes hand-written files, which
-is how a routine the translator is told to leave out is supplied.
-
-A library that calls another, as the toolkit's support library calls its
-main one, is a class of its own. Both are made over the one context of
-their program, and the second finds the first there, as `DESIGN.md` has it.
-They may be one project or two: two are translated apart, the first's
-summary kept beside its project file and the translation of the second
-reading it, as `DESIGN.md` has under *A project is translated apart by
-the summaries of those it calls into*; *What is translated is set out in
-settings files, and the project is its own* says how each is described.
-
-A main program is a method like any other, and where a project is
-scaffolded as a program a `Main` is written that makes the context, gives
-it the console and the command line, lets it run commands, calls that
-method and returns the exit code: `DESIGN.md`, *A project file is written
-only when asked*. A library has none.
-
-`STOP` throws an exception of the runtime's, from any depth, and so does the
-`EXIT` the runtime supplies. The `Main` catches it and returns its
-code; a program that hosts the library catches it like any other, and is not
-ended by a routine it called. The reference sources do end the program from
-library code: their default action on an error calls `EXIT`, and two files
-of the main library have a `STOP`.
-
 ## Saved state is placed at translation and loaded at run time
 
 Measured from the declarations of the main library: 327 of its 1,415 program
@@ -419,11 +388,16 @@ reference sources uses: 256 statements in 69 program units. Left for the
 rest of the reference sources and for other programs:
 
 - `ENDFILE`, which no source of the reference sources uses.
+- `END=` and `ERR=`, which are jumps and come with them: *Jumps: what
+  FORTRAN 77 allows is what the target language allows*.
+- A unit given otherwise than by an integer, and an `INQUIRE` that names
+  both a file and a unit.
 - Unformatted sequential access, and formatted direct access; `BACKSPACE`
   is translated for formatted sequential access only.
 - The other answers `INQUIRE` can give, and `BLANK` in `OPEN`.
-- In formats: `G`, `T`, `TL` and `TR`, `H`, `BZ`, `SP`, and a scale factor
-  with `F`. The runtime gives a format error for each.
+- In formats: `G`, `T`, `TL` and `TR`, `H`, `BN` and `BZ`, `S`, `SP` and
+  `SS`, and a scale factor with `F`. The runtime gives a format error for
+  each.
 
 **How the screen and keyboard are given to an instance** is to be looked at
 again with the managed layer. An instance starts with none, as a process
@@ -662,11 +636,9 @@ package. Two things of that order are decided here:
   tidies is the code that stays. A published type is a promise, so what
   is `public` is decided type by type in it, the translation settings
   above all.
-- **Which runtime a translation runs on.** Emitted code calls the
-  runtime's API, so a package's user has to know which runtime goes with
-  which translator. The rule already decided for a scaffolded library,
-  the runtime of the translator's own version, is to be the rule for the
-  packages: one version number for the two.
+- **Which runtime a translation runs on** is built: one version number
+  for the translator and the runtime, `DESIGN.md`, *A package's version
+  is in the code, and the build says what kind it is*.
 
 **Development packages come before all of that.** The translated library
 is built in a repository of its own and takes the translator and the
@@ -680,8 +652,8 @@ request and publish each merge are built; `DESIGN.md` has them under *A
 package's version is in the code, and the build says what kind it is*.
 Left:
 
-- **A publishing pipeline, started on purpose.** It builds what a release
-  names, and publishes to nuget.org with trusted publishing, which trades
+- **A publishing pipeline, started by a tag and by nothing else.** It
+  builds the commit the tag names, and publishes to nuget.org with trusted publishing, which trades
   a short-lived token for the pipeline's own identity, so that no API key
   is stored anywhere. nuget.org offers it to GitHub Actions; a publishing
   pipeline elsewhere, Azure DevOps say, would need a key, and that weighs
@@ -759,14 +731,6 @@ among them, and a pass lowers what it lacks into what it has before the
 writer sees the tree. Which differences the core holds and which a pass
 removes is what the hand-written samples are to settle.
 
-**Built a piece at a time, each piece checked against the output it
-replaces.** Expressions first, where most of the string handling is, with
-the present writing kept for statements in the meantime; then statements.
-The C# writer is to give the same files, byte for byte, as the emitter
-before it, over the toolkit's whole translation, so each step is checked
-by comparing two folders before any test is run, and the translation's
-time is measured before and after.
-
 **How far it is.** The tree is built, and `DESIGN.md` has it under *An
 expression is a tree before it is text* and *A program unit is a tree
 before it is a file*: the emitter makes a tree of each program unit, and
@@ -788,17 +752,6 @@ this section's plan:
   `inlineTextConstants` and `plainArrayLoops`, and a third,
   `allowsArgumentAliasing`, the part of one that keeps arguments in
   locals.
-
-Two things the first piece settled:
-
-- **The translator's own arithmetic is a node of its own.** An address, a
-  length or a position is a sum or a product of whole numbers that the
-  translator made up, where grouping does not matter and none is written;
-  the program's own operators keep theirs. A pass may fold the first kind
-  freely and the second not at all.
-- **Parentheses that must be written are in the tree**, the program's own
-  among them, since they fix how a real expression is evaluated. All
-  others are the writer's, from how strongly each node binds.
 
 **Opened to others last.** Once the tree has settled under the C# writer,
 it is the published interface for tools of others: its types public in
@@ -907,7 +860,8 @@ a translation is to do the same three.
 - **A unit that calls itself is refused when translating.** A call in a
   unit to the unit's own procedure, or to another of its entry points, is
   an error that names the line, as the reference compiler's is; a build
-  that translates fails with it. Not built: such a unit translates today.
+  that translates fails with it. Built: the analysis finds it as it
+  settles what each name of the unit stands for.
 - **A unit reached again through others runs.** It sees what the first
   call stored in what the unit keeps, as it does in the reference
   compiler's build, where kept state is static. Built: `DESIGN.md`, *A
@@ -1283,6 +1237,72 @@ to these rules, all of which hold today:
 The project that receives the files has to allow unsafe code, as the
 translated code needs in any case.
 
+## A library translated with Fortrania says so
+
+A library translated with Fortrania is published under a name of its own,
+by what it is and not by what made it. Its package has its own terms, its
+own version and its own support, and a name beneath Fortrania's would say
+of each what is not so: `DESIGN.md`, *A translation keeps the terms of
+its sources*. What makes such libraries one family is what each package
+says of itself. Not built, and to be before the first release, so that
+the first library another packs has it.
+
+- **The build package tags the package.** A project that translates as it
+  builds, and is packed, gets `fortrania` among its package's tags, so
+  that a search for the tag lists the family. A property of the project
+  turns it off.
+- **A scaffold writes the package's page.** Where `--scaffold` writes a
+  project file it writes a page for the package beside it, where there is
+  none, and the project file packs it. The page says the library was
+  translated with Fortrania and where that is, and has a place for each
+  thing its owner is to say: what the library is, what it does not do,
+  its terms and where to ask.
+- **Fortrania's `README.md` lists them**, a line each, by hand.
+
+Open:
+
+- **Whether the tag is added unless turned off, or only when asked for.**
+- **What the page says of the terms.** The translator cannot know them,
+  and a page that guessed would be wrong where it matters most. The page
+  is to leave them for its owner and say that it has.
+
+## A managed layer made from a description
+
+An idea, not decided. A translated library takes addresses and lengths,
+as the FORTRAN did, and whoever publishes one writes a second layer over
+it for a .NET caller: one that takes strings, spans and ordinary types,
+pins what it is given, sizes the buffers for what comes back, checks the
+library's own error state and throws. Most of that follows, routine by
+routine, from the arguments and a few facts the source does not state.
+The translator could write the layer from a description that states
+them.
+
+- **What the translator already knows:** each routine's arguments, their
+  types and dimensions, and what the routine reads and writes through
+  each, which the analysis works out across the program.
+- **What a description would add:** which results have a length to be
+  sized and by what, which arguments belong together, the names a caller
+  is to see, which routines are left out, and how an error of the library
+  is found and what it becomes.
+- **Where it would be made:** as files beside the translation, by the
+  same run, so that a library and its layer cannot come apart; a routine
+  the description does not cover is written by hand in the same partial
+  class.
+
+It is to be looked at when the first such layer is wanted, which is the
+translated toolkit's, before that one is written by hand. Open:
+
+- **Whether a description is less work than the layer.** A library whose
+  routines follow a few shapes gains; one where each is its own case does
+  not, and the hand-written file is then the honest form.
+- **Whether it is the translator's or a plugin's**, given the tree a
+  plugin can reach.
+- **Under whose terms what is made stands.** It is made from a
+  description that is its owner's and from the translator's knowledge of
+  the sources' arguments, and not from the sources' text.
+- **What it costs a call**, measured in the benchmarks here, against the
+  same layer written by hand.
+
 ## FORTRAN 77 that Fortrania does not handle yet
 
 The translator is meant to cover the whole language in the end. What the
@@ -1312,6 +1332,15 @@ each of these is reported as unsupported and never translated by guess:
 - A name starting with `E` or `D` directly after a length, as in
   `REAL*8 E1`, which the lexer reads as a number.
 - Tab-form source.
+- Smaller forms of what is otherwise translated: `STOP` with a character
+  constant; a `DATA` subscript or count that is not plain integer
+  arithmetic; a character function whose length the unit that calls it
+  does not fix; a concatenation of assumed length assigned to part of
+  itself; and a statement function that passes a procedure on, or calls
+  one its unit was passed.
+- The bit functions `BTEST`, `IBCLR`, `IBITS`, `IBSET` and `ISHFTC`,
+  which are not FORTRAN 77's but compilers of its time have. The
+  translator knows the names and refuses the calls.
 - A jump from the statements of one entry point into those of another,
   which comes with `GO TO`. A method per entry point cannot hold it; such a
   unit needs the form `f2c` writes, one body with every entry's arguments

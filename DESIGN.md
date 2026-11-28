@@ -99,9 +99,36 @@ then read back counts as read.
 ## What emitted code looks like, and why
 
 The emitter writes each program unit as methods of one partial class, every
-argument a pointer. `PENDING.md`, *A library is one class, and a program
-unit one file of it*, has the reasons for the class. These are the choices
-it made.
+argument a pointer. These are the choices it made.
+
+**A library is one class, and a program unit one file of it.** The code
+translated from one set of sources is a single partial class, and each
+program unit adds its methods to it in a file of its own. An instance of
+the class is one independent copy of the library: every routine is an
+instance method, and everything the FORTRAN keeps between calls belongs to
+the instance. Being partial, the class also takes hand-written files, which
+is how a routine the translator is told to leave out is supplied.
+
+A library that calls another, as the reference sources' support library
+calls their main one, is a class of its own. Both are made over the one
+context of their program, and the second finds the first there. They may
+be one project or two: two are translated apart, the first's summary kept
+beside its project file and the translation of the second reading it, as
+*A project is translated apart by the summaries of those it calls into*
+has it; *What is translated is set out in settings files, and the project
+is its own* says how each is described.
+
+A main program is a method like any other, and where a project is
+scaffolded as a program a `Main` is written that makes the context, gives
+it the console and the command line, lets it run commands, calls that
+method and returns the exit code. A library has none.
+
+`STOP` throws an exception of the runtime's, from any depth, and so does the
+`EXIT` the runtime supplies. The `Main` catches it and returns its
+code; a program that hosts the library catches it like any other, and is not
+ended by a routine it called. The reference sources do end the program from
+library code: their default action on an error calls `EXIT`, and two files
+of the main library have a `STOP`.
 
 **Every argument is an address.** A number or an array of numbers is a
 `double*`, `float*` or `int*`, a logical value an `int*`, and text a
@@ -253,14 +280,16 @@ are calls to the runtime, which pads the shorter with blanks as the language
 defines. A dummy argument takes its length from the caller even when its
 declaration fixes it, because the caller cannot know which it is.
 
-Three other forms were measured and not taken. An assignment whose lengths
+Two other forms were measured and not taken. An assignment whose lengths
 the translator knows could be a copy written in place of the call: it came
 to the same time at 8 and at 20 bytes, the compiler carrying the constants
 through the call by itself, and the call is what reads as the FORTRAN
-does. And `.EQ.` could have a test of its own that does not find the order
-of the two: it was no faster than the comparison, which is the framework's
-vectorized one, and a second function would have the rule on padding to
-keep in step with the first. And a copy for two values known not to
+does. One character assigned to one is the exception, and is a store. A
+test of equality that does not find the order of the two was first
+measured as no faster and left, and was taken later, when it was measured
+again on values that differ early: *Equality of character values is
+tested as equality* and *A short character value is assigned without the
+framework*, below. And a copy for two values known not to
 overlap, which need not look which way to go: against the runtime's own
 copy it was level at 4 bytes, 5% ahead at 8, 7% behind at 20 and 32 and
 13% behind at 100, and it would copy wrongly the day two values did

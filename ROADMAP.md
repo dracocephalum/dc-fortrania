@@ -46,8 +46,10 @@ order, since each changes what the next looks at:
    in one group; `TODO.md` has that entry. With it, **a file of what a run
    reported**, which a build says again: `PENDING.md`, *What a
    translation reports is written to a file, and later has codes*.
-3. **Which runtime goes with which translator:** one version number for
-   the two.
+3. **A translated library says what made it:** the build package tags
+   the package of a project it translates, and a scaffold writes that
+   package's page. `PENDING.md`, *A library translated with Fortrania
+   says so*.
 4. **The release pipeline**, which publishes the packages and attaches
    the command, as a program that stands alone, to the release on the
    repository's host; and the check that a released version is not built
@@ -81,8 +83,8 @@ the reference sources happen never to use.
   input and output not built yet.
 - **A procedure of the language passed as an argument**, and the smaller
   refusals the translator lists.
-- **A unit that calls itself refused, and a setting that has a unit
-  reached again throw**, as the reference compiler has both.
+- **A setting that has a unit reached again throw**, as the reference
+  compiler has one. A unit that calls itself is refused already.
 - **Storage of two gigabytes or more in a program unit.**
 - **Conformance tests against a reference compiler**, so that the
   language is covered by tests of its own and not by one library's.
@@ -170,6 +172,10 @@ it needs.
   runtime written again in that language is the larger part. Not
   planned.
 - **Passes of a user's own**, once the tree is public.
+- **A managed layer over a translated library, made from a description**
+  of its routines and not written by hand. An idea, to be looked at when
+  the first such layer is wanted. `PENDING.md`, *A managed layer made
+  from a description*.
 
 **What the runtime offers.**
 

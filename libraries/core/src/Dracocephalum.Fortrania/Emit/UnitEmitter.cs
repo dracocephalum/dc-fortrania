@@ -6,8 +6,8 @@ namespace Dracocephalum.Fortrania.Emit;
 
 /// <summary>
 /// Writes one program unit. Every argument is a pointer, as
-/// <c>PENDING.md</c> has it under <em>The translated layer passes
-/// pointers</em>: a variable is passed by its address, an array by the
+/// <c>DESIGN.md</c> has it under <em>What emitted code looks like, and
+/// why</em>: a variable is passed by its address, an array by the
 /// address of its first element, and a value that is neither through a
 /// local variable set aside for it.
 /// </summary>

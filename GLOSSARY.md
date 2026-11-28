@@ -28,12 +28,12 @@ where the code leans on it. Why something is as it is belongs in
 | Word | Meaning |
 |---|---|
 | Translator | The library that reads FORTRAN and writes C#: source form, lexer, parser, analysis and emitter. |
-| Emitter | The last stage of the translator, which writes C# source text. |
+| Emitter | The stage of the translator that decides how each program unit is done and makes its program tree. |
 | Stack use | What a call of a procedure can take from the stack: its own method's `stackalloc` bytes and those of the deepest chain of calls beneath it, the just-in-time compiler's frames left out. |
 | Working buffers | What a method needs only while it runs, its local arrays, character variables and places where values are joined, as against the saved state a unit keeps between calls. |
-| Block mode | A context's choice to keep working buffers at fixed places in a block it holds, laid out at translation, rather than on the stack, the stack mode. |
-| Region | The part of a context's block that the procedures of one translated project keep their working buffers in, each at its place. |
-| Level | One block of a context's working memory. A procedure called through an argument runs at the next level, so that it meets no buffer of the chain that led to it. |
+| Arena | Memory a context holds for working buffers, each at a place laid out at translation, as against the stack. A setting says which of the two a translation uses. |
+| Region | The part of a context's arena that the procedures of one translated project keep their working buffers in, each at its place. |
+| Copy (of the arena) | One of the arena's layers, opened one on top of another. A procedure called through an argument runs in the next copy, so that it meets no buffer of the chain that led to it. |
 | Program tree | A program unit once the emitter has decided how everything in it is done, with nothing of FORTRAN's left in it: a file of members, methods of statements, statements of expressions. It lies between the analysis and a writer. |
 | Text block | The character constants of one translated library, each once, as bytes its class keeps in the assembly. A method reaches a constant by where it starts in the block. |
 | Pass | A step that takes a program tree and gives one, an optimization or a lowering for a writer. |
