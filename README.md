@@ -24,8 +24,8 @@ A project's settings file names its sources, which may download
 themselves from an address and a hash the first time they are needed, and
 what to call the output. [`libraries/core/README.md`](libraries/core/README.md)
 has how the command and the build package are used, and
-[`DESIGN.md`](DESIGN.md), *What is translated is set out in settings
-files*, how a plugin takes part.
+[`DESIGN.md`](DESIGN.md), *What a translation does beyond translating is
+a plugin's*, how a plugin takes part.
 
 ## Where it stands
 
@@ -38,8 +38,8 @@ a release: nothing is on nuget.org, the builds of its default branch are
 not on a public registry, and what is public of its types is still to be
 decided. [`DESIGN.md`](DESIGN.md) says how it works and why,
 [`PENDING.md`](PENDING.md) what is planned, and [`TODO.md`](TODO.md) what
-is open; the order of what comes before a first release is in
-`PENDING.md`, *Before Fortrania is published*.
+is open; the order of what comes before a first release, and of the
+versions of the language after it, is in [`ROADMAP.md`](ROADMAP.md).
 
 ## What is in here
 

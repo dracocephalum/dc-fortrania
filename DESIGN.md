@@ -99,9 +99,71 @@ then read back counts as read.
 ## What emitted code looks like, and why
 
 The emitter writes each program unit as methods of one partial class, every
-argument a pointer; `PENDING.md` has the reasons for pointers and for the
-class, which are settled but not all built. What is built so far made these
-choices of its own.
+argument a pointer. `PENDING.md`, *A library is one class, and a program
+unit one file of it*, has the reasons for the class. These are the choices
+it made.
+
+**Every argument is an address.** A number or an array of numbers is a
+`double*`, `float*` or `int*`, a logical value an `int*`, and text a
+`byte*` with its length in bytes beside it, which is how FORTRAN itself
+passes a `CHARACTER` argument. Translated code calls translated code the
+same way. Addresses and not spans, because that is what the source
+language does:
+
+- A FORTRAN call passes an address and nothing else. A routine may be
+  handed `A(3)` and treat it as the start of an array, and many arrays
+  are declared with no size at all. A span needs a length that the source
+  does not have.
+- An array access stays an array access: `STATE(I)` becomes
+  `state[i - 1]`, so translated code can be read beside the routine it
+  came from.
+- The same array is often passed as both input and output, which an
+  address permits without ceremony.
+- An interface for callers outside .NET needs this shape anyway, and
+  becomes a forward of one line for each routine.
+- There is no bounds check, and one register for each argument.
+- Programs pass arguments that do not agree with what the procedure
+  declares, and an address honours each as the original does: a single
+  variable or a constant where an array is expected, a whole array where
+  one value is, a double precision array to a routine that moves
+  integers, a logical or double precision variable where an integer is
+  expected. Where the types differ the emitter casts the pointer. A
+  function called as a subroutine has its value dropped.
+
+**Nothing an address reaches may move.** What outlives a call, the
+variables a unit keeps and a local array too large for the stack, is
+native memory that the context owns and frees when it is disposed. A
+method's other arrays and character variables are on the stack or in the
+context's arena, as the context says. A managed array is never handed
+inward without being pinned for the length of the call, which is for
+whoever calls a translation from managed code to see to.
+
+**A character constant's address is taken as it stands.** The compiler
+stores the bytes of a `u8` literal in the assembly itself, and the span
+it yields points into the loaded image: memory that was never on the
+managed heap, so nothing can move it, and no `fixed` block is needed. A
+constant passed as an argument therefore costs nothing but its address.
+Measured on .NET 10.0.11, x64: the address was unchanged after five
+compacting collections, the page belonged to the assembly's image and was
+read-only, and the byte after the constant was zero. Three limits come
+with it:
+
+- It holds for as long as the assembly is loaded. Loaded into a
+  collectible context and unloaded, the image and every such address go
+  with it; a translation is not to be used that way.
+- It is not extended to an ordinary `string` literal, which lives on the
+  heap and stays put only by a detail of the implementation.
+- It is not extended to constant data wider than a byte. The image stores
+  such data little-endian, so on a big-endian machine it would have to be
+  converted. A number given as an argument is stored in a local of the
+  method and that local's address passed, and the values of `DATA`
+  statements are stored into a unit's block on its first call, which a
+  variable given a value by `DATA` needs in any case, being both writable
+  and the context's own.
+
+Being read-only is useful in itself: translated code that writes through
+the address of a constant, which FORTRAN forbids and faulty code does,
+stops at once and does not go on with a changed constant.
 
 **A value with no address is passed through an expression.** A constant or
 an expression given as an argument has to be stored somewhere its address can
@@ -221,6 +283,16 @@ does not grow the stack. A character function is handed the place for its
 result, of the length the calling unit declares for it, and gives the
 address back, which makes a reference to it a value like any other.
 
+**The bytes of a character value are UTF-8.** A `CHARACTER` value is a
+run of single bytes of a fixed length, and translated code works on runs
+of bytes. ASCII is already valid UTF-8 and no character of several bytes
+contains an ASCII byte, so a program's own parsing is unaffected, and
+text it does not inspect passes through intact. A .NET `string` exists
+only where the runtime meets the system: the name of a file it opens, the
+command line, the text of an exception. Nothing on a computation path
+converts to or from UTF-16, and every length is in bytes. `PENDING.md`,
+*Text outside ASCII is not handled yet*, has what is not built of it.
+
 **An expression is a tree before it is text.** The emitter does not write
 an expression: it builds one, of nodes that say what is computed and from
 where, a local, what lies at an address, an element so far on from one, an
@@ -251,7 +323,7 @@ as text and searched to decide a blank line is asked of the tree. It was
 moved a part at a time, each part checked by translating the reference
 sources and comparing every file with the one before. Passes change it
 before it is written: the layout of working buffers, the character
-constants' block, and two rewrites, below.
+constants' block, and the rewrites below.
 
 **Constants are joined when translating.** The values of literals and
 named constants are known then, so a concatenation of them alone is
@@ -404,6 +476,12 @@ says so:
 - **A method that ends by an exception stores nothing back.** That is a
   procedure it called stopping the program, after which FORTRAN has no
   values either.
+- **A local is read again after every statement that passes its address
+  on, whatever is called.** Leaving the reading out where the procedure
+  called only reads the argument was measured and gains nothing: a
+  bisection with one such reading taken out of each turn takes the same
+  time. A value kept across a call is read from memory after it in any
+  case, from the stack where not from behind its address.
 
 Measured in `tools/benchmarks`, `ScalarArgumentBenchmarks`, on the series
 of the reference sources' `STMP03`, two loops of nine turns over one
@@ -530,6 +608,15 @@ gains a second way beside it, under a remark that says so:
   reference sources have one such loop, `ISRCHI`, which the rest call
   to look a number up, and which took 1.6% and 3.3% of two profiles of
   their tests.
+- **The small routines for vectors and matrices are left to the
+  translator.** `VDOT`, `MXV`, `MXM`, `VCRSS` and their like could each
+  be a unit left out and written by hand with the framework's vectors.
+  Looked for in the same two profiles and not found: none of the four
+  takes a fiftieth of a percent as a method of its own, and of their like
+  only two show, at about one percent of one profile each. A routine this
+  small is written in line where it is called and its time counted there,
+  so this says that none is a place where time goes, and not that they
+  take none.
 
 **A library keeps its character constants in one block.** A constant
 written where it is used, as a literal of bytes whose address is taken,
@@ -1035,8 +1122,8 @@ item's call is the same call.
 **A main program is a method that takes nothing.** It is emitted like a
 subroutine, under the program's name, or `MAIN` where the source gives it
 none. What starts it is not the translated code's business: a host calls
-the method, and a program translated to run on its own is to get a `Main`
-that does.
+the method, and a project scaffolded as a program gets a `Main` that
+does.
 
 **What a program takes from its compiler's library, the context supplies.**
 Six procedures that no standard of the language defines are called by the

@@ -12,7 +12,8 @@ undecided adds it here rather than mentioning it once in a conversation.
 - [ ] **The translator's tunables lie loose among its settings.** What
       changes the code a translation writes, and not what is translated or
       where, sits at the root of the settings beside the paths and the
-      projects: `inlineTextConstants` and `plainArrayLoops` today, and
+      projects: `inlineTextConstants`, `plainArrayLoops` and
+      `allowsArgumentAliasing` today, and
       those the plan has to come, the run length a copy is done at once
       from, a translation fixed to one place for working buffers, the
       setting that clears or fills every local, and the warnings
@@ -25,9 +26,23 @@ undecided adds it here rather than mentioning it once in a conversation.
       `PENDING.md` was written beside the library Fortrania was made to
       translate, and says kernels, the kernel pool and the toolkit where a
       reader of this repository would say files, saved state and the
-      reference sources. The rules and `DESIGN.md` have been reworded.
-      Close by: each section reworded as it is next touched, or moved to
-      `DESIGN.md` when it is built.
+      reference sources. The rules have been reworded, and `DESIGN.md` for
+      the most part. Close by: each section reworded as it is next
+      touched, or moved to `DESIGN.md` when it is built.
+- [ ] **Whether a chain of calls that returns to a unit is reported when
+      translating.** What a routine called again while it runs meets is
+      decided, `PENDING.md`, *Working buffers: what is not built*: a unit
+      that calls itself is an error, one reached again through others
+      runs, and a setting has it throw. Left open there is a warning for
+      a chain the translator can prove. Close by: choosing, when the
+      error and the setting are built.
+- [ ] **The plan says some things in more than one place:** what a
+      record costs to read, under input and output, under the
+      measurements and under mapped files; the page that cannot be
+      touched around the arena and the setting that clears every local,
+      which are here too; and the tunables of the first entry above,
+      which the plan lists under its settings. Close by: each said once
+      and pointed at, as its stage of `ROADMAP.md` is taken up.
 - [ ] **Where the publishing pipeline runs.** `PENDING.md`, *Before
       Fortrania is published*, has what weighs in it. Close by: choosing,
       before the first release.

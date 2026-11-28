@@ -7,105 +7,44 @@ are built; the names are the ones the code is to use.
 
 When a section is built, its reasoning moves to [`DESIGN.md`](DESIGN.md) in
 the same change, and the section is deleted here. What is merely owed or
-undecided is in [`TODO.md`](TODO.md), not here.
+undecided is in [`TODO.md`](TODO.md), not here. The order things are to be
+done in, and what waits for what, is in [`ROADMAP.md`](ROADMAP.md), which
+names the sections here that hold each stage's detail.
 
-## Text is UTF-8 bytes end to end
+## Text outside ASCII is not handled yet
 
-A FORTRAN `CHARACTER` value is a fixed-length run of single bytes, and the
-translated code works on runs of bytes. Those bytes are defined to be UTF-8.
-ASCII is already valid UTF-8 and no multi-byte character contains an ASCII
-byte, so the toolkit's own parsing is unaffected and text it does not inspect
-passes through intact.
+`DESIGN.md`, *What emitted code looks like, and why*, has what is built: a
+`CHARACTER` value is a run of single bytes, the bytes are taken to be
+UTF-8, and a .NET `string` exists only where the runtime meets the
+system. Left to do:
 
-- The translator emits every string literal as a `u8` literal, which is
-  static data and costs no allocation.
-- A .NET `string` exists only at the boundary: in the managed API's
-  convenience overloads, and where the runtime opens a file and has to hand
-  the operating system a path. Nothing on a computation path converts to or
-  from UTF-16.
-- The checks the toolkit makes on its own inputs are kept as they are: text
-  stored in kernel files, time strings, and the ASCII-only matching of body
-  and frame names. Unicode is for what the toolkit carries without
-  interpreting, file paths above all.
-- Lengths are in bytes. The boundary refuses a string that would be cut in
-  the middle of a character rather than passing a broken one inward.
+- **A character constant with a character outside ASCII is refused.** It
+  is to be written as its UTF-8 bytes, as every other constant already
+  is. Its length is then its bytes and not its characters, where the
+  reference compiler counts whatever the encoding of its source file
+  makes of it; that is a variance, to be written down when this is
+  built.
+- **Text the runtime stores to a field is cut where the field ends**, the
+  command line and what else a context supplies from .NET strings:
+  inside a character of several bytes as readily as between two. It is
+  to be cut before such a character, with blanks after it, so that
+  nothing broken is passed inward.
 
-## The translated layer passes pointers
+## A checked build stands in for the bounds checks
 
-Every argument of a translated routine is a raw pointer: `double*` for a
-number or an array of them, `int*` for integers and logicals, and `byte*`
-with an explicit length in bytes for text, which is how FORTRAN itself passes
-a `CHARACTER` argument. Translated code calls translated code the same way.
+`DESIGN.md`, *What emitted code looks like, and why*, has why every
+argument is an address and what follows from it. Not built:
 
-Pointers and not spans, because that is what the source language does:
+A wrong index through a pointer corrupts memory silently, so a
+translator fault would surface far from its cause. Most arrays in a
+source do have declared dimensions, and in a checked build the translator
+emits a test of each index against them that fails at the faulty
+statement. The regression tests are to run against the checked build;
+the published package is the unchecked one.
 
-- A FORTRAN call passes an address and nothing else. A routine may be handed
-  `A(3)` and treat it as the start of an array, and many arrays are declared
-  with no size at all. A span needs a length that the source does not have.
-- An array access stays an array access: `STATE(I)` becomes `state[i - 1]`,
-  so translated code can be read beside the routine it came from.
-- The same array is often passed as both input and output, which a pointer
-  permits without ceremony.
-- A facade for callers outside .NET, C exports or COM, needs this shape
-  anyway and becomes a one-line forward per routine.
-- There is no bounds check and one register per argument.
-- The reference sources pass arguments that do not agree with what the
-  procedure declares, and a pointer honours each as the original does: a
-  single variable or a constant where an array is expected, a whole array
-  where one value is, a double precision array to a routine that moves
-  integers, a logical or double precision variable where an integer is
-  expected. Where the types differ the emitter casts the pointer. One
-  function entry is called as a subroutine; its value is dropped.
-
-A value that is not a variable, a constant or an expression, is copied to a
-temporary whose address is passed. When its type is not the one the procedure
-declares, as with a real constant given for a double precision argument in
-one test program, the temporary is at least as large as the declared type,
-so that the procedure never reads or writes past it; the original leaves
-what lies there to chance.
-
-Two obligations follow, and both are the design's to meet, not the caller's
-to remember.
-
-**Nothing a pointer reaches may move.** Storage that outlives a call, the
-`SAVE` variables of every routine and any large local array, is native
-memory owned by the library instance and freed with it. Small local arrays
-are `stackalloc`. A managed array is never handed inward without being
-pinned for the length of the call, which a managed layer over a translated
-library does on the caller's behalf.
-
-**A character constant is a `u8` literal, and its address is taken as it
-stands.** The compiler stores the bytes of a `u8` literal in the assembly
-itself, and the span it yields points into the loaded image: memory that was
-never on the managed heap, so nothing can move it, and no `fixed` block is
-needed. `CALL CHKIN ( 'SPKEZ' )` therefore passes a pointer at no cost.
-Measured on .NET 10.0.11, x64: the address was unchanged after five
-compacting collections, the page belonged to the assembly's image and was
-read-only, and the byte after the constant was zero. Three limits come with
-it:
-
-- It holds for as long as the assembly is loaded. Loaded into a collectible
-  context and unloaded, the image and every such pointer go with it; the
-  library is not to be used that way.
-- It is not extended to an ordinary `string` literal, which lives on the
-  heap and stays put only by an implementation detail.
-- It is not extended to constant data wider than a byte. The image stores
-  such data little-endian, so on a big-endian machine the runtime has to
-  hand back a converted copy made elsewhere. Numeric constants and the
-  values of `DATA` statements are copied into the instance's native memory
-  when the instance is created, which a `DATA`-initialized variable needs in
-  any case, being both writable and per instance.
-
-Being read-only is useful in itself: translated code that writes through a
-pointer to a constant, which FORTRAN forbids and faulty code does, stops at
-once and does not go on with a changed constant.
-
-**A checked build stands in for the bounds checks.** A wrong index through a
-pointer corrupts memory silently, so a translator fault would surface far
-from its cause. Most arrays in the source do have declared dimensions, and
-in a checked build the translator emits a test of each index against them
-that fails at the faulty statement. The regression tests run against the
-checked build; the published package is the unchecked one.
+It is the same translation with tests added. The checked ways of reaching
+memory under *The language written and the safety of what is written are
+two choices* are another thing: they change how an argument is passed.
 
 ## A library is one class, and a program unit one file of it
 
@@ -125,13 +64,14 @@ reading it, as `DESIGN.md` has under *A project is translated apart by
 the summaries of those it calls into*; *What is translated is set out in
 settings files, and the project is its own* says how each is described.
 
-A main program is a method like any other, which is built. Not built: when
-an executable is asked for, a `Main` is emitted that makes the context,
-gives it the console and the command line, lets it run commands, calls
-that method and returns the exit code. A library has none.
+A main program is a method like any other, and where a project is
+scaffolded as a program a `Main` is written that makes the context, gives
+it the console and the command line, lets it run commands, calls that
+method and returns the exit code: `DESIGN.md`, *A project file is written
+only when asked*. A library has none.
 
 `STOP` throws an exception of the runtime's, from any depth, and so does the
-`EXIT` the runtime supplies. The emitted `Main` catches it and returns its
+`EXIT` the runtime supplies. The `Main` catches it and returns its
 code; a program that hosts the library catches it like any other, and is not
 ended by a routine it called. The reference sources do end the program from
 library code: their default action on an error calls `EXIT`, and two files
@@ -189,13 +129,13 @@ available as a third choice for that purpose. Local variables differ: the
 reference build already leaves them unset on every call, so local arrays are
 not zeroed.
 
-Where the memory comes from is the context's allocator, under *How much
-goes on the stack is a setting*, *Memory comes from an allocator, in two
-layers*.
+Where the memory comes from is the context's, under *A context's native
+memory comes from one heap*.
 
-To be measured before the defaults are fixed: what an allocated and
-untouched block costs in physical memory on each platform, and what the
-test on entry costs in a routine of the 50.
+What an allocated and untouched block costs, and what the test on entry
+costs, were to be measured before the defaults are fixed, and are for
+Windows: *Measurements still to make*, *Saved state*, has the answers and
+what is left.
 
 ## One caller at a time, and a pool of contexts
 
@@ -321,59 +261,6 @@ line:
 - **Text, not objects.** `GETENV` gives text, so a value of any other type
   would be made text to reach it; a plugin that wants a number reads one.
 
-## What the translator is told
-
-Required: the source files, where their include files are, and where to
-write.
-
-With defaults: the namespace and the class name; whether the class and its
-methods are public or internal; the convention the procedures follow; the
-diagnostics each emitted file switches off for itself; library or
-executable; the runtime as a reference or as source; an interface to emit
-over the public routines; whether the comments of the source are carried
-over; and the placement of saved state, above.
-
-The convention is the shape procedures present to their callers, and it is
-a type a caller of the library can derive from, `EmitConvention`. Fortrania's
-own is the default and that of `f2c` is supplied, so that code written
-against that translator's output can call ours. It decides names, how a
-logical result comes back and where the length of a text argument goes, and
-is to decide one more thing when it is built: whether an argument the
-procedure never writes may be passed by value. Under `f2c` every argument
-stays a pointer.
-
-For a real project: the summaries of libraries the sources call into; the
-units to leave out because they are written by hand; and the settings for
-what differs by platform.
-
-These are too many for a command line, so they are read from a project file,
-with flags for the common ones.
-
-**With nothing but the required three, the result builds and runs.** The
-aim for any FORTRAN 77 program is that translating it and then running
-`dotnet run` in the output folder is all there is to do. So beside the code
-the translator writes a .NET project file, unless one is there already,
-which it never overwrites. The defaults that make this work:
-
-- Executable when the sources hold a main program, library when they hold
-  none. More than one main program is an error that asks which is meant.
-- The namespace and class name are taken from the main program's name, or
-  from the output folder's when there is none.
-- An include file is looked for beside the source that names it.
-- The project targets the framework of the SDK the translator runs on and
-  allows unsafe code.
-- An executable gets the runtime as source. Its project then references no
-  package at all, so the SDK alone builds and runs it, with nothing to
-  download. A library references the runtime package of the translator's
-  own version, so that the two always agree and several libraries in one
-  program share one runtime.
-- At run time the standard units are the console, a file name is relative
-  to the current folder, and the command line reaches the program through
-  the procedures the runtime supplies for it.
-
-This is also the path the conformance tests take: translate, run, and set
-the output against the reference compiler's.
-
 ## What the command does not do yet
 
 `DESIGN.md`, *The command is `fortrania`, and its first word what to
@@ -413,18 +300,97 @@ several from them. Left to do:
   into each test it emits and not leave it to the runtime's constant,
   so that a translation carries what it was tuned to. Not built until a
   platform is measured that wants another.
-- **The rest of what a translation is told**, under *What the translator
-  is told*: the convention, the diagnostics switched off, the runtime as
-  source, the placement of saved state.
+- **Whether a library's class and its methods are public or internal.**
+  They are public.
+- **The convention**, the shape procedures present to their callers. It
+  is built as a type a caller of the translator can derive from,
+  `EmitConvention`, with Fortrania's own as the default and that of `f2c`
+  supplied, so that code written against that translator's output can
+  call ours; it decides names, how a logical result comes back and where
+  the length of a text argument goes. A settings file cannot name one
+  yet. It is to decide one more thing: whether an argument the procedure
+  never writes may be passed by value, which *Measurements still to make*
+  has under *Arguments by value*. Under `f2c` every argument stays an
+  address.
+- **The diagnostics each emitted file switches off for itself**, which
+  are fixed.
+- **An interface over a library's public routines.**
+- **Whether the source's comments are carried over.** They always are.
+- **The placement of saved state**, under *Saved state is placed at
+  translation and loaded at run time*.
+- **The runtime as source**, under *The runtime can be handed out as
+  source*.
+
+## What a translation reports is written to a file, and later has codes
+
+A run's errors and warnings are lines of text today, each a file, a line
+and what is wrong, in the form compilers use, so that a build shows them
+against the FORTRAN source. Two things are to be built with the text as
+it is, and a third follows when it has been designed with care; none
+waits for another.
+
+**A run writes what it reported to a file**, in SARIF, the format the
+tools around a build read: the C# compiler writes it, an editor shows it,
+and a host of repositories shows its results on the lines of a pull
+request. The command takes where to write it, as it takes where the
+inventory goes. Each result has its level, the source file and line, and
+the text. A format of our own would be smaller and easier to read by eye,
+and was not taken: nothing would read it.
+
+**The build package says them again where it does not translate.** A
+project is translated only where something it was made from changed, and
+on every other build nothing runs to report anything, so a warning is
+seen once and then not again. The package is to read the file of the
+last run and report what it holds, as warnings of the build.
+
+**What a run finds beyond messages is in the file too:** the arguments a
+call passes as one storage, the arguments passed as another type than
+the procedure declares, and the variables that lie off their alignment,
+which only the translator's caller can ask for today. Each is a result
+of its own kind there, a note where it is no warning. How much stack
+each procedure can take is a table and not a finding, and goes to a file
+of its own if it is wanted.
+
+**Each kind of message is to have a code, errors and warnings alike.**
+Not before the set has been designed as a whole: a code is a promise,
+and the grouping has to make sense to someone who meets one number of
+it. Until then the text is all there is, in the lines and in the file,
+which holds a result without a code as readily as with one.
+
+- **The codes are Fortrania's own.** No standard gives FORTRAN's
+  messages codes: the language's standards number only what a statement
+  of input or output hands back as it runs, and leave those numbers to
+  each compiler; the reference compiler names its warnings by the option
+  that turns each on and gives its errors no name at all, and the codes
+  of other compilers are their own.
+- **`FTN` and digits**, for now; how many digits, and what the first of
+  them says, is part of the design.
+- **To be looked at first:** how the compilers and tools that have such
+  sets grouped theirs, and where the grouping served and where it was
+  outgrown; and every message Fortrania has, sorted by what a reader
+  does about it, which is what a group is for.
+- **What is settled of them:** a code never changes its meaning and is
+  never given to another message; a document lists each with what it
+  means and what to do about it; a message names its code as a build
+  expects, `file.f(845): warning FTN0000: ...`, so that a build's own
+  settings silence one or make it an error; and in the file the codes
+  are the rules, each with the address of its entry in the document.
+- **What a program does as it runs is not among them.** The status a
+  statement hands back stays the reference compiler's, as `DESIGN.md`
+  has it.
+
+The file and the build package's part belong to `ROADMAP.md`, *A first
+release*. The codes come when their design is done, before or after it.
 
 ## Translating as a step of the build
 
 Built: `DESIGN.md`, *A project translates its FORTRAN as it builds*, has
 the package. Left to do:
 
-- **The translated library's repository taking it**, with its settings
-  files beside the project file of each project, and each project's
-  summary committed beside it.
+- **The translated library's repository committing what it writes.** It
+  takes the package, with its settings files beside the project file of
+  each project; what the build writes, each project's summary with it, is
+  ignored there until the translation is committed.
 - **Two settings files that name one download differently are refused**:
   the same variable naming the same folder with another address or hash.
   A run sees both and does not check yet; a build sees only the files of
@@ -461,13 +427,10 @@ reader of the host's. A further one is to turn what the toolkit writes to
 its error output into an exception, which interrupts where the original
 only informed, and so depends on how the code being run uses that output.
 
-Five things about files are decided and not built:
-
-- A program translated to run on its own has the console, as the FORTRAN
-  did: the `Main` the translator emits for an executable calls
-  `UseConsole`. A library leaves the screen and keyboard unset, and the
-  managed layer decides what it shows of what the toolkit writes there,
-  its error messages above all.
+A program translated to run on its own has the console, as the FORTRAN
+did; a library leaves the screen and keyboard unset, and the managed
+layer decides what it shows of what the program writes there, its error
+messages above all. Three things about files are decided and not built:
 
 - A program's contexts are to be configurable from the host's settings, the
   usual application settings among them. `FortranContextOptions` is what
@@ -486,6 +449,36 @@ Five things about files are decided and not built:
   when it is next opened; a buffer has yet to show it
   is worth what it complicates, which is a file open in two units or two
   programs at once.
+
+**A file read from memory, loaded or mapped.** The runtime reads every
+file through `FortranFile`, which has a length and reads and writes at an
+offset, both `long`. A file whose bytes a host gives, and one written in
+memory, are built. Two more ways of having a file in memory are decided,
+each a region of memory behind the same contract: an address, a length,
+an owner that keeps the memory alive and is disposed with the file, and
+whether it may be written.
+
+- **Loading** takes a block the size of the file, aligned to a page, and
+  reads the file into it once, unbuffered where the system allows it, so
+  that a large file is not held in the system's file cache as well while
+  it is read. After that nothing is read from disk and no page fault
+  comes, which suits a program that uses most of a file and wants every
+  call to take the same time.
+- **Mapping** maps the file into memory, reads nothing at first and then
+  only the pages used, and shares them with other processes; it is
+  *Memory-mapped kernels*, below.
+
+A program still copies each record it reads into its own variables; what
+memory saves is the system call for each one. A pinned array holds at
+most about 2^31 elements, so under 16 GB of `long`; native memory and a
+mapping have no such limit.
+
+**A file written in memory is to grow past 2 GB.** The provider that
+keeps files in memory holds each in one array of bytes, so under 2 GB.
+Kept in an array of `long` a file reaches 16 GB, with every record
+starting on an 8-byte boundary; blocks from the context's heap, chained,
+have no limit at all. To be chosen when a file that size is first wanted,
+since the tests write nothing near it.
 
 ## Input and output is to be looked at again as a whole
 
@@ -549,9 +542,11 @@ else.
 translation emits calls the runtime's input and output by name, and what
 the translator is to add to an opening, the library and the unit, is in
 those calls, so a design that changes them changes every translation. It
-is designed and built in step 3 of *Before Fortrania is published*, with
-the optimizations, and the measurements of a profile of the toolkit's
-tests come first, since they say which of its paths are the short ones.
+is the first item of `ROADMAP.md`, *A first release*. The measurements
+that were to come first are made: in two profiles of the toolkit's tests
+the runtime's input and output took about one percent of the processor's
+time, with the files in memory, and what it costs with files on disk is
+still to be measured, as part of this.
 
 ## A setting for each variance from the reference compiler
 
@@ -639,9 +634,10 @@ The same arrangement serves the runtime: how a number is formatted, what
 list-directed output looks like and how an unformatted record is laid out
 are each a program and its output.
 
-It needs the emitter and enough of the runtime to print, so it starts when
-those exist. Until then the compiler is used by hand to settle single
-questions, and what it settles is recorded where the answer is used.
+It needs the emitter and enough of the runtime to print, which exist; it
+is the last part of `ROADMAP.md`, *All of FORTRAN 77*. Until then the
+compiler is used by hand to settle single questions, and what it settles
+is recorded where the answer is used.
 
 ## Before Fortrania is published
 
@@ -651,43 +647,20 @@ nothing of the toolkit's, so nothing stops it being published but its
 readiness.
 
 **Not before it has been tested on the toolkit, and made fast and clean.**
-In this order, because each step changes what the next one looks at:
+`ROADMAP.md`, *A first release*, has the order of what is left, and under
+*Done* what is behind it: the toolkit's tests agreeing with the reference
+compiler's build, the round for speed, and the command with its build
+package. Two things of that order are decided here:
 
-1. **The toolkit's tests agree with the reference compiler's build.** Done
-   for the outcome of every family and case. The check is the translated
-   library's and is run in its repository, since it needs the toolkit's
-   sources.
-2. **Agreement to the last digit**, over the main library's core routines.
-   Done by hand for some 25 of them; to become a job there, and to reach
-   further.
-3. **An optimization round**, for speed: the runtime's hot paths and the
-   code the translator emits, measured with a benchmark project as
-   `docs/rules/performance.md` asks, and the rewrites listed under *More
-   that the translator can write more simply*, which make the translator
-   an optimizer for what keeps the behaviour exactly. It is built on the
-   tree of *A tree between the analysis and the writers*, which comes
-   first, and each rewrite is a pass over it. Each change is held
-   to the same tests, so the first two steps say whether it changed a
-   result.
-4. **A cleanup round**, against the C# rules, after the optimization round
-   so that what it tidies is the code that stays. A published type is a
-   promise, so what is `public` is decided type by type here, the
-   translation settings above all.
-5. **The command**, `fortrania translate csharp`, published as a .NET
-   tool. Built; `DESIGN.md` has it under *The command is `fortrania`,
-   and its first word what to do*.
-6. **Which runtime a translation runs on.** Emitted code calls the
-   runtime's API, so a package's user has to know which runtime goes with
-   which translator. The rule already decided for a scaffolded library,
-   the runtime of the translator's own version, is to be the rule for the
-   packages: one version number for the two.
-
-**The command and the build package are taken ahead of the cleanup
-round.** The optimization round's three rewrites are done, and the
-translated library's repository waits for a translation it can commit
-and build on a server, which needs step 5, which is built, and then
-*Translating as a step of the build*. The cleanup round follows them, and still comes
-before anything is released.
+- **The cleanup round comes after the round for speed**, so that what it
+  tidies is the code that stays. A published type is a promise, so what
+  is `public` is decided type by type in it, the translation settings
+  above all.
+- **Which runtime a translation runs on.** Emitted code calls the
+  runtime's API, so a package's user has to know which runtime goes with
+  which translator. The rule already decided for a scaffolded library,
+  the runtime of the translator's own version, is to be the rule for the
+  packages: one version number for the two.
 
 **Development packages come before all of that.** The translated library
 is built in a repository of its own and takes the translator and the
@@ -726,24 +699,24 @@ templates of the agentics toolkit for every repository after this one.
 ## A tree between the analysis and the writers
 
 The emitter once turned the analysed program into C# text in one step, so
-that what it decided and what it wrote were mixed. The optimization round,
-step 3 of *Before Fortrania is published*, put a tree in between, and is
-built on it:
+that what it decided and what it wrote were mixed. The round for speed
+put a tree in between, and is built on it:
 
     parse → analyse → lower to the program tree → passes → a writer
 
 **The program tree is the program after lowering, with nothing of
 FORTRAN's left in it.** Blocks, assignments, calls, loops and
-conditionals; storage, as locals, saved state and common blocks; typed
+conditionals; storage, as locals and saved state; typed
 memory, as addresses and offsets; calls into the runtime, for text and
 for input and output; and comments, as nodes of their own, so that they
 pass through every stage. It is the translator's own, and so its shape is
 ours, which is why the emitter writes text and not the C# compiler's
 tree; see *Back ends beyond C# source*.
 
-**A pass takes a tree and gives one.** Four exist: the layout of working
-buffers, the character constants' block, and two of the rewrites under
-*More that the translator can write more simply*; `DESIGN.md` has each.
+**A pass takes a tree and gives one.** Five exist: the layout of working
+buffers, the character constants' block, equality of character values,
+the loops over an array done at once, and the scalars kept in locals;
+`DESIGN.md` has each.
 Still to become passes:
 
 - joining constants, which the emitter does as it builds the tree;
@@ -806,7 +779,9 @@ this section's plan:
   instance is made over its context, is still written as text.
 - **The settings name no pass of a user's own**, and the tree is not
   public. Two settings switch a pass of the translator's off,
-  `inlineTextConstants` and `plainArrayLoops`.
+  `inlineTextConstants` and `plainArrayLoops`, and a third,
+  `allowsArgumentAliasing`, the part of one that keeps arguments in
+  locals.
 
 Two things the first piece settled:
 
@@ -824,7 +799,7 @@ it is the published interface for tools of others: its types public in
 the translator's package, so that a .NET tool takes and gives trees in
 memory, and a JSON form over them for tools in other languages, with a
 schema and a version in each file. Each published node is a promise, and
-the reason this waits for the move to dc-fortrania and the cleanup round.
+the reason this waits for the cleanup round.
 After that, a translation's settings may name passes of a user's own, to
 run before or after a stage.
 
@@ -915,105 +890,62 @@ copy of the arena of its own. Left to do:
   let one routine overwrite another's buffers with nothing to see.
 - **The comparison to the last digit with the reference compiler's
   build**, which was not run again in the arena's mode.
-- **A routine called again while it runs throws**, below.
+- **A routine called again while it runs**, below.
 
-**A routine called again while it runs throws.** FORTRAN 77 does not allow
-it, and the toolkit's state is not made for it: a user function for
-`GFUDS` that calls `GFUDS` overwrites the search's saved state. Only a
-unit with saved state can be harmed, since its buffers are per call or
-per level, and only while a callback runs, so only a unit with `SAVE`
-state that can be running then carries a flag, a field of the instance:
+**A routine called again while it runs is treated as the reference
+compiler treats it.** FORTRAN 77 does not allow a procedure to call
+itself by any way round, and leaves that to the program: a compiler need
+not find it. The reference compiler does three things, tried with it, and
+a translation is to do the same three.
 
-    if (_running_GFUDS == _context.CallNumber)
+- **A unit that calls itself is refused when translating.** A call in a
+  unit to the unit's own procedure, or to another of its entry points, is
+  an error that names the line, as the reference compiler's is; a build
+  that translates fails with it. Not built: such a unit translates today.
+- **A unit reached again through others runs.** It sees what the first
+  call stored in what the unit keeps, as it does in the reference
+  compiler's build, where kept state is static. Built: `DESIGN.md`, *A
+  kept scalar is in a local while its method runs*.
+- **A setting has such a unit throw**, as the reference compiler's
+  `-fcheck=recursion` has it stop, for finding such a call in a program
+  thought to have none. Off unless asked for, since it refuses what the
+  reference compiler's build runs. Not built.
+
+What the setting writes: a flag of the instance for the unit, tested and
+set where a method of the unit starts and cleared before every return.
+
+- **Only where it can happen.** The translator already tells which units
+  a call can come back into, for the locals: those on a chain of calls
+  that returns to them, and those that can be running while a procedure
+  passed as an argument is called. Only those carry the flag, so a
+  project with neither is written the same with the setting as without.
+- **A flag an exception left set matches nothing.** The boundary numbers
+  each outermost call into a library, the flag holds that number and not
+  a yes, and a method compares it with the number of the call it is in;
+  so no method needs a `try` and a `finally` for it.
+
+    if (_running_SEARCH == _context.CallNumber)
     {
-        throw new FortranRecursionException("GFUDS");
+        throw new FortranRecursionException("SEARCH");
     }
 
-    _running_GFUDS = _context.CallNumber;
+    _running_SEARCH = _context.CallNumber;
 
-and before every return, `_running_GFUDS = 0;`. The boundary numbers
-each outermost call, so a flag an exception left set holds an old number
-and matches nothing: no `try`/`finally` is needed. The translator finds
-those units by the walk that makes the report: those on a chain to a call
-through a procedure argument.
+Not decided: whether a chain of calls the translator can prove returns to
+a unit is also reported when translating, as a warning that names the
+chain. It would cost a translation nothing as it runs, and is more than
+the reference compiler can say, which sees one file at a time.
 
-**Memory comes from an allocator, in two layers.** `IMemoryAllocator`
-hands out `MemoryBlock`s: a pointer, a length, the alignment asked for, 64
-bytes unless asked otherwise, and whether it is zeroed. Disposing a block
-gives it back, once however often it is disposed. It hands out large
-pieces only, the regions, the units' blocks of saved state and files
-loaded, never a method's buffers one call at a time.
-
-- **The shared allocator**, one for the process, is safe for any thread,
-  since contexts on every thread use it. It takes from native memory, or
-  from pinned arrays, `GC.AllocateUninitializedArray<byte>(size, pinned:
-  true)`, which never move and which the collector frees, offsetting
-  within the array where the alignment is above 8. It pools: a block given
-  back at or under a threshold, 1 MB unless set, goes to a list for its
-  size class, the powers of two, and is handed out again; a larger one goes
-  back to the system; a cap on the bytes pooled and a `Trim` keep an idle
-  process from holding memory. The framework's own array pool is not used,
-  since its arrays can be moved by the collector unless pinned for as long
-  as they are lent. Pooling pays here, where one context's blocks serve the
-  next across threads, which is how a pool of contexts comes and goes
-  cheaply; see *One caller at a time, and a pool of contexts*.
-- **Each context's allocator** stands in front of the shared one, with no
-  lock, since a context has one caller at a time. It keeps what the context
-  gives back while it lives, the regions of nesting levels after each
-  outermost call, and hands it out again; it goes to the shared allocator
-  only when it has nothing to give and when the context is disposed. Its
-  settings are its own: a threshold, a cap, or the host's own allocator
-  behind it. A lock left out saves little on allocations this rare; what
-  the layer gives is the reuse and the settings.
-
-**The settings can change while the program runs.** The runtime makes the
-shared allocator reachable, and its settings are one object that is never
-changed, only replaced whole; each allocation and each release reads it
-once, so changing them takes no lock, and one that races a change goes by
-the old settings or by the new. A block keeps its own size class,
-alignment and source, so a block taken under the old settings is given
-back rightly under the new ones. Lowering the threshold or the cap trims
-the pool to it, and turning pooling off empties it; blocks in use are not
-touched. A context's allocator takes the same settings object.
-
-**Saved state is zeroed, working buffers are not.** *Memory is zeroed
-unless asked otherwise*, under *Saved state is placed at translation and
-loaded at run time*, holds for the units' blocks. The regions of working
-buffers ask for memory unzeroed, which comes straight from the pool or the
-system, as `stackalloc` does under the class's `[SkipLocalsInit]`.
-
-**A file can be read from memory.** The runtime reads every file through
-`FortranFile`, which has a length and reads and writes at an offset, both
-`long`. One more implementation reads from a region of memory: a pointer,
-a length, an owner that keeps the memory alive and is disposed with the
-file, and whether it may be written. A provider gives names to regions,
-so that `FURNSH` of a name reads from memory. Two ways make a region:
-
-- **Loading** takes a block the size of the file from the shared
-  allocator, aligned to a page, and reads the file into it once, unbuffered
-  where the system allows it, so that a large file is not held in the
-  system's file cache as well while it is read. After that nothing is read
-  from disk and no page fault comes, which suits a program that uses most
-  of a file and wants every call to take the same time.
-- **Mapping** maps the file into memory, reads nothing at first and then
-  only the pages used, and shares them with other processes; it is
-  *Memory-mapped kernels*, below.
-
-SPICE still copies each record it reads into its own buffers; what memory
-saves is the system call for each one. A pinned array holds at most about
-2^31 elements, so under 16 GB of `long`; native memory and a mapping have
-no such limit. A DAF reaches its own limit near the same size, since its
-addresses count 8-byte words in a 32-bit integer. JPL's DE441 is 3.1 GB.
-
-**A file written in memory is to grow past 2 GB.** `MemoryFileProvider`,
-in `DESIGN.md`, keeps each file in one array of bytes, so under 2 GB. Kept
-in an array of `long` a file reaches 16 GB, which is the limit a DAF has
-anyway, and every record starts on an 8-byte boundary; blocks from the
-allocator, chained, have no limit at all. To be chosen when a file that
-size is first wanted, since the tests write nothing near it.
-
-How a name is given to one kind of file or another is under *Input and
-output is to be looked at again as a whole*.
+**Where the memory comes from** is under *A context's native memory comes
+from one heap*, which takes the place of an earlier plan here, an
+allocator in two layers. A block is asked for zeroed or not, what a unit
+keeps zeroed and working buffers not; nothing is given back before the
+context is disposed; and a pool shared between contexts belongs to the
+hosting package. One thing of the earlier plan is kept for that pool: its
+settings are one object that is never changed, only replaced whole, and
+each taking and each giving back reads it once, so that changing them as
+the program runs takes no lock, and a block taken under the old settings
+is given back rightly under the new.
 
 ## Measurements still to make
 
@@ -1041,15 +973,6 @@ this list, for `DESIGN.md` where the answer shaped the code.
   calls, another project among them, so a library translated alone has
   to take such a call as writing what it is passed. A closer answer is
   for a program translated whole, which has every caller before it.
-- **The scalar locals around calls, by what the call does.** A local is
-  read again after every statement that passes its address on, whatever
-  is called; where the analysis says the procedure only reads the
-  argument, the reading again could go. Measured and not worth building:
-  the bisection of `SavedScalarBenchmarks` with the one such reading
-  taken out of each turn takes the same time, 0.92 of the time through
-  the block either way. A value kept across a call is read from memory
-  after it in any case, from the stack where not from behind its
-  address.
 - **Saved state.** The two questions at the end of *Saved state is placed
   at translation and loaded at run time*, answered on Windows and for the
   reference sources. The six largest blocks of their main library, 89 MB
@@ -1063,7 +986,8 @@ this list, for `DESIGN.md` where the answer shaped the code.
 - **Records.** A record read by number is one system call, and one copy
   unless the item is the whole record. Kernel reading is made of these, so
   what a buffer of several records, or a mapped file, would save is the
-  first thing to measure once kernels load.
+  first thing to measure with the files on disk, as part of *Input and
+  output is to be looked at again as a whole*.
 - **Callbacks from native code.** What the two transitions cost when a C
   program passes one of the library's own exports as a callback, against
   the direct managed call, in a search that calls it per step.
@@ -1074,20 +998,6 @@ this list, for `DESIGN.md` where the answer shaped the code.
   call to `fmod`, and SPICE reduces angles and times with it. `fmod` is
   exact, so only an exact form may take its place, or the results move;
   the question is whether one is faster.
-- **The toolkit's small vector and matrix routines.** `VDOT`, `MXV`,
-  `MXM`, `VCRSS` and their like are the most called arithmetic of the
-  toolkit, and the just-in-time compiler vectorizes no loop by itself.
-  Each could be a unit left out and written by hand with `Vector128` and
-  `Vector256`, provided its additions keep their order, so that the
-  results stay bit for bit; for three elements the gain may be small, and
-  a product of 3-by-3 matrices is the likelier case. Looked for in two
-  profiles of the reference sources' tests, the quick families and
-  fifteen that compute most, and not found: none of the four takes a
-  fiftieth of a percent as a method of its own, and of their like only
-  `XPOSEG` and `VPERP` show, at about one percent of the second profile
-  each. A routine this small is written in line where it is called, and
-  its time counted there, so this says that none is a place where time
-  goes and not that they take none. Not worth building on what is seen.
 
 The functions of the mathematical library are not among these. `SIN`,
 `EXP`, `ATAN2` and a real exponent call the platform's C runtime, as the
@@ -1332,25 +1242,26 @@ finished, under *A tree between the analysis and the writers*:
 
 ## The runtime can be handed out as source
 
-Translated code needs the Fortrania runtime, and there are to be two ways to
-have it: a reference to the runtime assembly, or the runtime's own source
-files written out beside the translated ones, so that everything compiles
-into one assembly with no second file to ship. The second suits an
-executable, a plugin, a trimmed or ahead-of-time compiled program, and
-anyone who has to vet each dependency. Its cost is that a fix to the runtime
-reaches such a user only when the files are written out again. Source is
-the default for an executable and the reference for a library, for the
-reasons under *What the translator is told*; either can be asked for.
+Translated code needs the Fortrania runtime. `DESIGN.md`, *A project file
+is written only when asked*, has the ways that are built: its package in
+the translator's own version, which is the default for a library and a
+program alike, or a project. One more is decided and not built: the
+runtime's own source files written out beside the translated ones, so
+that everything compiles into one assembly with no second file to ship.
+It suits a program, a plugin, a trimmed or ahead-of-time compiled
+program, and anyone who has to vet each dependency. Its cost is that a
+fix to the runtime reaches such a user only when the files are written
+out again, so it is asked for and never the default.
 
-The runtime is its own project and assembly from the first day, never part
-of the translator, and translated code references nothing else of Fortrania.
-Its source files are embedded in the translator as resources, the very files
-the runtime assembly is compiled from, so there is no second copy to drift.
-An option of the command-line tool chooses between the two ways. A package
-that delivers the same files as source, for use without the tool, can follow.
+The runtime is its own project and assembly, never part of the
+translator, and translated code references nothing else of Fortrania. Its
+source files are to be embedded in the translator as resources, the very
+files the runtime assembly is compiled from, so that there is no second
+copy to drift, and a setting is to choose them. A package that delivers
+the same files as source, for use without the tool, can follow.
 
-For the files to compile in a project that is not ours, the runtime keeps to
-these rules:
+For the files to compile in a project that is not ours, the runtime keeps
+to these rules, all of which hold today:
 
 - It depends on nothing but the base class library.
 - Each file stands alone: it states its own `using` directives and nullable
@@ -1372,8 +1283,15 @@ The translator is meant to cover the whole language in the end. What the
 reference sources do not use is left until the rest works, and until then
 each of these is reported as unsupported and never translated by guess:
 
-- `GO TO` in every form, statement labels as branch targets, and alternate
-  returns. The reference sources carry no statement label at all.
+- `GO TO` in every form, the arithmetic `IF`, statement labels as branch
+  targets, and alternate returns. The reference sources carry no statement
+  label at all.
+- `COMMON` and `BLOCK DATA`. The reference sources share nothing between
+  units but by arguments and by the entry points of one unit.
+- The `COMPLEX` type: a variable of it, and its arithmetic.
+- A function of the language passed as an argument.
+- `IMPLICIT` in any form but `IMPLICIT NONE`, `ASSIGN` and the `GO TO`
+  that goes with it, and `PAUSE`.
 - A `DO` that ends at a labelled statement. Every loop in the reference
   sources ends with `END DO`.
 - `FORMAT` statements. The reference sources give every format as a

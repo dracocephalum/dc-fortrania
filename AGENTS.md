@@ -95,6 +95,7 @@ replace by excluding, amend by saying so in the document — *Precedence* in
 |---|---|
 | Meeting a word of this repository's you are not sure of, or about to name something | [`GLOSSARY.md`](GLOSSARY.md) — one line a word; use the word that is there before making another |
 | Making the runtime or translated code behave otherwise than the reference compiler or the reference toolkit does, or asked how it differs | [`VARIANCES.md`](VARIANCES.md) — every deliberate difference, with what the reference does, what this does and why; add the row in the change that makes it |
+| Asked what comes next, in what order, which versions of the language are to follow, or what a piece of work waits for | [`ROADMAP.md`](ROADMAP.md) — the stages in order, each a paragraph that names where its detail is; changed first when the order changes |
 | Building the translator or the runtime, or asked what is planned and how it is to be done | [`PENDING.md`](PENDING.md) — approaches decided ahead of the code; a section moves to `DESIGN.md` when it is built |
 
 ## Conventions
