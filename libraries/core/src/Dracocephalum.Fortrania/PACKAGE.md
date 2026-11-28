@@ -2,8 +2,9 @@
 
 Fortrania's translator as a library: it reads fixed-form FORTRAN 77 and
 writes C# that keeps the original routines, their names and their
-comments, and runs on
-[Dracocephalum.Fortrania.Runtime](https://www.nuget.org/packages/Dracocephalum.Fortrania.Runtime).
+comments.
+
+## What it is
 
 Most uses want one of the two packages built on it and not this one:
 
@@ -19,11 +20,27 @@ read, before the files are written and after.
     var result = Translator.Run(project, new TranslationOptions());
 
 `Translator.Run` takes one project or several, each described by its
-settings, and gives back what it wrote and what it reported.
+settings, and gives back what it wrote and what it reported. What it
+writes runs on
+[Dracocephalum.Fortrania.Runtime](https://www.nuget.org/packages/Dracocephalum.Fortrania.Runtime).
 
-It translates the FORTRAN 77 that the sources it was written for use, and
-refuses a program unit that uses what it does not translate yet, naming
-the construct and the line.
+## What it does not do yet
 
-Documentation, the design and its reasons, and where to report a fault:
-<https://github.com/dracocephalum/dc-fortrania>.
+It translates the FORTRAN 77 that the sources it was written for use.
+`GO TO` and statement labels, `COMMON` and `COMPLEX` are among what it
+does not translate yet, and it refuses a program unit that uses any of
+them, naming the construct and the line.
+
+## What it writes
+
+What this tool writes is made from what it was given, and carries the terms
+of that and not this package's.
+
+## Terms
+
+Apache-2.0, the text of which is at <https://www.apache.org/licenses/LICENSE-2.0>.
+
+## Where to ask
+
+Questions, faults and requests go to <https://github.com/dracocephalum/dc-fortrania/issues>.
+The design and its reasons are at <https://github.com/dracocephalum/dc-fortrania>.
